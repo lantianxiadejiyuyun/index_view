@@ -1,0 +1,8 @@
+{
+  "extensionDescription": {
+    "message": "本地加密、可自部署同步的密码管理器。密文传输，不主动收集任何数据。"
+  },
+  "extensionName": {
+    "message": "自部署密码管理器"
+  }
+}

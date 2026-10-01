@@ -1,0 +1,63 @@
+# 个人部署首页 —— Docker Compose
+#
+#   docker compose up -d          启动
+#   docker compose logs -f        看日志（首次启动会打印初始管理员账号）
+#   docker compose down           停止（数据保留在 ./data）
+#
+# 所有数据都在 ./data 里：数据库、上传的图标壁纸、笔记。
+# 备份 = 复制这个目录。
+
+services:
+  home-dashboard:
+    build: .
+    image: home-dashboard:latest
+    container_name: home-dashboard
+    restart: unless-stopped
+
+    ports:
+      # 左边是宿主机端口，想换端口只改左边，例如 "8080:9200"
+      - "9200:9200"
+
+    environment:
+      PORT: 9200
+      HOST: 0.0.0.0
+      DATA_DIR: /data
+
+      # ── 首次启动时创建的管理员账号（之后改这里无效）──
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: admin123
+
+      # ── 安全 ──
+      # 用 HTTPS 反代访问时打开它，让 refresh Cookie 带上 Secure
+      # COOKIE_SECURE: "true"
+      # 默认要求登录。想让别人也能看你的导航页时改成 "true"
+      PUBLIC_VIEW: "false"
+      # 自建订阅源在内网时才需要开启；默认只允许公网订阅 URL。
+      SUBSCRIPTIONS_ALLOW_PRIVATE_NETWORK: "false"
+
+      # 高级：想手工固定密钥就填这里（留空则首次启动自动生成并存库）
+      # JWT_SECRET: ""
+      # AGENT_TOKEN: ""
+
+    volumes:
+      - ./data:/data
+      # 想把笔记放进已有的同步盘（群晖/威联通/OneDrive 挂载点等），
+      # 打开下面这行并改成你的真实路径。笔记是纯 .md 文件，
+      # 指过去之后网盘同步就等于笔记同步。
+      # - /volume1/homes/me/notes:/data/notes
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9200/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 8s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # 想用 https 反代时通常不需要对外暴露，交给 nginx 走同一个 docker 网络即可。
+    # 简单场景直接映射端口 + nginx 反代宿主机端口就行。

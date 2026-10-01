@@ -1,0 +1,9 @@
+{
+  "services": [
+    { "name": "我的博客", "port": 8080, "scheme": "http", "path": "/", "health_path": "/" },
+    { "name": "NAS 面板", "port": 5001, "scheme": "https", "path": "/" },
+    { "name": "内部 Wiki", "port": 3000, "scheme": "http", "path": "/wiki", "health_path": "/wiki/" },
+    { "name": "代码仓库", "port": 3001, "scheme": "http", "path": "/" },
+    { "name": "路由器后台", "port": 80, "scheme": "http", "path": "/" }
+  ]
+}

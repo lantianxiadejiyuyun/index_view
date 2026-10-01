@@ -1,0 +1,47 @@
+# ────────────────────────────────────────────────────────────────
+# 构建上下文里不需要的东西 —— 少传 140 MB+，构建快很多
+#
+# 镜像里该有的东西都是**在容器内**重新生成的：
+#   node_modules   → pnpm install
+#   app/web/dist   → pnpm -F web build
+#   app/server/dist→ pnpm build:bundle（运行阶段只从 builder 取 bundle.mjs）
+# 而下面这些是**本机的东西，绝不能进镜像**（尤其是 data/，里面有密钥和上传的图）。
+# ────────────────────────────────────────────────────────────────
+node_modules
+**/node_modules
+
+.tmp
+.git
+
+# 运行时数据：数据库（含 jwt_secret / 密码）、上传的图片、笔记
+app/server/data
+
+# 构建产物：容器里自己会构建
+app/web/dist
+app/server/dist
+
+# 打包产物 / 日志 / 本地环境
+*.zip
+*.log
+.env
+.env.local
+
+# Local-only configuration and keys
+.env.*
+!.env.example
+!.env.*.example
+**/agent-key
+**/agent-key.*
+**/services.json
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.sqlite*
+.sanitize.local.json
+backups
+notes
+uploads

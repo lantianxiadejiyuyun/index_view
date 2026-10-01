@@ -1,0 +1,101 @@
+# ────────────────────────────────────────────────────────────────
+# 探针（agent）的 Docker 部署示例 —— 给「有 Docker、没有 Node」的机器用
+#
+#   cd agent            # 本文件所在目录（构建上下文就是这里）
+#   改下面的 AGENT_TOKEN
+#   docker compose up -d --build
+#
+# 起来之后：登录首页 →「服务器面板」→ 会看到这台机器是「待批准」→ 点「批准」，
+# 最多 10 秒就开始上报（探针不用重启）。
+#
+# 同一份 compose 也可以直接拷到 NAS 上（例如 /docker/hd-agent/），
+# 但要记得把 node/index.mjs 一起放过去 —— 构建上下文里少了它镜像就构不出来。
+# ────────────────────────────────────────────────────────────────
+services:
+  hd-agent:
+    build: .
+    image: home-dashboard-agent:latest
+    container_name: hd-agent
+
+    # 网络用 host，三个理由，缺一不可：
+    #  1. 端口扫描读的是「本进程所在网络命名空间」的监听表。桥接网络里
+    #     只能看到容器自己（一个端口都没有），扫出来是空的。
+    #  2. 网速读 /proc/net/dev，桥接网络里看到的是 veth，不是这台机器的网卡。
+    #  3. 拉模式要求主程序能连到 9201；host 网络才不用手动映射端口。
+    network_mode: host
+
+    restart: unless-stopped
+
+    # 容器里的 hostname 默认是容器 ID，面板上「主机名」那一栏会变成一串随机字符。
+    # 共用宿主的 UTS 命名空间就正常了（探针本来就是在报这台机器）。
+    uts: host
+
+    environment:
+      # 【必填】首页 →「设置」→「探针令牌」（或 GET /api/agent-token）
+      AGENT_TOKEN: "${AGENT_TOKEN:?Set AGENT_TOKEN in a local environment file}"
+
+      # 【推模式】主程序在公网、这台机器在 NAT 后面 → 填上主程序地址。
+      # 探针会主动往外连，不需要任何入站端口；同一内网可以留空走拉模式。
+      AGENT_SERVER: "${AGENT_SERVER:?Set AGENT_SERVER to your HTTPS site}"
+
+      # 面板里显示的节点名（只在第一次登记时生效，之后改面板上的名字为准）
+      AGENT_NAME: "fnOS NAS probe"
+
+      # 上报间隔（秒），下限 5
+      AGENT_INTERVAL: "10"
+
+      # 订阅中心选择本探针后才会领取代拉任务，默认只访问公网源站。
+      # 仅自建内网订阅或明确使用 TUN fake-IP 时，才取消注释并设为 true。
+      # AGENT_SUBSCRIPTION_ALLOW_PRIVATE_NETWORK: "true"
+
+      # 监听端口，默认 9201。注意 host 网络下这是宿主机端口，别和别的服务撞
+      PORT: "9201"
+
+      # 绑定网卡。填这台机器的内网 IP。
+      # 为什么不交给探针自动挑：这台机器上还有 docker0、veth、隧道网卡，
+      # 自动挑有挑错的可能（挑到 docker0 就等于内网谁也连不上）。
+      # 顺带的好处：镜像里的健康检查用的就是这个值，填了 docker compose ps 才显示 healthy。
+      # IP 变了就跟着改；拿不准可以删掉这一行，改回自动挑选。
+      HOST: "192.168.1.10"
+
+      # 磁盘上报哪几块。不指定的话会用容器自己的挂载表，报上来是
+      # `/`、`/data`、`…/overlay2/<hash>/merged` 这种容器路径 ——
+      # 名字没法看，而且好几项其实是同一块盘。这里显式指定绑进来的宿主机盘。
+      # 格式：`路径[=显示名]`，逗号分隔；路径必须是容器里能看到的挂载点。
+      AGENT_DISK_MOUNTS: "/host/etc=系统盘, /host/vol1=数据盘"
+
+      # 只放行这些来源 IP（逗号分隔）。留空 = 不限制。
+      # 注意要把「主程序所在机器的内网 IP」写进去，否则首页拉不到它。
+      # AGENT_ALLOW_IPS: "192.168.1.10"
+
+      # 服务清单：想在首页显示「飞牛面板」这种漂亮名字就挂一份（见下面的 volumes）
+      # AGENT_CONFIG: "/data/services.json"
+
+    volumes:
+      # 专属密钥。不持久化的话每次重建容器都要重新 enroll + 重新批准一次
+      - ./data:/data
+
+      # 机器的稳定标识。探针的 agent_id 取 /etc/machine-id 的哈希，
+      # 而镜像里**没有**这个文件 —— 不挂进去就会退化成用 hostname 算，
+      # 于是每次重建容器都变成「一台新机器」，面板上多一条待批准，旧的永远离线。
+      - /etc/machine-id:/etc/machine-id:ro
+
+      # 只读挂进宿主机的盘：容器自己的 / 是 overlay，
+      # 不挂的话面板上那格「磁盘」显示的是容器镜像层，不是这台机器的盘。
+      #
+      # 这里挂了两个路径，都是给 AGENT_DISK_MOUNTS 量尺寸用的：
+      #   /etc  → 位于系统盘（飞牛上 /dev/sda2），量出来就是系统盘的占用。
+      #           挂 /etc 而不是挂 /，是因为只需要「一个位于那块盘上的路径」，
+      #           statfs 就够，没必要把整个根目录暴露给容器。
+      #   /vol1 → 数据盘。群晖换成 /volume1，威联通换成 /share。
+      # 想要别的盘就再加一行，并把路径加进上面的 AGENT_DISK_MOUNTS。
+      - /etc:/host/etc:ro
+      - /vol1:/host/vol1:ro
+
+      # 服务清单（可选）：把 services.json 放在本文件旁边即可
+      # - ./services.json:/data/services.json:ro
+
+    # 想更严格可以再加这两条：只读根文件系统 + 非 root 运行。
+    # 用非 root 之前记得先把 data 目录 chown 1000:1000，否则密钥写不进去。
+    # read_only: true
+    # user: "1000:1000"

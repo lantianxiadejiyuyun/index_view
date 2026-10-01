@@ -1,0 +1,8 @@
+{
+  "extensionDescription": {
+    "message": "A locally encrypted password vault with optional self-hosted sync. Encrypted transfers, no telemetry."
+  },
+  "extensionName": {
+    "message": "Self-hosted Password Manager"
+  }
+}

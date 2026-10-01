@@ -1,0 +1,8 @@
+{
+  "extensionDescription": {
+    "message": "在本機加密、可同步至自架伺服器的密碼管理器。加密傳輸，不主動收集任何資料。"
+  },
+  "extensionName": {
+    "message": "自架密碼管理器"
+  }
+}

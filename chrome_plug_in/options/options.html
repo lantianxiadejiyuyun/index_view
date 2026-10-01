@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title data-i18n="密码管理器 · 设置">密码管理器 · 设置</title>
+  <link rel="stylesheet" href="../ui/ui.css" />
+</head>
+<body class="settings-page">
+<div class="settings-shell">
+  <aside class="settings-sidebar">
+    <a class="sidebar-brand" href="#settings-overview">
+      <img src="../icons/icon48.png" width="40" height="40" alt="" />
+      <span data-i18n="密码管理器">密码管理器</span>
+    </a>
+    <p class="sidebar-caption" data-i18n="设置中心">设置中心</p>
+    <nav class="settings-nav" aria-label="设置导航" data-i18n-aria-label="设置导航">
+      <a href="#settings-overview" class="active"><span class="nav-index" aria-hidden="true">01</span><span data-i18n="概览">概览</span></a>
+      <a href="#preferences-section" data-unlocked-nav class="hidden"><span class="nav-index" aria-hidden="true">02</span><span data-i18n="安全与锁定">安全与锁定</span></a>
+      <a href="#sync-section" data-unlocked-nav class="hidden"><span class="nav-index" aria-hidden="true">03</span><span data-i18n="服务器与同步">服务器与同步</span></a>
+      <a href="#master-section" data-unlocked-nav class="hidden"><span class="nav-index" aria-hidden="true">04</span><span data-i18n="主密码">主密码</span></a>
+      <a href="#backup-section"><span class="nav-index" aria-hidden="true">05</span><span data-i18n="备份与恢复">备份与恢复</span></a>
+    </nav>
+    <div class="sidebar-note"><span class="sidebar-dot" aria-hidden="true"></span><span data-i18n="本机加密 · 你的服务器 · 你的数据">本机加密 · 你的服务器 · 你的数据</span></div>
+  </aside>
+  <main class="settings-content">
+  <header class="settings-topbar" id="settings-overview">
+    <div class="settings-title"><p class="eyebrow" data-i18n="本机密码库">本机密码库</p><h1 data-i18n="设置中心">设置中心</h1><p class="muted small" data-i18n="按照你的习惯管理密码库。">按照你的习惯管理密码库。</p></div>
+    <div class="settings-toolbar">
+      <div class="language-control">
+        <label for="language-select" data-i18n="界面语言">界面语言</label>
+        <select id="language-select">
+          <option value="auto" data-i18n="跟随浏览器">跟随浏览器</option>
+          <option value="zh-CN" data-i18n="简体中文">简体中文</option>
+          <option value="zh-TW" data-i18n="繁體中文">繁體中文</option>
+          <option value="en" data-i18n="English">English</option>
+          <option value="ja" data-i18n="日本語">日本語</option>
+        </select>
+      </div>
+      <button id="intro-open" data-intro-open data-i18n="使用介绍">使用介绍</button>
+      <button id="lock-now" class="hidden" data-i18n="立即锁定">立即锁定</button>
+    </div>
+  </header>
+  <div id="page-msg" class="msg" role="status"></div>
+  <section id="setup" class="card onboarding-card hidden">
+    <div class="steps"><b id="wizard-step-title" data-i18n="第 1 步 / 共 3 步">第 1 步 / 共 3 步</b></div>
+    <div id="step-1" class="stack">
+      <h2 data-i18n="创建本机密码库">创建本机密码库</h2>
+      <p class="muted small" data-i18n="主密码只在本机派生密钥。忘记后无法找回，请妥善保存。">主密码只在本机派生密钥。忘记后无法找回，请妥善保存。</p>
+      <label for="wizard-password" data-i18n="主密码（至少 8 位）">主密码（至少 8 位）</label>
+      <input id="wizard-password" type="password" autocomplete="new-password" />
+      <div id="wizard-strength" class="muted small"></div>
+      <label for="wizard-password2" data-i18n="确认主密码">确认主密码</label>
+      <input id="wizard-password2" type="password" autocomplete="new-password" />
+      <div class="actions"><button id="wizard-create" class="primary" data-i18n="创建密码库">创建密码库</button></div>
+      <div id="wizard-msg" class="msg"></div>
+      <p class="muted small" data-i18n="已有密文备份？可直接使用下方「备份与恢复」。已有服务器密码库？创建后连接服务器，再下载恢复。">已有密文备份？可直接使用下方「备份与恢复」。已有服务器密码库？创建后连接服务器，再下载恢复。</p>
+    </div>
+    <div id="step-2" class="stack hidden">
+      <h2 data-i18n="连接你的服务器">连接你的服务器</h2>
+      <p class="muted small" data-i18n="使用导航站账号登录，密码库以密文同步。也可以仅保存在当前浏览器。">使用导航站账号登录，密码库以密文同步。也可以仅保存在当前浏览器。</p>
+      <label for="srv-base" data-i18n="导航站地址">导航站地址</label>
+      <input id="srv-base" type="text" placeholder="https://你的域名 或 http://192.168.1.10:9200" data-i18n-placeholder="https://你的域名 或 http://192.168.1.10:9200" />
+      <div class="row">
+        <div class="grow"><label for="srv-user" data-i18n="站点账号">站点账号</label><input id="srv-user" autocomplete="username" /></div>
+        <div class="grow"><label for="srv-password" data-i18n="站点密码">站点密码</label><input id="srv-password" type="password" autocomplete="current-password" /></div>
+      </div>
+      <div class="actions"><button id="srv-connect" class="primary" data-i18n="连接服务器">连接服务器</button><button id="srv-local-only" data-i18n="仅在本机使用">仅在本机使用</button></div>
+      <div id="srv-msg" class="msg"></div>
+      <p class="muted small" data-i18n="公网使用 HTTPS。内网 HTTP 不加密网络连接，站点登录凭据在同网段可能被读取。">公网使用 HTTPS。内网 HTTP 不加密网络连接，站点登录凭据在同网段可能被读取。</p>
+    </div>
+    <div id="step-3" class="stack hidden">
+      <h2 data-i18n="设置完成">设置完成</h2>
+      <p id="wizard-result" data-i18n="点击工具栏图标，添加你的第一个账号。">点击工具栏图标，添加你的第一个账号。</p>
+      <p class="muted small" data-i18n="匹配的登录页面会出现账号提示；点击后填充，不会自动提交表单。">匹配的登录页面会出现账号提示；点击后填充，不会自动提交表单。</p>
+      <button id="wizard-done" class="primary" data-i18n="进入设置">进入设置</button>
+    </div>
+  </section>
+  <section id="locked" class="card unlock-card hidden">
+    <h2 data-i18n="解锁密码库">解锁密码库</h2>
+    <p class="muted small" data-i18n="主密码只在本机校验。">主密码只在本机校验。</p>
+    <label for="unlock-password" data-i18n="主密码">主密码</label><input id="unlock-password" type="password" autocomplete="current-password" />
+    <div class="actions"><button id="unlock-btn" class="primary" data-i18n="解锁">解锁</button></div>
+    <div id="unlock-msg" class="msg"></div>
+  </section>
+  <section id="main" class="hidden">
+    <div class="card" id="preferences-section">
+      <div class="section-heading"><span class="section-index" aria-hidden="true">01</span><h2 data-i18n="锁定与使用习惯">锁定与使用习惯</h2></div>
+      <label for="auto-lock" data-i18n="没有操作时自动锁定">没有操作时自动锁定</label>
+      <select id="auto-lock"><option value="1" data-i18n="1 分钟">1 分钟</option><option value="5" data-i18n="5 分钟">5 分钟</option><option value="10" data-i18n="10 分钟">10 分钟</option><option value="30" data-i18n="30 分钟">30 分钟</option><option value="0" data-i18n="不按计时锁定">不按计时锁定</option></select>
+      <div class="settings-checklist">
+        <label class="check"><input id="lock-on-idle" type="checkbox" /><span data-i18n="系统闲置或锁屏时锁定">系统闲置或锁屏时锁定</span></label>
+        <label class="check"><input id="auto-push" type="checkbox" /><span data-i18n="修改后自动上传（约 5 秒后）">修改后自动上传（约 5 秒后）</span></label>
+        <label class="check"><input id="prompt-on-match" type="checkbox" /><span data-i18n="在匹配的登录页面显示账号提示">在匹配的登录页面显示账号提示</span></label>
+      </div>
+      <p class="muted small" data-i18n="浏览器回收扩展后台或重启时也会锁定；解锁后可继续同步未上传的修改。">浏览器回收扩展后台或重启时也会锁定；解锁后可继续同步未上传的修改。</p>
+      <div id="settings-msg" class="msg"></div>
+    </div>
+    <div class="card" id="sync-section">
+      <div class="section-heading"><span class="section-index" aria-hidden="true">02</span><h2 data-i18n="服务器与同步">服务器与同步</h2></div>
+      <div id="account-state" class="note" data-i18n="读取中…">读取中…</div>
+      <div class="stack">
+        <div><label for="account-base" data-i18n="导航站地址">导航站地址</label><input id="account-base" placeholder="https://你的域名 或 http://192.168.1.10:9200" data-i18n-placeholder="https://你的域名 或 http://192.168.1.10:9200" /></div>
+        <div class="row">
+          <div class="grow"><label for="account-user" data-i18n="站点账号">站点账号</label><input id="account-user" autocomplete="username" /></div>
+          <div class="grow"><label for="account-password" data-i18n="站点密码（加密保存）">站点密码（加密保存）</label><input id="account-password" type="password" autocomplete="current-password" /></div>
+        </div>
+      </div>
+      <div class="actions"><button id="account-connect" class="primary" data-i18n="连接 / 更新账号">连接 / 更新账号</button><button id="account-test" data-i18n="测试地址">测试地址</button><button id="account-forget" class="danger" data-i18n="解绑">解绑</button></div>
+      <p class="muted small" data-i18n="地址和账号保存在当前浏览器；站点密码只在密码库中加密保存。">地址和账号保存在当前浏览器；站点密码只在密码库中加密保存。</p>
+      <hr />
+      <div id="conflict-note" class="note warn hidden" data-i18n="服务器和本机密码库需要选择保留哪一份。建议先导出本机密文备份，再下载服务器版本或明确覆盖服务器。">服务器和本机密码库需要选择保留哪一份。建议先导出本机密文备份，再下载服务器版本或明确覆盖服务器。</div>
+      <label for="remote-password" data-i18n="服务器密码库的主密码（跨设备恢复或更换过主密码时填写）">服务器密码库的主密码（跨设备恢复或更换过主密码时填写）</label>
+      <input id="remote-password" type="password" autocomplete="off" placeholder="只在本机解密，不会上传" data-i18n-placeholder="只在本机解密，不会上传" />
+      <div class="actions"><button id="sync-push" data-i18n="上传本机修改">上传本机修改</button><button id="sync-pull" data-i18n="下载并替换本机">下载并替换本机</button><button id="sync-overwrite" class="danger hidden" data-i18n="用本机覆盖服务器">用本机覆盖服务器</button></div>
+      <div id="account-msg" class="msg"></div>
+      <p class="muted small" data-i18n="下载会替换本机密码库，包括主密码。双方都修改时停止自动上传，由你选择；不会自动合并。">下载会替换本机密码库，包括主密码。双方都修改时停止自动上传，由你选择；不会自动合并。</p>
+    </div>
+    <div class="card" id="master-section">
+      <div class="section-heading"><span class="section-index" aria-hidden="true">03</span><h2 data-i18n="更换主密码">更换主密码</h2></div>
+      <div class="stack">
+        <div><label for="master-current" data-i18n="当前主密码">当前主密码</label><input id="master-current" type="password" autocomplete="current-password" /></div>
+        <div class="row">
+          <div class="grow"><label for="master-next" data-i18n="新主密码（至少 8 位）">新主密码（至少 8 位）</label><input id="master-next" type="password" autocomplete="new-password" /></div>
+          <div class="grow"><label for="master-confirm" data-i18n="确认新主密码">确认新主密码</label><input id="master-confirm" type="password" autocomplete="new-password" /></div>
+        </div>
+      </div>
+      <div class="actions"><button id="change-master" data-i18n="更新主密码">更新主密码</button></div>
+      <div id="master-msg" class="msg"></div>
+    </div>
+  </section>
+  <section class="card" id="backup-section">
+    <div class="section-heading"><span class="section-index" aria-hidden="true">04</span><h2 data-i18n="备份与恢复">备份与恢复</h2></div>
+    <p class="muted small" data-i18n="密文可用于新设备恢复。密文导入会替换本机密码库并停用同步；明文导入会追加条目。">密文可用于新设备恢复。密文导入会替换本机密码库并停用同步；明文导入会追加条目。</p>
+    <div class="actions"><button id="export-encrypted" disabled data-i18n="导出密文备份">导出密文备份</button><button id="export-plain" class="danger" disabled data-i18n="导出明文">导出明文</button></div>
+    <div class="stack settings-form-grid">
+      <div><label for="import-password" data-i18n="密文备份的原主密码（明文导入可留空）">密文备份的原主密码（明文导入可留空）</label><input id="import-password" type="password" autocomplete="off" /></div>
+      <div><label for="import-file" data-i18n="选择 JSON 文件导入">选择 JSON 文件导入</label><input id="import-file" type="file" accept=".json,application/json" /></div>
+    </div>
+    <div id="io-msg" class="msg"></div>
+  </section>
+  <section id="danger-section" class="card settings-danger hidden">
+    <div class="section-heading"><span class="section-index" aria-hidden="true">!</span><h2 data-i18n="清除本机数据">清除本机数据</h2></div>
+    <p class="muted small" data-i18n="只删除当前浏览器的密码库与设置。服务器上的密文不受影响。">只删除当前浏览器的密码库与设置。服务器上的密文不受影响。</p>
+    <div class="actions"><button id="reset-all" class="danger" data-i18n="清空本机密码库">清空本机密码库</button></div>
+  </section>
+  </main>
+</div>
+  <script type="module" src="./options.js"></script>
+</body>
+</html>

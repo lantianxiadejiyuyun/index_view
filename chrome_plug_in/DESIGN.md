@@ -1,0 +1,96 @@
+# 密码管理器设计说明（v0.3.0）
+
+## 数据与密钥
+
+主密码在本机通过 PBKDF2-SHA256（600,000 次、随机 salt）派生不可导出的 AES-GCM-256 CryptoKey。密文文件 v1 包含公开 KDF 参数、独立 verifier 与 payload。每次加密使用随机 12 字节 IV。
+
+- `chrome.storage.local` 保存密文文件、行为设置、同步状态、语言偏好、介绍已读状态，以及仅含服务器地址和账号的表单草稿；不保存明文密码或派生密钥。
+- 解锁会话保存明文保险库和 CryptoKey。浏览器回收后台或主动锁定后清除会话。
+- 站点同步登录凭据放在保险库的 account 字段里加密保存。access token 仅存在内存。
+- 锁定会增加会话代数；异步密钥派生、登录、同步等返回后必须再次验证会话，不得使已锁定会话复活。
+- 写操作串行化，先校验、加密并成功落盘，再发布内存状态，避免并发编辑丢条目。
+- 导入先校验版本、KDF 范围、base64、IV、密文容量与条目字段。明文追加导入生成新 ID；密文导入停用之前的同步绑定。
+
+仅运行自动化回归测试不等于完成独立安全审计。网页得到填充字段后，其脚本能够读取这些字段；隔离世界不能阻止目标网站读取用户已决定填入的数据。
+
+## 消息边界和填充
+
+扩展页面可管理密码库。content script 只可调用 match/fill；后台按 Chrome 提供的 sender.url 校验目标，不相信消息自报的网址。
+
+match 仅返回标题、用户名和条目 ID 等摘要。只有用户触发的 fill 返回密码。默认精确匹配主机名，不猜测公共后缀或注册域；显式 `*.example.com` 只匹配子域。
+
+页面提示保留唯一的 closed ShadowRoot。MutationObserver 忽略扩展自身节点，只在页面变化时节流刷新；同一 URL 复用匹配摘要，后台状态变化或 SPA 地址变化时失效。密码填入前重新确认地址、条目匹配、字段是否仍在页面和表单关联。
+
+原生 input value setter 加 input/change 事件兼容 React 等受控输入。多表单按聚焦字段选择；弹窗定向主框架，子框架通过自己的提示选择，避免广播同时写多个框架。
+
+锁定广播给扩展页面清理明文；同步或其他窗口编辑后的广播刷新条目和同步状态。正在编辑的输入保留，但发生外部条目变化时提示核对后保存。
+
+## 同步与冲突
+
+同步服务器就是本项目主站，无独立同步服务：
+
+```text
+GET  /api/health                                  探测服务
+POST /api/auth/login  { username, password }       获取 access token
+GET  /api/vault                                   { version, blob, updated_at }
+PUT  /api/vault  { base_version, blob }             成功更新或返回 409
+```
+
+公网 HTTPS；有效的内网/本机地址可以 HTTP，并显示无传输加密提示。禁止携带 URL 内嵌凭据、查询或片段，拒绝重定向，超时包含响应体读取。
+
+首次绑定先读取远端。远端为空时可上传；已有密文时暂停并让用户选择。换绑会重置版本，不能拿前一服务器版本覆盖另一服务器。
+
+连接表单的 `serverFormDraft` 只保存 `base` 和 `user`，采用延迟写入，失焦和离开页面时刷新草稿。写入与清除串行化，避免解绑后被在途写入重新保存。草稿只是表单输入，不代表已完成绑定，也不会单独触发网络请求。
+
+`account-connect` 在已解锁、规范化后的服务器地址与账号均和加密库 `account` 一致时，允许空密码复用已有凭据。输入新密码则替换已保存凭据；更换地址或账号时禁止复用。明文密码不回填到页面、不进入草稿，仍仅在加密保险库中持久化。
+
+下载按远端 KDF/salt 派生密钥；本机密钥不适用时要求输入远端主密码。先验证解密成功再替换本机，并保留用户当前明确选择的服务器绑定。下载空远端不会隐式上传。
+
+普通上传带已知版本。用户明确覆盖时重新读取远端版本，再用 CAS 上传；读取与上传之间的第二次修改仍然产生冲突。服务端用带版本条件的 SQLite 语句保证跨进程原子性，不允许省略 base_version 绕过检查。密文响应均为 no-store。
+
+服务端校验 v1 加密信封形状与 1 MB UTF-8 上限，不持有主密码或解密密钥。blob 的条目明文仅扩展本机可见。
+
+自动上传受 enabled、autoPush、dirty、conflict 共同控制。修改后等待约 5 秒上传，并设置浏览器闹钟兜底；锁定不会为了上传而把密钥落盘。失败保留 dirty 与错误，解锁后按设置继续尝试。401 最多重新登录一次。
+
+## 界面与本地化
+
+0.3.0 将弹窗按网站匹配、列表、详情与编辑分层，设置页提供分区导航；共享样式支持深浅色主题与窄屏。使用本地 CSS 和已有图标，不加载外部字体、脚本或图片。
+
+Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的扩展名称与描述，`default_locale` 为 `en`。应用界面另外使用 `ui/i18n.js` 和 `ui/translations.js`，以简体中文源文和命名占位符组织翻译。
+
+- `language` 偏好可选 `auto`、`zh-CN`、`zh-TW`、`en`、`ja`。自动模式优先读取 Chrome 界面语言，再回退到浏览器语言；不支持的语言回退英语。
+- `chrome.storage.onChanged` 同步已打开页面的语言状态；初始读取会检查更新代数，避免旧读取覆盖刚收到的语言变更。
+- `localize()` 只修改明确标记的 `data-i18n` 文本及 placeholder、title、aria-label 属性，账号内容和输入值不进入自动翻译。
+- 动态文案使用 `t(source, params)`；错误仅翻译已知代码、固定原文和限定的数字模板，不改写未知服务器文本。
+- 后台按语言选择向 content script 返回 `locale` 和提示用的小词典；网页提示不需要加载界面模块或新增权限。改变语言只刷新提示，不改写密文或同步版本。
+
+`ui/intro.js` 提供首次使用介绍，可从弹窗或设置页重新打开。关闭时保存 `introSeenVersion`；使用原生 dialog 支持键盘关闭、焦点恢复和语言更新。介绍状态与密码库分离，清空本机数据时一起清除。
+
+## 权限
+
+| 权限 | 用途 |
+| --- | --- |
+| storage | 本机密文和设置 |
+| http/https host access | 匹配当前网站、提示/填充，以及用户指定的同步服务器 |
+| alarms | 自动锁定和待上传调度 |
+| idle | 系统闲置或锁屏时锁定 |
+| clipboardWrite | 用户点击复制账号或密码 |
+
+不使用 clipboardRead，因此不承诺自动读取或清空剪贴板；复制密码也不会自动显示明文。不使用远程代码、遥测或第三方统计；默认服务器地址为空。
+
+## 文件与验证
+
+- `background.js`：消息路由、会话、持久化与同步。
+- `src/crypto.js`、`vault.js`：密码学、加密文件与条目校验。
+- `src/sync.js`、`match.js`、`generator.js`：网络协议、站点匹配和密码生成。
+- `content/prompt.js`：页面提示与自动填充。
+- `popup/`、`options/`、`ui/`：界面与交互辅助。
+- `ui/i18n.js`、`ui/translations.js`、`_locales/`：界面语言、翻译词典与 Chrome 清单本地化。
+- `ui/intro.js`、`ui/server-form-cache.js`：首次介绍及非密码连接草稿。
+- `app/server/src/routes/vault.ts`：主站密文存储 API。
+- `tests/extension-*.test.mjs`、`tests/server-vault.test.mjs`：纯模块、后台会话、内容脚本、翻译完整性、语言切换、表单缓存和隔离数据库回归。
+- `scripts/test-extension-browser.mjs`：独立浏览器配置的端到端验证，包含介绍、四语界面、服务器草稿与凭据复用。
+
+在根目录运行 `pnpm test:extension` 验证扩展和密文接口，`pnpm test:browser` 运行可选浏览器回归；浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.3.0.zip`。
+
+尚未实现：TOTP、Passkey、团队共享、Chrome CSV 导入、条目自动合并和网页密码自动采集保存。

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title data-i18n="密码管理器">密码管理器</title>
+  <link rel="stylesheet" href="../ui/ui.css" />
+</head>
+<body class="popup-page">
+  <header class="popup-header">
+    <div class="brand-mark"><img src="../icons/icon48.png" width="32" height="32" alt="" /></div>
+    <div class="grow"><b class="brand-title" data-i18n="密码管理器">密码管理器</b><p class="brand-subtitle" data-i18n="本机加密保险库">本机加密保险库</p></div>
+    <button id="intro-open" data-intro-open class="icon-button" data-i18n-title="使用介绍" data-i18n-aria-label="使用介绍" title="使用介绍" aria-label="使用介绍">?</button>
+  </header>
+  <div class="popup-preferences">
+    <span id="sync-badge" class="status-pill"></span>
+    <label class="language-control"><span class="sr-only" data-i18n="界面语言">界面语言</span>
+      <select id="language-select" data-i18n-aria-label="界面语言" aria-label="界面语言">
+        <option value="auto" data-i18n="跟随浏览器">跟随浏览器</option><option value="zh-CN">简体中文</option><option value="zh-TW">繁體中文</option><option value="en">English</option><option value="ja">日本語</option>
+      </select>
+    </label>
+  </div>
+  <section id="gate" class="hidden popup-gate">
+    <div class="gate-symbol" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><rect x="7" y="14" width="18" height="14" rx="5" stroke="currentColor" stroke-width="2"/><path d="M11 14V9a5 5 0 0 1 10 0v5" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="20" r="2" fill="currentColor"/></svg></div>
+    <h1 id="gate-heading" data-i18n="你的密码，安心收好">你的密码，安心收好</h1>
+    <p id="gate-text" class="muted"></p>
+    <div id="gate-unlock" class="hidden gate-form">
+      <label for="password" data-i18n="主密码">主密码</label>
+      <input id="password" type="password" data-i18n-placeholder="输入主密码" placeholder="输入主密码" autocomplete="current-password" />
+      <div class="actions"><button id="unlock" class="primary grow" data-i18n="解锁密码库">解锁密码库</button><button id="open-options" data-i18n="设置">设置</button></div>
+    </div>
+    <div id="gate-setup" class="hidden"><button id="setup" class="primary full-width" data-i18n="创建我的密码库">创建我的密码库</button></div>
+    <div id="gate-msg" class="msg"></div>
+  </section>
+  <section id="list-view" class="hidden">
+    <main class="popup-main">
+      <div class="site-bar"><span class="site-dot" aria-hidden="true"></span><span id="site-context" class="grow"></span><span id="site-count" class="site-count"></span></div>
+      <div class="search-row"><input id="search" type="search" class="grow" data-i18n-placeholder="搜索账号、网址或用户名" placeholder="搜索账号、网址或用户名" data-i18n-aria-label="搜索密码库" aria-label="搜索密码库" /><button id="add" class="primary add-button" data-i18n-title="添加当前网站" data-i18n-aria-label="添加当前网站" title="添加当前网站" aria-label="添加当前网站">＋</button></div>
+      <div class="list-toolbar"><span data-i18n="已保存账号">已保存账号</span><label class="inline-check"><input id="only-matches" type="checkbox" /><span data-i18n="仅当前网站">仅当前网站</span></label></div>
+      <div id="list" class="vault-list"></div>
+      <p id="empty" class="empty-state hidden"></p>
+    </main>
+  </section>
+  <section id="detail-view" class="hidden">
+    <main class="popup-main">
+      <div class="detail">
+        <div class="detail-heading"><b id="d-title" class="grow"></b><button id="d-back" class="compact" data-i18n="返回">返回</button></div>
+        <dl>
+          <div class="credential-field"><dt data-i18n="网址">网址</dt><dd id="d-url"></dd></div>
+          <div class="credential-field"><dt data-i18n="用户名">用户名</dt><dd id="d-user"></dd></div>
+          <div class="credential-field"><dt class="field-heading"><span data-i18n="密码">密码</span><button id="d-reveal" class="compact" aria-pressed="false" data-i18n="显示">显示</button></dt><dd id="d-pass"></dd></div>
+          <div class="credential-field"><dt data-i18n="备注">备注</dt><dd id="d-notes"></dd></div>
+        </dl>
+        <div class="detail-actions"><button id="d-copy-user" data-i18n="复制用户名">复制用户名</button><button id="d-copy-pass" data-i18n="复制密码">复制密码</button><button id="d-fill" class="primary" data-i18n="填充当前页">填充当前页</button><button id="d-edit" data-i18n="编辑">编辑</button><button id="d-delete" class="danger" data-i18n="删除">删除</button></div>
+      </div>
+    </main>
+  </section>
+  <section id="edit-view" class="hidden">
+    <main class="popup-main"><div class="edit-card stack">
+      <div class="edit-heading"><span class="section-index">＋</span><h1 id="e-heading" data-i18n="添加账号">添加账号</h1></div>
+      <div><label for="e-title" data-i18n="标题">标题</label><input id="e-title" type="text" data-i18n-placeholder="例如：公司邮箱" placeholder="例如：公司邮箱" /></div>
+      <div><label for="e-url" data-i18n="网址（支持 *.example.com）">网址（支持 *.example.com）</label><input id="e-url" type="text" placeholder="https://mail.example.com" /></div>
+      <div><label for="e-user" data-i18n="用户名">用户名</label><input id="e-user" type="text" /></div>
+      <div><label for="e-pass" data-i18n="密码">密码</label><div class="row"><input id="e-pass" class="grow" type="password" data-secret autocomplete="new-password" /><button id="e-reveal" class="compact" data-i18n="显示">显示</button></div>
+        <div class="generator-panel"><label for="e-length" data-i18n="生成长度">生成长度</label><input id="e-length" type="number" min="8" max="64" value="20" /><label class="inline-check"><input id="e-symbols" type="checkbox" checked /><span data-i18n="包含符号">包含符号</span></label><button id="e-gen" class="compact" data-i18n="生成">生成</button></div>
+      </div>
+      <div><label for="e-notes" data-i18n="备注">备注</label><textarea id="e-notes" rows="2"></textarea></div>
+      <div class="actions edit-actions"><button id="e-save" class="primary grow" data-i18n="保存账号">保存账号</button><button id="e-cancel" data-i18n="取消">取消</button></div><div id="edit-msg" class="msg"></div>
+    </div></main>
+  </section>
+  <footer class="popup-footer"><span id="status-text" role="status" class="grow">—</span><button id="lock" class="compact hidden" data-i18n="锁定">锁定</button><button id="options" class="compact" data-i18n="设置">设置</button></footer>
+  <script type="module" src="./popup.js"></script>
+</body>
+</html>

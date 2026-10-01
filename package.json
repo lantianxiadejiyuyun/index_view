@@ -1,0 +1,33 @@
+{
+  "name": "home-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "个人部署首页（类 mtab）— 导航桌面 + 笔记 + 内网探针双链路",
+  "scripts": {
+    "dev": "concurrently -n server,web -c cyan,magenta \"pnpm -F server dev\" \"pnpm -F web dev\"",
+    "dev:server": "pnpm -F server dev",
+    "dev:web": "pnpm -F web dev",
+    "build": "pnpm -F web build && pnpm build:bundle",
+    "build:bundle": "pnpm -F server build && node scripts/build-server.mjs",
+    "start": "node --disable-warning=ExperimentalWarning app/server/dist/bundle.mjs",
+    "agent": "node agent/node/index.mjs",
+    "pack:extension": "node scripts/pack-extension.mjs",
+    "typecheck": "pnpm -F server typecheck && pnpm -F web typecheck",
+    "test": "node --test tests/*.test.mjs",
+    "test:extension": "node --test tests/extension-*.test.mjs tests/server-vault.test.mjs",
+    "test:browser": "node scripts/test-extension-browser.mjs",
+    "test:subscriptions:browser": "node scripts/test-subscriptions-browser.mjs",
+    "test:bundle": "node scripts/test-server-bundle.mjs",
+    "test:agent-wss": "node scripts/test-agent-wss-e2e.mjs",
+    "pack:sanitized": "node scripts/pack-sanitized.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "esbuild": "^0.28.2"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}

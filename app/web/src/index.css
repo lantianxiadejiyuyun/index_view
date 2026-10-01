@@ -1,0 +1,342 @@
+@import 'tailwindcss';
+
+/* 深色模式靠 <html class="dark"> 切换，而不是跟随系统媒体查询，
+   这样「跟随系统 / 强制浅色 / 强制深色」三态才能都由用户控制 */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace;
+
+  --color-brand-50: #eef3ff;
+  --color-brand-100: #dbe5ff;
+  --color-brand-200: #bccfff;
+  --color-brand-300: #93b0ff;
+  --color-brand-400: #6b8dff;
+  --color-brand-500: #4f7cff;
+  --color-brand-600: #3a5ff0;
+  --color-brand-700: #2d49c9;
+
+  --radius-card: 1.25rem;
+
+  /* 语义化前景色 token。组件里不要写死 text-white ——
+     浅色主题下玻璃卡片是浅色的，白字压上去根本看不清。
+       fg    玻璃表面（卡片、弹窗、工具栏）内的所有文字
+       wp    直接压在壁纸上的文字（时钟、问候语、分组标题、空状态提示）
+       line  边框 / 悬停底色的基准色
+
+     fg / line 跟随**主题**（玻璃的颜色由主题决定）；
+     wp 跟随**壁纸压完色罩之后的实际明暗**（由 JS 写 data-wp-tone）。
+     两者必须分开：浅色主题 + 深色壁纸时，玻璃是浅色配深字，
+     但壁纸本身还是暗的，压在它上面的时钟就得是白字。
+
+     必须写成 rgb(var(--xxx-rgb)) 这种形式，实测过三种写法：
+       var(--xxx)                     → 透明度修饰符被整个丢掉，text-fg/45 变纯色
+       #0f172a 字面量                  → 透明度保住了，但浅色值被烘死，深色模式下变成深灰看不见
+       rgb(var(--xxx-rgb))            → 透明度保留，且运行时随主题切换 ✓
+     所以颜色通道要单独放在下面 :root / .dark 里。 */
+  --color-fg: rgb(var(--fg-rgb));
+  --color-line: rgb(var(--line-rgb));
+  --color-wp: rgb(var(--wp-rgb));
+  /* 玻璃/面板的底色本身。需要不透明面板时用它（例如移动端抽屉），
+     直接写死 bg-white 或 bg-slate-950 会在另一个主题下露馅。 */
+  --color-surface: rgb(var(--surface-rgb));
+
+  /* 语义色（成功/警告/信息/危险/强调）。
+     不要直接写 text-emerald-200 / text-amber-100 / text-brand-300 这种 ——
+     它们是照着深色背景挑的浅色调，放到浅色主题上对比度会低到读不出来
+     （分区标题前的图标徽章就是这么消失的）。
+     下面这几组值分别针对各自主题选过：浅色主题取 600~700，深色主题取 200~300。 */
+  --color-success: rgb(var(--success-rgb));
+  --color-warn: rgb(var(--warn-rgb));
+  --color-info: rgb(var(--info-rgb));
+  --color-danger: rgb(var(--danger-rgb));
+  --color-accent: rgb(var(--accent-rgb));
+}
+
+:root {
+  --fg-rgb: 15 23 42;
+  --line-rgb: 15 23 42;
+  /* 玻璃底色：浅色主题是白，深色主题是偏蓝黑 */
+  --surface-rgb: 255 255 255;
+  /* 壁纸之上默认白字；浅色壁纸由 JS 打上 data-wp-tone="light" 切过来 */
+  --wp-rgb: 255 255 255;
+  --success-rgb: 4 120 87;
+  --warn-rgb: 180 83 9;
+  --info-rgb: 3 105 161;
+  --danger-rgb: 190 18 60;
+  --accent-rgb: 58 95 240;
+
+  /* 玻璃的立体感参数（浅色主题：白玻璃靠阴影和边框拉开层次） */
+  --glass-sheen: 0.5;
+  --glass-shadow: 0.1;
+  --glass-shadow-soft: 0.06;
+  --glass-shadow-pop: 0.22;
+  /* 暗角（浅色主题：顶部提亮多一点，底部只压一点点） */
+  --vignette-top: 0.4;
+  --vignette-bottom: 0.04;
+}
+
+/* 深色主题覆盖的是颜色通道本身，Tailwind 的每个 text-fg/NN
+   都会实时取到新值。这些规则不带 layer，优先级高于 @layer theme。 */
+.dark {
+  --fg-rgb: 255 255 255;
+  --line-rgb: 255 255 255;
+  --surface-rgb: 16 19 32;
+  --success-rgb: 110 231 183;
+  --warn-rgb: 253 230 138;
+  --info-rgb: 186 230 253;
+  --danger-rgb: 253 164 175;
+  --accent-rgb: 147 176 255;
+
+  /* 深色主题：玻璃靠顶部内高光 + 更重的投影来体现厚度 */
+  --glass-sheen: 0.09;
+  --glass-shadow: 0.55;
+  --glass-shadow-soft: 0.4;
+  --glass-shadow-pop: 0.75;
+  --vignette-top: 0.06;
+  --vignette-bottom: 0.34;
+}
+
+:root[data-wp-tone='light'] {
+  --wp-rgb: 15 23 42;
+  /* 深字压亮底：描边要用浅色。
+     原来不管明暗一律用深色阴影（那是给白字压深底设计的），
+     结果深字配深阴影反而把字糊进背景、越看越虚。 */
+  --wp-shadow: 0 1px 3px rgb(255 255 255 / 0.9), 0 0 10px rgb(255 255 255 / 0.5);
+}
+
+/* ── 运行时可调的玻璃参数 ──────────────────────────────────────
+   这里的值是**首帧默认值**（React 挂载之前，避免深色用户看到白闪）。
+   挂载后由 App.tsx 的 applyVisualVars() 按当前主题内联写到 <html> 上接管。
+   注意内联样式优先级高于这里的 `.dark` 选择器，所以深浅两套数值必须在 JS 里算，
+   不能指望下面 .dark 块能覆盖运行时写入的内联变量。 */
+:root {
+  --glass-blur: 16px;
+  --glass-alpha: 0.6;
+  --glass-border: 0.4;
+  --grid-gap: 1rem;
+  --card-pad: 1rem;
+}
+
+.dark {
+  --glass-alpha: 0.46;
+  --glass-border: 0.14;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    /* iOS 回弹 / 地址栏收起时，会露出 html 自己的底色 ——
+       不给就是白的，深色主题下闪一下很刺眼。
+       给成主题底色，露出来的部分与页面是连成一片的。 */
+    background-color: rgb(var(--surface-rgb));
+    /* 上下回弹时不要把滚动链传给浏览器（Android 上还能顺手关掉下拉刷新） */
+    overscroll-behavior-y: none;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    /* 首页是全屏壁纸，禁止橡皮筋滚动造成的割裂感 */
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* 移动端点按不放时的长按选中会干扰「长按进编辑」，全局关掉更省心 */
+  button,
+  a {
+    -webkit-touch-callout: none;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-brand-500) 35%, transparent);
+  }
+
+  /* 细滚动条，不抢视觉 */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(148 163 184 / 0.45) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgb(148 163 184 / 0.45);
+    border-radius: 9999px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* 玻璃拟态卡片。
+     边框用 line-rgb（跟随主题）而不是写死白色 —— 浅色主题下白边框压在
+     白卡片上等于不存在，卡片就失去了轮廓。
+     阴影分三层：顶部一道极细的内高光模拟玻璃上沿的反光，
+     再叠两层不同扩散的外投影，卡片才有「浮起来」的立体感。 */
+  .glass {
+    background: rgb(var(--surface-rgb) / var(--glass-alpha));
+    border: 1px solid rgb(var(--line-rgb) / var(--glass-border));
+    backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / var(--glass-sheen)),
+      0 10px 30px -14px rgb(0 0 0 / var(--glass-shadow)),
+      0 2px 6px -3px rgb(0 0 0 / var(--glass-shadow-soft));
+    /* 兜底前景色：没显式写颜色文字的跟着玻璃走，浅色主题下才是深色字 */
+    color: var(--color-fg);
+  }
+
+  .dark .glass {
+    /* 深色主题的玻璃底色偏蓝黑，才有「深色玻璃」的质感 */
+    background: rgb(var(--surface-rgb) / var(--glass-alpha));
+  }
+
+  /* 浮层（弹窗 / 下拉 / toast）：投影明显更重，营造「悬在页面上方」的感觉 */
+  .glass-pop {
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / var(--glass-sheen)),
+      0 28px 64px -22px rgb(0 0 0 / var(--glass-shadow-pop)),
+      0 8px 20px -10px rgb(0 0 0 / var(--glass-shadow));
+  }
+
+  /* 壁纸之上的压暗层。
+     强度由 lib/visual.ts 按「主题 vs 壁纸明暗」算好，两种主题都用它：
+       · 深色主题遇到浅色壁纸 → 强力压暗，否则背景落中灰、卡片和背景糊在一起
+       · 浅色主题 → 轻微压暗，让背景比白色卡片暗一档，卡片才浮得起来
+     只压不冲：浅色主题 + 深色壁纸时绝不能用白罩去「洗白」壁纸，
+     那等于把用户的壁纸设置废掉（第一版就是这么错的）。 */
+  .wallpaper-scrim {
+    background: rgb(6 9 20 / var(--scrim, 0));
+  }
+
+  /* 壁纸的「舞台」。
+     ── 为什么需要它 ──
+     移动端 Safari / Chrome 上，向下滑动时地址栏会收起、向上滑时又展开，
+     **布局视口的高度会跟着变**。如果壁纸直接铺在 `position: fixed; inset: 0`
+     的容器里（它的高度就等于布局视口），那盒子会随地址栏一起变高变矮，
+     而 `object-fit: cover` / `background-size: cover` 是按盒子算缩放的 ——
+     于是每滑一下就重新缩放一次，看起来就是「背景自己在动」。
+
+     解法：外层仍然 `inset-0`（只当裁剪窗口，尺寸变化无所谓），
+     内层这个「舞台」用 **lvh（大视口高度）** 固定住 —— lvh 是地址栏收起时的
+     高度，**不随滚动变化**，所以图片永远按同一个盒子铺，不会再重算。
+
+     为什么不用 `100dvh`：dvh 正是「会变」的那个，用了等于没改。
+
+     为什么内层用 absolute 而不是 fixed：WebKit 上 `position: fixed` 的元素
+     一旦比视口高，裁剪会出错（bug 253399）。把它做成普通绝对定位元素、
+     由外层自己 `overflow: hidden` 裁，就绕开了这个坑。
+
+     ⚠️ 高度写了两遍，不是冗余：老浏览器不认 lvh，得先给个 vh 兜底。
+     但不能写成相邻的两条声明 —— CSS 压缩器会把前一条当冗余删掉，
+     结果只剩 `height: 100lvh`，在不支持的浏览器上直接变成非法值、盒子塌成 0。
+     所以用 @supports 分开写。（这个是构建后翻产物才发现的。） */
+  .wallpaper-stage {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    /* vh 在主流实现里本来就等于「大视口」（地址栏收起时的高度），
+       所以这一条已经能满足需求，lvh 只是把它写明 */
+    height: 100vh;
+  }
+
+  @supports (height: 100lvh) {
+    .wallpaper-stage {
+      height: 100lvh;
+    }
+  }
+
+  /* 暗角。顶部一抹极淡的光、底部压一点暗，让纯色壁纸也有纵深，
+     否则一整片纯色会让页面看着很平。 */
+  .wallpaper-vignette {
+    background:
+      radial-gradient(130% 90% at 50% -20%, rgb(255 255 255 / var(--vignette-top, 0)), transparent 62%),
+      radial-gradient(120% 100% at 50% 118%, rgb(0 0 0 / var(--vignette-bottom, 0)), transparent 58%);
+  }
+
+  /* 压在壁纸上的文字描边。跟着明暗走：
+     白字配深阴影（拉开与亮背景的距离），深字配浅阴影（同理）。
+     由 JS 按判定结果写 --wp-shadow，这里只留个兜底。 */
+  .text-shadow-soft {
+    text-shadow: var(--wp-shadow, 0 2px 12px rgb(0 0 0 / 0.45));
+  }
+}
+
+@layer utilities {
+  /* ⚠ 这里刻意**没有** safe-top / safe-bottom 这类工具类。
+     它们会写 padding-top / padding-bottom，和 Tailwind 的 pt-* / pb-* 同层同优先级，
+     而本文件在 @import 'tailwindcss' 之后，于是会把这些内边距整个覆盖掉 ——
+     工具栏、页头、页面主体、弹窗底部、移动端操作条的内边距都因此变成 0（实测过）。
+     安全区一律写进内边距值本身，例如：
+       pb-[calc(1.5rem+env(safe-area-inset-bottom))]
+     一处声明，不会和别的类打架。 */
+
+  /* 编辑模式下图标轻微抖动，提示「现在可以拖」 */
+  @keyframes hd-wiggle {
+    0%,
+    100% {
+      transform: rotate(-0.6deg);
+    }
+    50% {
+      transform: rotate(0.6deg);
+    }
+  }
+  .animate-wiggle {
+    animation: hd-wiggle 0.9s ease-in-out infinite;
+  }
+
+  @keyframes hd-rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .animate-rise {
+    animation: hd-rise 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes hd-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .animate-pop {
+    animation: hd-pop 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* 尊重系统的「减少动态效果」设置。
+     转圈（animate-spin）也一起停 —— 加载态本身带了文字说明，
+     停掉动画不会丢失信息，而持续旋转对前庭敏感的人是有影响的。 */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-wiggle,
+    .animate-rise,
+    .animate-pop,
+    .animate-spin,
+    .animate-pulse {
+      animation: none !important;
+    }
+    * {
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

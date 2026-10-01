@@ -1,0 +1,55 @@
+# ────────────────────────────────────────────────────────────────
+# 探针（agent）在绿联 NAS 型号 上的部署（192.168.1.10）
+#
+#   cd /docker/hd-agent      # 绿联的 docker 共享目录，和 gostc / astrbot 放一起
+#   填好下面的 AGENT_TOKEN
+#   docker compose up -d --build
+#
+# 跟 agent/docker-compose.yml（飞牛那台）是同一套东西，只有三处不同：
+#   HOST、AGENT_NAME、以及磁盘挂载 + AGENT_DISK_MOUNTS（绿联有 5 个存储空间）。
+# 换机器就复制一份改这三处。
+# ────────────────────────────────────────────────────────────────
+services:
+  hd-agent:
+    build: .
+    image: home-dashboard-agent:latest
+    container_name: hd-agent
+    network_mode: host
+    restart: unless-stopped
+    # 容器里的 hostname 默认是容器 ID，面板「主机名」会变成一串随机字符
+    uts: host
+
+    environment:
+      # 【必填】首页 →「设置」→「探针令牌」
+      AGENT_TOKEN: "${AGENT_TOKEN:?Set AGENT_TOKEN in a local environment file}"
+
+      # 主程序在公网、这台在 NAT 后面 → 推模式，探针主动往外连，不开任何入站端口
+      AGENT_SERVER: "${AGENT_SERVER:?Set AGENT_SERVER to your HTTPS site}"
+      AGENT_NAME: "UGREEN NAS probe"
+      AGENT_INTERVAL: "10"
+      PORT: "9201"
+      # 显式绑这块网卡：这台机器上还有 docker0、veth、隧道网卡，自动挑有挑错的可能；
+      # 镜像里的健康检查也用它
+      HOST: "192.168.1.10"
+
+      # 报哪几块盘。不指定的话报上来是容器自己的挂载表（/、/data、overlay2/merged…），
+      # 名字没法看而且好几项是同一块盘。绿联是 5 个存储空间（LVM 卷）+ eMMC 系统区。
+      AGENT_DISK_MOUNTS: >-
+        /host/volume1=存储空间1, /host/volume2=存储空间2, /host/volume3=存储空间3,
+        /host/volume4=存储空间4, /host/volume5=存储空间5, /host/ugreen=系统盘(eMMC)
+
+    volumes:
+      # 专属密钥：丢了就要重新 enroll + 重新批准
+      - ./data:/data
+      # 机器标识：探针的 agent_id 取 /etc/machine-id 的哈希，镜像里没有这个文件
+      - /etc/machine-id:/etc/machine-id:ro
+      # 五个存储空间 + eMMC 系统区，只读挂进来给 AGENT_DISK_MOUNTS 量尺寸
+      - /volume1:/host/volume1:ro
+      - /volume2:/host/volume2:ro
+      - /volume3:/host/volume3:ro
+      - /volume4:/host/volume4:ro
+      - /volume5:/host/volume5:ro
+      - /ugreen:/host/ugreen:ro
+
+      # 想给服务起好看的名字，就放一份 services.json 在旁边再打开这行：
+      # - ./services.json:/data/services.json:ro

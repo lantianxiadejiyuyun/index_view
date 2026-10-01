@@ -1,0 +1,8 @@
+packages:
+  - app/server
+  - app/web
+
+# pnpm 11 用 allowBuilds 逐个放行依赖的构建脚本（旧版的 onlyBuiltDependencies 已废弃）。
+# esbuild 需要执行安装脚本来就位平台二进制，不放行的话 vite 无法构建。
+allowBuilds:
+  esbuild: true

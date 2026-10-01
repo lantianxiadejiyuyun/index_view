@@ -1,0 +1,64 @@
+# ────────────────────────────────────────────────────────────────
+# 这个项目平时是以「整个文件夹拷走」的方式部署的，不依赖 git；
+# 这份 .gitignore 是给「想用 git 管起来」的情况准备的。
+#
+# ⚠️ 注意 app/**/dist：裸机部署要用 app/web/dist + app/server/dist/bundle.mjs，
+#    但它们是构建产物（pnpm build 重新生成），所以不进 git。
+# ────────────────────────────────────────────────────────────────
+
+node_modules/
+.pnpm-store/
+
+# 运行时数据：数据库（含 jwt_secret / 探针令牌 / 密码）、上传的图、笔记、图标缓存
+app/server/data/
+/data/
+/backups/
+/notes/
+/uploads/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+
+# 探针本机身份、服务清单与私钥
+agent-key
+agent-key.*
+services.json
+*.key
+*.pem
+*.p12
+*.pfx
+
+# 构建产物
+app/web/dist/
+app/server/dist/
+
+# 打包产物
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+
+# 本地环境与日志
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.log
+
+# 开发期临时目录（验证脚本、脱敏打包中转）
+.tmp/
+
+# 编辑器 / 系统
+.DS_Store
+.idea/
+.vscode/
+
+# Private optional export rules
+.sanitize.local.json
