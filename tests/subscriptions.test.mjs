@@ -49,6 +49,7 @@ before(async () => {
         export { sql, closeDb } from './src/lib/db.ts';
         export { initDatabase } from './src/db/schema.ts';
         export { issueAccessToken } from './src/lib/tokens.ts';
+        export { parseSubscription } from './src/lib/subscription-codec.ts';
       `,
       resolveDir: serverRoot, loader: 'ts',
     },
@@ -149,13 +150,66 @@ test('all management endpoints require authentication and cache suppression', as
   for (const [route, method] of [
     ['', 'GET'], ['/sources', 'POST'], ['/sources/1', 'PUT'], ['/sources/1', 'DELETE'],
     ['/sources/1/refresh', 'POST'], ['/refresh', 'POST'], ['/profiles', 'POST'],
-    ['/profiles/1', 'PUT'], ['/profiles/1', 'DELETE'], ['/profiles/1/rotate-token', 'POST'], ['/profiles/1/preview', 'GET'],
+    ['/profiles/1', 'PUT'], ['/profiles/1', 'DELETE'], ['/profiles/1/rotate-token', 'POST'], ['/profiles/1/preview', 'GET'], ['/rules/import', 'POST'],
   ]) {
     const response = await request(route, { method, auth: null })
     assert.equal(response.status, 401, route)
     assert.equal(response.headers.get('cache-control'), 'no-store')
   }
   assert.equal(calls.length, 0)
+})
+
+test('authenticated rule import analyzes without mutating subscriptions or fetching providers', async () => {
+  const response = await request('/rules/import', { method: 'POST', body: {
+    content: 'rule-providers: {remote: {url: "https://provider.example.test/never-fetch"}}\nrules:\n- DOMAIN,a.example.test,Custom\n- MATCH,DIRECT',
+    policy_map: { Custom: 'REJECT' },
+  } })
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('cache-control'), 'no-store')
+  const result = await response.json()
+  assert.equal(result.can_apply, true)
+  assert.deepEqual(result.rules, ['DOMAIN,a.example.test,REJECT', 'MATCH,DIRECT'])
+  assert.equal(harness.sql.get('SELECT COUNT(*) AS total FROM subscription_sources').total, 0)
+  assert.equal(harness.sql.get('SELECT COUNT(*) AS total FROM subscription_profiles').total, 0)
+  assert.equal(calls.length, 0)
+  const invalid = await request('/rules/import', { method: 'POST', body: { content: 'rules: [false]' } })
+  assert.equal(invalid.status, 200)
+  assert.equal((await invalid.json()).can_apply, false)
+})
+
+test('rule import bounds declared and actual streamed JSON bytes with auth first and no-store errors', async () => {
+  const max = 8 * 1024 * 1024
+  for (const auth of [null, token]) {
+    let pulled = 0
+    const response = await harness.subscriptionRoutes.request('/subscriptions/rules/import', {
+      method: 'POST', duplex: 'half',
+      headers: { ...(auth ? { Authorization: 'Bearer ' + auth } : {}), 'Content-Length': String(max + 1) },
+      body: new ReadableStream({ pull(controller) { pulled++; controller.close() } }, { highWaterMark: 0 }),
+    })
+    assert.equal(response.status, auth ? 413 : 401)
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    assert.equal(pulled, 0)
+  }
+  for (const headers of [{}, { 'Content-Length': '1' }, { 'Transfer-Encoding': 'chunked' }]) {
+    let pulls = 0
+    let cancelled = false
+    const response = await harness.subscriptionRoutes.request('/subscriptions/rules/import', {
+      method: 'POST', duplex: 'half', headers: { Authorization: 'Bearer ' + token, ...headers },
+      body: new ReadableStream({
+        pull(controller) { pulls++; controller.enqueue(new Uint8Array(1024 * 1024)) },
+        cancel() { cancelled = true },
+      }, { highWaterMark: 0 }),
+    })
+    assert.equal(response.status, 413)
+    assert.equal(response.headers.get('cache-control'), 'no-store')
+    assert.equal(pulls, 9)
+    assert.equal(cancelled, true)
+  }
+  const decoded = await request('/rules/import', { method: 'POST', body: { content: 'x'.repeat(1024 * 1024 + 1) } })
+  assert.equal(decoded.status, 200)
+  const report = await decoded.json()
+  assert.equal(report.can_apply, false)
+  assert.equal(report.diagnostics[0].code, 'CONTENT_TOO_LARGE')
 })
 
 test('source/profile IDs and rules cannot cross account boundaries', async () => {
@@ -387,6 +441,52 @@ test('preview carries cache health and parser warnings by source name without up
   assert.ok(result.warnings.some((warning) => warning.includes('最近刷新失败')))
   assert.equal(result.warnings.some((warning) => warning.includes(created.url) || warning.includes('secret URL')), false)
   assert.equal(result.proxy_count, 1)
+})
+
+test('profile APIs persist source prefixes and export them through all preview and feed formats', async () => {
+  const created = await source({ name: '来源 A' })
+  await refresh(created.id)
+  const configured = await profile([created.id], { rules: { prepend_source: true, name_prefix: 'P-' } })
+  assert.equal(configured.rules.prepend_source, true)
+  assert.equal(configured.rules.append_source, false)
+  assert.equal((await listing()).profiles[0].rules.prepend_source, true)
+  assert.equal(JSON.parse(harness.sql.get('SELECT rules_json FROM subscription_profiles WHERE id = ?', configured.id).rules_json).prepend_source, true)
+  for (const format of ['clash', 'links', 'base64']) {
+    const preview = await request(`/profiles/${configured.id}/preview?format=${format}`)
+    assert.equal(preview.status, 200)
+    const output = await preview.json()
+    assert.equal(harness.parseSubscription(output.content).proxies[0].name, '[来源 A] P-Fixture node')
+    const feed = await request(`/feed/${configured.token}?format=${format}`, { auth: null })
+    assert.equal(feed.status, 200)
+    assert.equal(harness.parseSubscription(await feed.text()).proxies[0].name, '[来源 A] P-Fixture node')
+  }
+  const conflict = await request(`/profiles/${configured.id}`, { method: 'PUT', body: { rules: { prepend_source: true, append_source: true } } })
+  assert.equal(conflict.status, 400)
+  assert.match((await conflict.json()).message, /不能同时前置和后置/)
+  assert.equal((await listing()).profiles[0].rules.prepend_source, true)
+  for (const prepend_source of [null, 1, 'true']) {
+    const invalid = await request('/profiles', { method: 'POST', body: { name: 'Invalid source position', rules: { prepend_source } } })
+    assert.equal(invalid.status, 400)
+  }
+  assert.equal((await listing()).profiles.length, 1)
+})
+
+test('legacy persisted rules return an explicit false prefix flag without changing suffix naming', async () => {
+  const created = await source({ name: 'Legacy source' })
+  await refresh(created.id)
+  const configured = await profile([created.id], { rules: { append_source: true, name_prefix: 'P-' } })
+  assert.equal(configured.rules.prepend_source, false, 'API callers that omit the option retain existing defaults')
+  const legacy = { ...configured.rules }
+  delete legacy.prepend_source
+  harness.sql.run('UPDATE subscription_profiles SET rules_json = ? WHERE id = ?', JSON.stringify(legacy), configured.id)
+  const listed = (await listing()).profiles[0]
+  assert.equal(listed.rules.prepend_source, false)
+  assert.equal(listed.rules.append_source, true)
+  const updated = await request(`/profiles/${configured.id}`, { method: 'PUT', body: { note: 'Preserve old naming' } })
+  assert.equal(updated.status, 200)
+  assert.equal((await updated.json()).profile.rules.prepend_source, false)
+  const preview = await (await request(`/profiles/${configured.id}/preview`)).json()
+  assert.equal(harness.parseSubscription(preview.content).proxies[0].name, 'P-Fixture node [Legacy source]')
 })
 
 test('deleting a source updates profile selections atomically and preserves other accounts', async () => {

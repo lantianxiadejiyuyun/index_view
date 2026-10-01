@@ -237,6 +237,61 @@ test('dialer-proxy references follow renaming and deduplication within their own
   assert.match(links.warnings[0], /不能无损/)
 })
 
+test('source names precede the unified prefix consistently in YAML, plain links and Base64', () => {
+  const original = ss('香港 / 東京')
+  const expected = { ...original, name: '[来源 A] Premium-香港 / 東京' }
+  for (const format of ['clash', 'links', 'base64']) {
+    const result = output([original], format, { prepend_source: true, name_prefix: 'Premium-' })
+    assert.deepEqual(getProxies(result), [expected], format)
+    assert.equal(result.proxy_count, 1)
+    assert.deepEqual(result.warnings, [])
+  }
+  assert.equal(original.name, '香港 / 東京', 'export does not rewrite cached node names')
+})
+
+test('source prefixes distinguish names while deduplicated nodes keep the first selected source owner', () => {
+  const inputs = [
+    { id: 1, name: '来源 A', proxies: [ss('Same', { server: 'a.example' }), ss('Same', { server: 'other.example' })] },
+    { id: 2, name: '来源 B', proxies: [ss('Same', { server: 'b.example' }), ss('Same', { server: 'a.example' })] },
+  ]
+  const options = { prepend_source: true, name_prefix: 'P-' }
+  for (const format of ['clash', 'links', 'base64']) {
+    const nodes = getProxies(codec.buildSubscriptionOutput(inputs, rules(options), format))
+    assert.deepEqual(nodes.map((node) => node.name), ['[来源 A] P-Same', '[来源 A] P-Same (2)', '[来源 B] P-Same'])
+    assert.deepEqual(nodes.map((node) => node.server), ['a.example', 'other.example', 'b.example'])
+    const reversed = getProxies(codec.buildSubscriptionOutput([...inputs].reverse(), rules(options), format))
+    assert.equal(reversed.find((node) => node.server === 'a.example').name, '[来源 B] P-Same (2)')
+    const all = getProxies(codec.buildSubscriptionOutput(inputs, rules({ ...options, deduplicate: false }), format))
+    assert.equal(all.length, 4)
+    assert.equal(all[3].name, '[来源 B] P-Same (2)')
+  }
+})
+
+test('source prefixes update dialer references through aliases and keep each source dependency isolated', () => {
+  const inputs = [
+    { id: 1, name: 'A', proxies: [ss('upstream', { server: 'a.example' }), ss('alias', { server: 'a.example' }), ss('dependent', { password: 'next', 'dialer-proxy': 'alias' })] },
+    { id: 2, name: 'B', proxies: [ss('upstream', { server: 'b.example' }), ss('dependent', { password: 'next', 'dialer-proxy': 'upstream' })] },
+  ]
+  const result = codec.buildSubscriptionOutput(inputs, rules({ prepend_source: true, name_prefix: 'P-' }), 'clash')
+  const nodes = getProxies(result)
+  assert.deepEqual(nodes.map((node) => node.name), ['[A] P-upstream', '[A] P-dependent', '[B] P-upstream', '[B] P-dependent'])
+  assert.equal(nodes[1]['dialer-proxy'], '[A] P-upstream')
+  assert.equal(nodes[3]['dialer-proxy'], '[B] P-upstream')
+  assert.deepEqual(result.warnings, [])
+})
+
+test('old rule objects retain naming behavior and mutually exclusive source positions are validated', () => {
+  const legacy = { include: [], exclude: [], protocols: [], name_prefix: 'P-', append_source: true, deduplicate: true, rules: ['MATCH,PROXY'] }
+  assert.equal(rules(legacy).prepend_source, false)
+  const oldResult = codec.buildSubscriptionOutput([{ id: 1, name: '来源 A', proxies: [ss('Node')] }], legacy, 'clash')
+  assert.equal(getProxies(oldResult)[0].name, 'P-Node [来源 A]')
+  assert.equal(getProxies(output([ss('Node')], 'clash', { name_prefix: 'P-' }))[0].name, 'P-Node')
+  assert.throws(() => rules({ prepend_source: true, append_source: true }), /不能同时前置和后置/)
+  for (const prepend_source of [null, 0, 1, 'true', [], {}]) {
+    assert.throws(() => rules({ prepend_source }), /prepend_source.*布尔值/)
+  }
+})
+
 test('missing, filtered, ambiguous and cyclic dialer dependencies never become dangling YAML references', () => {
   const nodes = [ss('ok'), ss('a', { password: 'a', 'dialer-proxy': 'b' }), ss('b', { password: 'b', 'dialer-proxy': 'a' }), ss('c', { password: 'c', 'dialer-proxy': 'a' }), ss('missing', { password: 'x', 'dialer-proxy': 'OriginalGroup' })]
   const result = output(nodes)
@@ -261,7 +316,7 @@ test('identically named dialer references do not accidentally resolve through an
 })
 
 test('normalizes defaults and accepts documented self-contained Mihomo routing rules', () => {
-  assert.deepEqual(rules(), { include: [], exclude: [], protocols: [], name_prefix: '', append_source: false, deduplicate: true, rules: ['MATCH,PROXY'] })
+  assert.deepEqual(rules(), { include: [], exclude: [], protocols: [], name_prefix: '', prepend_source: false, append_source: false, deduplicate: true, rules: ['MATCH,PROXY'] })
   const routeRules = ['DOMAIN,ads.example,REJECT', 'DOMAIN-SUFFIX,example.com,PROXY', 'DOMAIN-KEYWORD,search,PROXY', 'IP-CIDR,10.0.0.0/8,DIRECT,no-resolve', 'IP-CIDR6,2001:db8::/32,DIRECT', 'SRC-IP-CIDR,192.168.1.1/32,DIRECT', 'GEOIP,CN,DIRECT,no-resolve', 'DST-PORT,80/443/8000-9000,PROXY', 'SRC-PORT,1024-65535,DIRECT', 'PROCESS-NAME,example.exe,PROXY', 'NETWORK,UDP,DIRECT', 'MATCH,PROXY']
   const normalized = rules({ rules: routeRules })
   assert.equal(normalized.rules.at(-2), 'NETWORK,udp,DIRECT')

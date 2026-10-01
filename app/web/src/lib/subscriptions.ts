@@ -34,6 +34,7 @@ export type SubscriptionRules = {
   exclude: string[]
   protocols: string[]
   name_prefix: string
+  prepend_source: boolean
   append_source: boolean
   deduplicate: boolean
   rules: string[]
@@ -78,6 +79,20 @@ export type SubscriptionRelayNode = {
 export type SourceInput = Pick<SubscriptionSource, 'name' | 'url' | 'note' | 'enabled' | 'refresh_interval_minutes' | 'fetch_agent_id'>
 export type ProfileInput = Pick<SubscriptionProfile, 'name' | 'note' | 'source_ids' | 'rules' | 'enabled'>
 export type SubscriptionFormat = 'clash' | 'links' | 'base64'
+export type SourceNamePosition = 'prepend' | 'append' | 'none'
+export const RULE_IMPORT_MAX_BYTES = 1024 * 1024
+export const RULE_IMPORT_POLICIES = ['PROXY', 'DIRECT', 'REJECT'] as const
+export type RuleImportPolicy = typeof RULE_IMPORT_POLICIES[number]
+export type RuleImportInput = { content: string; policy_map?: Record<string, RuleImportPolicy>; default_policy?: RuleImportPolicy }
+export type RuleImportResult = {
+  format: 'clash' | 'list' | 'payload' | 'text' | 'unknown'
+  rules: string[]
+  diagnostics: { level: 'error' | 'warning' | 'info'; code: string; message: string; line?: number; column?: number }[]
+  policies: { name: string; target: RuleImportPolicy; count: number }[]
+  total: number
+  imported: number
+  can_apply: boolean
+}
 
 export const OUTPUT_FORMATS: { value: SubscriptionFormat; label: string; extension: string }[] = [
   { value: 'clash', label: 'Clash / Mihomo YAML', extension: 'yaml' },
@@ -98,6 +113,8 @@ const write = (method: string, body?: unknown): RequestInit => ({
 
 export const subscriptions = {
   list: (signal?: AbortSignal) => api<SubscriptionSnapshot>(ROOT, {}, { signal }),
+  importRules: (input: RuleImportInput, signal?: AbortSignal) =>
+    api<RuleImportResult>(`${ROOT}/rules/import`, write('POST', input), { signal }),
   saveSource: (id: number | null, input: SourceInput, signal?: AbortSignal) =>
     api<{ source: SubscriptionSource }>(`${ROOT}/sources${id === null ? '' : `/${id}`}`, write(id === null ? 'POST' : 'PUT', input), { signal }),
   removeSource: (id: number, signal?: AbortSignal) =>
@@ -114,6 +131,20 @@ export const subscriptions = {
     api<{ profile: SubscriptionProfile }>(`${ROOT}/profiles/${id}/rotate-token`, write('POST'), { signal }),
   preview: (id: number, format: SubscriptionFormat, signal?: AbortSignal) =>
     api<SubscriptionOutput>(`${ROOT}/profiles/${id}/preview?format=${format}`, {}, { signal }),
+}
+
+export function ruleImportFileError(file: { name: string; size: number }): string | null {
+  if (!/\.(?:ya?ml|txt)$/i.test(file.name)) return '请选择 .yaml、.yml 或 .txt 文件'
+  return file.size > RULE_IMPORT_MAX_BYTES ? '规则文件不能超过 1 MiB' : null
+}
+
+export function ruleImportContentError(content: string): string | null {
+  if (!content.trim()) return '请先选择文件或粘贴规则内容'
+  return new TextEncoder().encode(content).byteLength > RULE_IMPORT_MAX_BYTES ? '规则内容不能超过 1 MiB' : null
+}
+
+export function canApplyImportedRules(output: RuleImportResult): boolean {
+  return output.can_apply && output.rules.length > 0 && !output.diagnostics.some((item) => item.level === 'error')
 }
 
 export function sourceInput(source: SubscriptionSource): SourceInput {
@@ -162,11 +193,31 @@ export function relayNodeHint(node: SubscriptionRelayNode): string {
 }
 
 export function profileInput(profile: SubscriptionProfile): ProfileInput {
-  return { name: profile.name, note: profile.note, source_ids: profile.source_ids, rules: profile.rules, enabled: profile.enabled }
+  return { name: profile.name, note: profile.note, source_ids: profile.source_ids, rules: { ...profile.rules, ...sourceNameRuleFields(sourceNamePosition(profile.rules)) }, enabled: profile.enabled }
+}
+
+export function sourceNamePosition(rules: Partial<Pick<SubscriptionRules, 'prepend_source' | 'append_source'>> | null): SourceNamePosition {
+  if (rules === null) return 'prepend'
+  if (rules.prepend_source === true) return 'prepend'
+  return rules.append_source === true ? 'append' : 'none'
+}
+
+export function sourceNameRuleFields(position: SourceNamePosition): Pick<SubscriptionRules, 'prepend_source' | 'append_source'> {
+  return { prepend_source: position === 'prepend', append_source: position === 'append' }
+}
+
+export function sourceNameExample(sourceName: string, prefix: string, position: SourceNamePosition): string {
+  const nodeName = `${prefix}香港01`
+  if (position === 'prepend') return `[${sourceName}] ${nodeName}`
+  return position === 'append' ? `${nodeName} [${sourceName}]` : nodeName
 }
 
 export function splitLines(value: string): string[] {
   return [...new Set(value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean))]
+}
+
+export function splitRoutingRules(value: string): string[] {
+  return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
 }
 
 export function subscriptionFeedUrl(token: string, format: SubscriptionFormat, origin = window.location.origin): string {

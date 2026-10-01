@@ -88,7 +88,7 @@ function sourceView(row: SourceMetadataRow): SubscriptionSource {
 function profileView(row: ProfileRow): SubscriptionProfile {
   return {
     id: row.id, name: row.name, note: row.note, source_ids: JSON.parse(row.source_ids_json) as number[],
-    rules: JSON.parse(row.rules_json) as SubscriptionRules, token: row.token, enabled: Boolean(row.enabled),
+    rules: normalizeSubscriptionRules(JSON.parse(row.rules_json)), token: row.token, enabled: Boolean(row.enabled),
     created_at: row.created_at, updated_at: row.updated_at,
   }
 }

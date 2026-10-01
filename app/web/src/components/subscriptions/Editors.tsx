@@ -1,7 +1,8 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { Modal, btnGhost, btnPrimary, fieldClass, labelClass } from '../Modal.tsx'
 import { errorMessage } from '../../lib/api.ts'
-import { SUBSCRIPTION_PROTOCOLS, relayNodeHint, relayNodeLabel, splitLines, type ProfileInput, type SourceInput, type SubscriptionProfile, type SubscriptionRelayNode, type SubscriptionSource } from '../../lib/subscriptions.ts'
+import { RuleImport } from './RuleImport.tsx'
+import { SUBSCRIPTION_PROTOCOLS, relayNodeHint, relayNodeLabel, sourceNameExample, sourceNamePosition, sourceNameRuleFields, splitLines, splitRoutingRules, type ProfileInput, type SourceInput, type SourceNamePosition, type SubscriptionProfile, type SubscriptionRelayNode, type SubscriptionSource } from '../../lib/subscriptions.ts'
 
 const checkClass = 'flex items-center gap-2 text-sm text-fg/80'
 const hintClass = 'mt-1.5 text-xs leading-relaxed text-fg/50'
@@ -88,13 +89,14 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
   const [protocols, setProtocols] = useState<string[]>(profile?.rules.protocols.filter((p) => (SUBSCRIPTION_PROTOCOLS as readonly string[]).includes(p)) ?? [])
   const [customProtocols, setCustomProtocols] = useState(profile?.rules.protocols.filter((p) => !(SUBSCRIPTION_PROTOCOLS as readonly string[]).includes(p)).join(', ') ?? '')
   const [prefix, setPrefix] = useState(profile?.rules.name_prefix ?? '')
-  const [appendSource, setAppendSource] = useState(profile?.rules.append_source ?? false)
+  const [sourcePosition, setSourcePosition] = useState<SourceNamePosition>(() => sourceNamePosition(profile?.rules ?? null))
   const [deduplicate, setDeduplicate] = useState(profile?.rules.deduplicate ?? true)
   const [routing, setRouting] = useState(profile?.rules.rules.join('\n') ?? 'MATCH,PROXY')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const submitting = useRef(false)
   const missingIds = selected.filter((id) => !sources.some((source) => source.id === id))
+  const exampleSource = selected.map((id) => sources.find((source) => source.id === id)).find(Boolean)?.name ?? '订阅源名称'
   const toggleSource = (id: number) => setSelected((value) => value.includes(id) ? value.filter((item) => item !== id) : [...value, id])
 
   async function submit(event: FormEvent) {
@@ -111,8 +113,8 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
         rules: {
           include: splitLines(include), exclude: splitLines(exclude),
           protocols: [...new Set([...protocols, ...customProtocols.split(/[,\r\n]+/).map((p) => p.trim().toLowerCase()).filter(Boolean)])],
-          name_prefix: prefix, append_source: appendSource, deduplicate,
-          rules: routing.trim() ? splitLines(routing) : ['MATCH,PROXY'],
+          name_prefix: prefix, ...sourceNameRuleFields(sourcePosition), deduplicate,
+          rules: routing.trim() ? splitRoutingRules(routing) : ['MATCH,PROXY'],
         },
       })
     } catch (err) {
@@ -154,8 +156,17 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
             <label htmlFor="subscription-profile-protocols" className={`${labelClass} mt-3`}>其他协议类型</label><input id="subscription-profile-protocols" className={fieldClass} value={customProtocols} onChange={(e) => setCustomProtocols(e.target.value)} placeholder="使用逗号分隔，例如：ssh, mieru" />
           </fieldset>
           <div><label htmlFor="subscription-profile-prefix" className={labelClass}>节点名称前缀</label><input id="subscription-profile-prefix" className={fieldClass} value={prefix} onChange={(e) => setPrefix(e.target.value)} maxLength={100} placeholder="可留空，例如：[日常] " /></div>
-          <div className="flex flex-wrap gap-x-6 gap-y-3"><label className={checkClass}><input type="checkbox" className="size-4 accent-brand-500" checked={appendSource} onChange={(e) => setAppendSource(e.target.checked)} />名称追加来源</label><label className={checkClass}><input type="checkbox" className="size-4 accent-brand-500" checked={deduplicate} onChange={(e) => setDeduplicate(e.target.checked)} />去除重复节点</label></div>
-          <div><label htmlFor="subscription-profile-rules" className={labelClass}>自定义路由规则</label><textarea id="subscription-profile-rules" className={`${fieldClass} font-mono text-xs`} value={routing} onChange={(e) => setRouting(e.target.value)} rows={5} spellCheck={false} placeholder="MATCH,PROXY" /><p className={hintClass}>每行一条 Clash 规则，仅用于 YAML。留空使用 MATCH,PROXY；可使用 PROXY、DIRECT、REJECT。</p></div>
+          <div>
+            <label htmlFor="subscription-profile-source-position" className={labelClass}>订阅源名称位置</label>
+            <select id="subscription-profile-source-position" className={fieldClass} value={sourcePosition} onChange={(event) => setSourcePosition(event.target.value as SourceNamePosition)} aria-describedby="subscription-profile-name-example">
+              <option value="prepend">前置（{sourceNameExample(exampleSource, prefix, 'prepend')}）</option>
+              <option value="append">后置（{sourceNameExample(exampleSource, prefix, 'append')}）</option>
+              <option value="none">不显示</option>
+            </select>
+            <p id="subscription-profile-name-example" className={`${hintClass} break-words`} aria-live="polite">示例：{sourceNameExample(exampleSource, prefix, sourcePosition)}。每个节点使用其所属订阅源的名称。</p>
+          </div>
+          <label className={checkClass}><input type="checkbox" className="size-4 accent-brand-500" checked={deduplicate} onChange={(e) => setDeduplicate(e.target.checked)} />去除重复节点</label>
+          <div><label htmlFor="subscription-profile-rules" className={labelClass}>自定义路由规则</label><textarea id="subscription-profile-rules" className={`${fieldClass} font-mono text-xs`} value={routing} onChange={(e) => setRouting(e.target.value)} rows={5} spellCheck={false} placeholder="MATCH,PROXY" /><p className={hintClass}>每行一条 Clash 规则，仅用于 YAML。留空使用 MATCH,PROXY；可使用 PROXY、DIRECT、REJECT。</p><RuleImport existingRuleCount={splitRoutingRules(routing).length} onApply={(rules) => setRouting(rules.join('\n'))} /></div>
           <label className={checkClass}><input type="checkbox" className="size-4 accent-brand-500" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />启用分享链接</label>
           <p className={hintClass}>停用后分享链接不可访问，管理页面仍可预览。</p>
         </fieldset>

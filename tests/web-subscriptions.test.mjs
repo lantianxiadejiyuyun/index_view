@@ -113,6 +113,63 @@ test('literal keyword lines preserve regex punctuation and remove only whitespac
   assert.deepEqual(helpers.splitLines(''), [])
 })
 
+test('routing rules retain duplicates and original order through import and profile submission', () => {
+  assert.deepEqual(helpers.splitRoutingRules(' DOMAIN-SUFFIX,example.com,DIRECT\r\n\nDOMAIN-SUFFIX,example.com,DIRECT\nMATCH,PROXY '), [
+    'DOMAIN-SUFFIX,example.com,DIRECT', 'DOMAIN-SUFFIX,example.com,DIRECT', 'MATCH,PROXY',
+  ])
+  assert.deepEqual(helpers.splitRoutingRules(' \n'), [])
+})
+
+test('source naming defaults to prepend for new profiles while preserving legacy profile choices', () => {
+  assert.equal(helpers.sourceNamePosition(null), 'prepend')
+  assert.equal(helpers.sourceNamePosition({}), 'none')
+  assert.equal(helpers.sourceNamePosition({ append_source: false }), 'none')
+  assert.equal(helpers.sourceNamePosition({ append_source: true }), 'append')
+  assert.equal(helpers.sourceNamePosition({ prepend_source: true, append_source: false }), 'prepend')
+  for (const [position, expected] of [
+    ['prepend', { prepend_source: true, append_source: false }],
+    ['append', { prepend_source: false, append_source: true }],
+    ['none', { prepend_source: false, append_source: false }],
+  ]) assert.deepEqual(helpers.sourceNameRuleFields(position), expected)
+})
+
+test('source naming examples place the actual source outside the custom node prefix', () => {
+  assert.equal(helpers.sourceNameExample('快雷', '[日常] ', 'prepend'), '[快雷] [日常] 香港01')
+  assert.equal(helpers.sourceNameExample('琉璃', '[日常] ', 'append'), '[日常] 香港01 [琉璃]')
+  assert.equal(helpers.sourceNameExample('琉璃', '', 'none'), '香港01')
+  assert.equal(helpers.sourceNameExample('来源 [A]', '$1 .* ', 'prepend'), '[来源 [A]] $1 .* 香港01')
+})
+
+test('profile updates send explicit source-name flags without mutating legacy rule data', () => {
+  const rules = { include: [], exclude: [], protocols: [], name_prefix: '日常 ', append_source: true, deduplicate: false, rules: ['MATCH,PROXY'] }
+  const profile = { name: 'Daily', note: '', source_ids: [1], rules, enabled: false }
+  const input = helpers.profileInput(profile)
+  assert.equal(input.rules.prepend_source, false)
+  assert.equal(input.rules.append_source, true)
+  assert.equal(input.rules.deduplicate, false)
+  assert.equal(input.rules.name_prefix, '日常 ')
+  assert.equal(Object.hasOwn(rules, 'prepend_source'), false)
+  assert.notEqual(input.rules, rules)
+})
+
+test('rule imports check file size before reading and measure pasted text as UTF-8 bytes', () => {
+  assert.equal(helpers.ruleImportFileError({ name: 'rules.YAML', size: 1024 * 1024 }), null)
+  assert.match(helpers.ruleImportFileError({ name: 'rules.yml', size: 1024 * 1024 + 1 }), /1 MiB/)
+  assert.match(helpers.ruleImportFileError({ name: 'rules.exe', size: 1 }), /yaml/)
+  assert.equal(helpers.ruleImportContentError('MATCH,PROXY'), null)
+  assert.match(helpers.ruleImportContentError('   \n'), /选择文件或粘贴/)
+  assert.match(helpers.ruleImportContentError('规'.repeat(350_000)), /1 MiB/)
+})
+
+test('rule import application requires a complete valid result even if a partial preview exists', () => {
+  const result = { format: 'text', rules: ['MATCH,PROXY'], diagnostics: [], policies: [], total: 1, imported: 1, can_apply: true }
+  assert.equal(helpers.canApplyImportedRules(result), true)
+  assert.equal(helpers.canApplyImportedRules({ ...result, diagnostics: [{ level: 'warning', code: 'mapped', message: 'Mapped group' }] }), true)
+  assert.equal(helpers.canApplyImportedRules({ ...result, can_apply: false }), false)
+  assert.equal(helpers.canApplyImportedRules({ ...result, rules: [] }), false)
+  assert.equal(helpers.canApplyImportedRules({ ...result, diagnostics: [{ level: 'error', code: 'unsupported', message: 'Unsupported rule', line: 3 }] }), false)
+})
+
 test('share URLs encode the token as one path segment and preserve each requested output format', () => {
   for (const format of ['clash', 'links', 'base64']) {
     assert.equal(helpers.subscriptionFeedUrl('a/b?#token', format, 'https://example.test'), `https://example.test/api/subscriptions/feed/a%2Fb%3F%23token?format=${format}`)

@@ -324,7 +324,7 @@ export function parseSubscriptionUsage(header: string | null): SubscriptionUsage
   return { upload: fields.get('upload') ?? null, download: fields.get('download') ?? null, total: fields.get('total') ?? null, expires_at: expires === null ? null : expires * 1000 }
 }
 
-function normalizeRoutingRule(value: string, index: number, last: number): string {
+export function normalizeRoutingRule(value: string, index: number, last: number): string {
   const parts = value.split(',').map(item => item.trim())
   const type = parts[0]!.toUpperCase()
   const invalid = () => fail(`第 ${index + 1} 条路由规则无效；请检查类型、匹配值、策略和附加参数`)
@@ -341,6 +341,7 @@ function normalizeRoutingRule(value: string, index: number, last: number): strin
     const [ip, prefix, extra] = match.split('/')
     const family = isIP(ip || '')
     if (extra !== undefined || !family || prefix === undefined || !/^\d+$/.test(prefix) || Number(prefix) > (family === 4 ? 32 : 128)) return invalid()
+    if ((type === 'IP-CIDR' && family !== 4) || (type === 'IP-CIDR6' && family !== 6)) return invalid()
   } else if (['DST-PORT', 'SRC-PORT', 'IN-PORT'].includes(type)) {
     for (const range of match.split('/')) {
       const nums = range.split('-')
@@ -363,7 +364,7 @@ function normalizeRoutingRule(value: string, index: number, last: number): strin
 export function normalizeSubscriptionRules(input: unknown): SubscriptionRules {
   if (input === undefined) input = {}
   if (!record(input) || ![Object.prototype, null].includes(Object.getPrototypeOf(input))) fail('封装规则必须是对象')
-  const allowed = new Set(['include', 'exclude', 'protocols', 'name_prefix', 'append_source', 'deduplicate', 'rules'])
+  const allowed = new Set(['include', 'exclude', 'protocols', 'name_prefix', 'prepend_source', 'append_source', 'deduplicate', 'rules'])
   if (Object.keys(input).some(key => !allowed.has(key))) fail('封装规则含未知字段')
   const list = (key: string, fallback: string[], max: number): string[] => {
     const value = input[key]
@@ -381,10 +382,13 @@ export function normalizeSubscriptionRules(input: unknown): SubscriptionRules {
   if (protocols.some(item => !/^[a-z][a-z0-9-]{0,31}$/.test(item))) fail('协议筛选值无效')
   const rules = list('rules', ['MATCH,PROXY'], 1000)
   if (!rules.length || !/^MATCH,/i.test(rules.at(-1)!)) fail('路由规则必须以 MATCH,PROXY、MATCH,DIRECT 或 MATCH,REJECT 结尾')
+  const prependSource = flag('prepend_source', false)
+  const appendSource = flag('append_source', false)
+  if (prependSource && appendSource) fail('来源名称不能同时前置和后置，请只选择一种位置')
   return {
     include: list('include', [], 100), exclude: list('exclude', [], 100), protocols: [...new Set(protocols)],
     name_prefix: input.name_prefix === undefined ? '' : textValue(input.name_prefix, 100),
-    append_source: flag('append_source', false), deduplicate: flag('deduplicate', true),
+    prepend_source: prependSource, append_source: appendSource, deduplicate: flag('deduplicate', true),
     rules: rules.map((rule, index) => normalizeRoutingRule(rule, index, rules.length - 1)),
   }
 }
@@ -517,7 +521,7 @@ export function buildSubscriptionOutput(inputs: SubscriptionInput[], rules: Subs
       const identity = canonical(fields) + (node['dialer-proxy'] === undefined || node['dialer-proxy'] === 'DIRECT' ? '' : `@${source}`)
       let entry = settings.deduplicate ? unique.get(identity) : undefined
       if (!entry) {
-        const base = settings.name_prefix + name + (settings.append_source ? ` [${sourceName}]` : '')
+        const base = (settings.prepend_source ? `[${sourceName}] ` : '') + settings.name_prefix + name + (settings.append_source ? ` [${sourceName}]` : '')
         if (base.length > 1000) fail('节点名称加上前缀和来源后过长，请缩短名称或前缀')
         let candidate = base, suffix = 2
         while (names.has(candidate)) candidate = `${base} (${suffix++})`

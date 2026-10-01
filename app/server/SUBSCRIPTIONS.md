@@ -81,7 +81,7 @@ Clash 输出重新生成 `proxies`、固定的 `PROXY` 选择组和自定义 `ru
 
 - **包含 / 排除关键词**：逐行填写，按节点名称作不区分大小写的字面匹配；空包含列表代表不限，不执行正则表达式。
 - **协议筛选**：不选时保留全部协议；选择后仅保留对应类型。
-- **命名**：支持统一前缀和追加来源名称，方便客户端区分。
+- **命名**：支持统一前缀，以及将订阅源名称前置、后置或不显示。前置示例为 `[快雷] 香港01`，后置为 `香港01 [快雷]`。同时填写统一前缀 `[日常] ` 时，前置结果为 `[快雷] [日常] 香港01`。页面新建配置默认前置，编辑旧配置保留原设置；名称变化会同步更新同一来源内的 `dialer-proxy` 引用，并应用于 YAML、通用链接和 Base64 输出。启用去重时，相同节点保留首个所选来源的名称。
 - **去重**：比较除名称外的全部节点字段，字段相同的节点只保留一份；带 `dialer-proxy` 节点依赖的节点按来源分别去重，避免跨来源改变连接路径。
 - **路由规则**：每行一条，目标策略使用 `PROXY`、`DIRECT` 或 `REJECT`，最终规则必须为 `MATCH`。默认 `MATCH,PROXY`。
 
@@ -98,6 +98,18 @@ MATCH,PROXY
 
 `RULE-SET`、逻辑组合、正则/通配符规则及其他未列出的类型会被拒绝；本模块不会联网下载远程规则集。需要这些规则或上游自定义策略组时，应在客户端中另外配置，不能直接贴入这里。`MATCH` 只能出现一次且必须位于最后，避免后续规则永远不生效。
 
+## 从 YAML / 文本导入规则
+
+编辑或新建封装配置时，在自定义路由规则旁打开导入面板，可以选择 `.yaml`、`.yml`、`.txt` 文件或粘贴文本。导入器自动识别完整配置中的 `rules`、YAML 字符串列表、`payload` 规则集及逐行规则文本；完整配置中的节点、DNS、监听端口和策略组定义不会并入封装。
+
+原文件中的自定义策略名（例如 `快雷GO`）默认映射到 `PROXY`，预览会逐项展示名称、目标策略和使用次数，也可调整为 `DIRECT` 或 `REJECT` 后重新分析。内置 `DIRECT`、`REJECT`、`PROXY` 保持原含义。默认策略用于缺少策略的 `payload` 条目和自动补充的末尾 `MATCH`，不会改变已有规则的动作。
+
+导入保留规则顺序与重复项，重复项会给出提示。`FINAL` 会识别为 `MATCH`；缺少兜底规则时追加默认 `MATCH` 并提示。中间出现 `MATCH`、多条 `MATCH`、不支持的规则类型、无效参数和 YAML 语法错误均会阻止应用，支持定位到原文件行号。不会通过移动兜底规则或删除错误项来产生看似成功的结果。
+
+输入最多 1 MiB、1000 条规则；YAML 引用、合并键和显式标签需要先展开或移除。`payload` 中的域名、`+.example.com` 和 CIDR 可转换为当前支持的路由规则；无法无损表达的通配符会报错。远程 `rule-providers`、`RULE-SET` 和逻辑组合仍不在当前支持范围，导入不会联网下载它们。
+
+分析操作不写入数据库。只有点击应用，规则才替换当前表单中的文本；保存封装配置后才生效。修改输入或映射会使旧预览失效，不能误用上一次分析结果。
+
 ## 管理 API 和客户端订阅
 
 管理接口沿用站点 Bearer 登录认证，数据按账号隔离。
@@ -110,6 +122,7 @@ MATCH,PROXY
 | `DELETE /subscriptions/sources/:id` | 删除来源，并从封装配置中移除引用 |
 | `POST /subscriptions/sources/:id/refresh` | 手动拉取单个来源 |
 | `POST /subscriptions/refresh` | 拉取全部启用来源 |
+| `POST /subscriptions/rules/import` | 分析 YAML / 文本规则、策略映射与逐行诊断；不保存配置 |
 | `POST /subscriptions/profiles` | 新建封装配置 |
 | `PUT /subscriptions/profiles/:id` | 修改封装规则或启用状态 |
 | `DELETE /subscriptions/profiles/:id` | 删除配置并撤销分享 |
@@ -118,6 +131,10 @@ MATCH,PROXY
 | `GET /subscriptions/feed/:token?format=clash` | 客户端凭独立令牌读取缓存订阅 |
 
 `format` 支持 `clash`、`links`、`base64`，缺省为 `clash`。停用封装配置会禁用客户端链接，但管理者仍可预览。重置令牌后旧链接立即失效；这些响应使用 `Cache-Control: no-store`。
+
+封装规则的 `prepend_source` 与 `append_source` 分别控制来源名称前置和后置，不能同时为 `true`。API 中省略时均为 `false`；旧配置读取时自动补齐默认值，无需修改数据库结构。
+
+规则导入请求为 `{ content, policy_map?, default_policy? }`；映射目标与默认策略只能为 `PROXY`、`DIRECT`、`REJECT`。响应包含识别格式 `format`、输出 `rules`、带严重程度与行列的 `diagnostics`、策略映射 `policies`、输入条目数 `total`、输出数 `imported` 和是否允许应用的 `can_apply`。任何错误都会令 `can_apply` 为 `false`；诊断列表有数量上限，但未展示的错误仍会阻止应用。
 
 来源写入字段 `fetch_agent_id` 为数字节点 ID，`null` 表示服务器直连；新建时省略也按直连处理。来源响应另有 `fetch_agent_name` 和 `fetch_status`（`idle`、`queued`、`fetching`）；兼容字段 `fetching` 在排队和执行期间都为 `true`。探针模式的刷新 API 在入队后立即返回，不等待探针网络请求完成。
 

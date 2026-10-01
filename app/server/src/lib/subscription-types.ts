@@ -51,6 +51,7 @@ export type SubscriptionRules = {
   exclude: string[]
   protocols: string[]
   name_prefix: string
+  prepend_source: boolean
   append_source: boolean
   deduplicate: boolean
   rules: string[]

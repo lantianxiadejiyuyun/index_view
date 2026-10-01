@@ -51,7 +51,33 @@ try {
   const subscriptions = await fetch(`http://127.0.0.1:${port}/api/subscriptions`, { headers: { authorization: `Bearer ${token}` } })
   assert.equal(subscriptions.status, 200)
   assert.deepEqual((await subscriptions.json()).sources, [])
+  const imported = await fetch(`http://127.0.0.1:${port}/api/subscriptions/rules/import`, {
+    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ content: "rules:\n  - 'DOMAIN-SUFFIX,example.com,Fixture Group'\n  - 'MATCH,Fixture Group'" }),
+  })
+  assert.equal(imported.status, 200)
+  assert.equal(imported.headers.get('cache-control'), 'no-store')
+  const analysis = await imported.json()
+  assert.equal(analysis.can_apply, true)
+  assert.deepEqual(analysis.rules, ['DOMAIN-SUFFIX,example.com,PROXY', 'MATCH,PROXY'])
+  assert.deepEqual(analysis.policies, [{ name: 'Fixture Group', target: 'PROXY', count: 2 }])
+  const sourceResponse = await fetch(`http://127.0.0.1:${port}/api/subscriptions/sources`, {
+    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'Fixture source', url: 'https://source.example.invalid/feed', enabled: false }),
+  })
+  assert.equal(sourceResponse.status, 201)
+  const { source } = await sourceResponse.json()
+  const profileResponse = await fetch(`http://127.0.0.1:${port}/api/subscriptions/profiles`, {
+    method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ name: 'Imported fixture', source_ids: [source.id], rules: { prepend_source: true, rules: analysis.rules } }),
+  })
+  assert.equal(profileResponse.status, 201)
+  const { profile } = await profileResponse.json()
+  assert.equal(profile.rules.prepend_source, true)
+  assert.equal(profile.rules.append_source, false)
+  assert.deepEqual(profile.rules.rules, analysis.rules)
   console.log('PASS: standalone server starts without node_modules, migrates SQLite, and serves authenticated subscriptions')
+  console.log('PASS: standalone rule import maps source groups and persists source-name prefix settings')
 } finally {
   child.kill()
   await closed
