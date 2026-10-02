@@ -7,7 +7,7 @@ import { toast } from '../store/toast.ts'
 import { FolderSiteIcon } from './FolderCard.tsx'
 import { Modal, btnGhost, btnPrimary, fieldClass, labelClass } from './Modal.tsx'
 
-type Props = { open: boolean; folder: Folder | null; defaultCategoryId: number | null; onClose: () => void }
+type Props = { open: boolean; folder: Folder | null; defaultCategoryId: number | null; foldersOnly?: boolean; onClose: () => void }
 const SIZES = [{ columns: 1, rows: 1 }, { columns: 2, rows: 1 }, { columns: 2, rows: 2 }, { columns: 3, rows: 2 }, { columns: 4, rows: 2 }]
 const COLORS = ['#0284c7', '#6366f1', '#8b5cf6', '#db2777', '#ea580c', '#ca8a04', '#16a34a', '#0d9488']
 
@@ -22,7 +22,7 @@ function sizeErrorMessage(label: string, value: string): string {
   return `${label}必须是大于 0 的整数，不能使用小数或负数。`
 }
 
-export function FolderEditorModal({ open, folder, defaultCategoryId, onClose }: Props) {
+export function FolderEditorModal({ open, folder, defaultCategoryId, foldersOnly = false, onClose }: Props) {
   const categories = useApp((state) => state.categories)
   const folders = useApp((state) => state.folders)
   const sites = useApp((state) => state.sites)
@@ -90,7 +90,7 @@ export function FolderEditorModal({ open, folder, defaultCategoryId, onClose }: 
   }
 
   async function remove() {
-    if (!folder || saving || !window.confirm(`删除文件夹「${folder.name}」？里面的图标会移回当前分组，不会删除图标。`)) return
+    if (!folder || saving || !window.confirm(`删除文件夹「${folder.name}」？里面的图标会移回${foldersOnly ? '桌面' : '当前分组'}，不会删除图标。`)) return
     setSaving(true)
     try { await deleteFolder(folder.id); toast.success('文件夹已移除，图标已保留'); onClose() }
     catch (error) { toast.error(errorMessage(error, '删除文件夹失败')) }
@@ -113,7 +113,7 @@ export function FolderEditorModal({ open, folder, defaultCategoryId, onClose }: 
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label htmlFor="folder-name" className={labelClass}>文件夹名称</label><input id="folder-name" className={fieldClass} value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder="例如：每日工作、影音娱乐" autoFocus disabled={saving} /></div>
-          <div><label htmlFor="folder-category" className={labelClass}>所属分组</label><select id="folder-category" className={fieldClass} value={categoryId} onChange={(event) => setCategoryId(event.target.value)} disabled={saving}><option value="">未分组</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
+          <div hidden={foldersOnly}><label htmlFor="folder-category" className={labelClass}>所属分组</label><select id="folder-category" className={fieldClass} value={categoryId} onChange={(event) => setCategoryId(event.target.value)} disabled={saving}><option value="">未分组</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
         </div>
         <fieldset disabled={saving}>
           <legend className={labelClass}>文件夹尺寸 <span className="text-fg/40">· 快捷预设</span></legend>
@@ -143,11 +143,11 @@ export function FolderEditorModal({ open, folder, defaultCategoryId, onClose }: 
             {visibleSites.map((site) => {
               const currentFolder = folders.find((item) => item.id === site.folder_id)
               const category = categories.find((item) => item.id === site.category_id)
-              return <label className="folder-member" key={site.id} data-selected={selected.has(site.id)}><input type="checkbox" checked={selected.has(site.id)} onChange={() => toggle(site.id)} /><FolderSiteIcon site={site} /><span><strong>{site.title}</strong><small>{currentFolder ? `文件夹：${currentFolder.name}` : category?.name || '未分组'}{currentFolder && currentFolder.id !== folder?.id && selected.has(site.id) ? ' · 将移入' : ''}</small></span></label>
+              return <label className="folder-member" key={site.id} data-selected={selected.has(site.id)}><input type="checkbox" checked={selected.has(site.id)} onChange={() => toggle(site.id)} /><FolderSiteIcon site={site} /><span><strong>{site.title}</strong><small>{currentFolder ? `文件夹：${currentFolder.name}` : (foldersOnly ? '桌面' : category?.name || '未分组')}{currentFolder && currentFolder.id !== folder?.id && selected.has(site.id) ? ' · 将移入' : ''}</small></span></label>
             })}
             {!visibleSites.length && <p className="folder-members-empty">{sites.length ? '没有匹配的图标' : '还没有图标，可先创建文件夹，再添加内容。'}</p>}
           </div>
-          <p className="folder-field-note">选中的图标会移入此文件夹并跟随所属分组。取消勾选的原有图标会移回分组。</p>
+          <p className="folder-field-note">{foldersOnly ? '选中的图标会移入此文件夹，取消勾选的原有图标会移回桌面。' : '选中的图标会移入此文件夹并跟随所属分组。取消勾选的原有图标会移回分组。'}</p>
         </fieldset>
       </div>
     </Modal>

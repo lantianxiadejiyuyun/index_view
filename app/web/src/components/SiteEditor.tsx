@@ -12,6 +12,7 @@ type Props = {
   site: Site | null
   defaultCategoryId: number | null
   defaultFolderId?: number | null
+  foldersOnly?: boolean
   onClose: () => void
 }
 
@@ -56,7 +57,7 @@ const COLOR_SWATCHES = [
   '#ef4444',
 ]
 
-export function SiteEditorModal({ open, site, defaultCategoryId, defaultFolderId = null, onClose }: Props) {
+export function SiteEditorModal({ open, site, defaultCategoryId, defaultFolderId = null, foldersOnly = false, onClose }: Props) {
   const categories = useApp((s) => s.categories)
   const folders = useApp((s) => s.folders)
   const createSite = useApp((s) => s.createSite)
@@ -187,7 +188,7 @@ export function SiteEditorModal({ open, site, defaultCategoryId, defaultFolderId
 
   const bothUrls = Boolean(form.url_public.trim() && form.url_lan.trim())
   const selectedCategoryId = form.category_id === '' ? null : Number(form.category_id)
-  const availableFolders = folders.filter((folder) => folder.category_id === selectedCategoryId)
+  const availableFolders = foldersOnly ? folders : folders.filter((folder) => folder.category_id === selectedCategoryId)
   const previewSrc = form.icon_url.trim() || faviconUrl({ url_public: form.url_public, url_lan: form.url_lan })
 
   return (
@@ -312,7 +313,7 @@ export function SiteEditorModal({ open, site, defaultCategoryId, defaultFolderId
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
+          <div hidden={foldersOnly}>
             <label className={labelClass} htmlFor="se-cat">
               所属分组
             </label>
@@ -348,12 +349,12 @@ export function SiteEditorModal({ open, site, defaultCategoryId, defaultFolderId
                 }))
               }}
             >
-              <option value="">不放入文件夹</option>
+              <option value="">{foldersOnly ? '放在桌面' : '不放入文件夹'}</option>
               {availableFolders.map((folder) => (
                 <option key={folder.id} value={folder.id}>{folder.name}</option>
               ))}
             </select>
-            <p className="mt-1 text-[11px] text-fg/50">只显示当前分组的文件夹；更换分组后会移出原文件夹。</p>
+            <p className="mt-1 text-[11px] text-fg/50">{foldersOnly ? '选择一个文件夹收纳图标，或直接放在桌面上。' : '只显示当前分组的文件夹；更换分组后会移出原文件夹。'}</p>
           </div>
 
           <div>

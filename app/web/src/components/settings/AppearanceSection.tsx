@@ -267,6 +267,7 @@ export function AppearanceSection() {
 
   return (
     <SettingsSection id="appearance" description="主题、壁纸、卡片与毛玻璃强度">
+      <Segmented label="首页模式" value={settings.home_mode} options={[{ value: 'navigation', label: '导航主页' }, { value: 'desktop', label: '自由桌面' }]} onChange={(value) => void save({ home_mode: value })} hint="自由桌面以文件夹组织图标，组件可拖放到任意空位，电脑与手机分别保存布局。" />
       <AppearancePresets
         disabled={uploading || videoUploading}
         onApplyingChange={setApplyingPreset}

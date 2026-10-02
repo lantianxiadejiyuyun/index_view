@@ -7,6 +7,7 @@ import {
   PointerSensor,
   closestCenter,
   pointerWithin,
+  useDndContext,
   useDroppable,
   useSensor,
   useSensors,
@@ -21,7 +22,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
-import { errorMessage } from '../lib/api.ts'
+import { api, errorMessage } from '../lib/api.ts'
 import { resolveLink, openResolved } from '../lib/link.ts'
 import { readableToneStyle, useReadableTone } from '../lib/useWallpaperTone.ts'
 import { CARD_PRESETS, GAP_PRESETS, type CardSize } from '../lib/settings.ts'
@@ -60,12 +61,13 @@ type Props = {
 function FolderDropCard({ folder, sites, editMode, onOpen, onEdit, gridColumns }: {
   folder: Folder; sites: Site[]; editMode: boolean; onOpen: () => void; onEdit: () => void; gridColumns: number
 }) {
-  const { setNodeRef, isOver } = useDroppable({
+  const { active } = useDndContext()
+  const { setNodeRef, isOver, attributes, listeners, transform, transition, isDragging } = useSortable({
     id: `folder-${folder.id}`, data: { type: 'folder', folderId: folder.id, categoryId: folder.category_id }, disabled: !editMode,
   })
   const displayColumns = Math.min(folder.columns, gridColumns)
-  return <div ref={setNodeRef} className="folder-grid-item" style={{ gridColumn: `span ${displayColumns}`, gridRow: `span ${folder.rows}` }}>
-    <FolderCard folder={folder} sites={sites} editMode={editMode} onOpen={onOpen} onEdit={onEdit} isOver={isOver} displayColumns={displayColumns} />
+  return <div ref={setNodeRef} className="folder-grid-item" style={{ gridColumn: `span ${displayColumns}`, gridRow: `span ${folder.rows}`, transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? .25 : 1, touchAction: editMode ? 'none' : undefined }} {...(editMode ? attributes : {})} {...(editMode ? listeners : {})} aria-label={`拖动文件夹 ${folder.name}`}>
+    <FolderCard folder={folder} sites={sites} editMode={editMode} onOpen={onOpen} onEdit={onEdit} isOver={isOver && String(active?.id).startsWith('site-')} displayColumns={displayColumns} />
   </div>
 }
 
@@ -157,7 +159,7 @@ function CategorySection({
     data: { type: 'container', categoryId },
   })
 
-  const ids = group.sites.map((s) => `site-${s.id}`)
+  const ids = [...group.folders.map(f => `folder-${f.id}`), ...group.sites.map(s => `site-${s.id}`)]
   const gridRef = useRef<HTMLDivElement>(null)
   const [gridColumns, setGridColumns] = useState(4)
   const hasFolders = group.folders.length > 0
@@ -301,6 +303,8 @@ export function SiteGrid({ onEditSite, onAddSite, onEditFolder }: Props) {
   const registerClick = useApp((s) => s.registerClick)
 
   const [activeSite, setActiveSite] = useState<Site | null>(null)
+  const [activeFolder, setActiveFolder] = useState<Folder | null>(null)
+  const movingFolder = useRef(false)
   const [dragWidth, setDragWidth] = useState<number | null>(null)
   const [openFolderId, setOpenFolderId] = useState<number | null>(null)
   const openFolder = folders.find((folder) => folder.id === openFolderId) ?? null
@@ -348,14 +352,32 @@ export function SiteGrid({ onEditSite, onAddSite, onEditFolder }: Props) {
   function handleDragStart(event: DragStartEvent) {
     const site = sites.find((s) => `site-${s.id}` === String(event.active.id))
     setActiveSite(site ?? null)
+    setActiveFolder(folders.find(f => `folder-${f.id}` === String(event.active.id)) ?? null)
     setDragWidth(event.active.rect.current.initial?.width ?? null)
   }
 
   function handleDragEnd(event: DragEndEvent) {
     setActiveSite(null)
+    setActiveFolder(null)
     setDragWidth(null)
     const { active, over } = event
     if (!over) return
+
+    if (String(active.id).startsWith('folder-')) {
+      if (movingFolder.current || active.id === over.id) return
+      const moved = folders.find(f => `folder-${f.id}` === String(active.id))
+      if (!moved) return
+      const target = over.data.current?.categoryId ?? null
+      const ordered = [...folders].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id).filter(f => f.id !== moved.id)
+      const before = ordered.findIndex(f => `folder-${f.id}` === String(over.id))
+      ordered.splice(before < 0 ? ordered.length : before, 0, { ...moved, category_id: target })
+      movingFolder.current = true
+      void api<{ folders: Folder[]; sites: Site[] }>('/api/folders/reorder', { method: 'PATCH', body: JSON.stringify({ items: ordered.map(f => ({ id: f.id, category_id: f.category_id })) }) })
+        .then(result => { useApp.setState({ folders: result.folders, sites: result.sites }); toast.success('文件夹位置已保存') })
+        .catch(error => toast.error(errorMessage(error, '移动文件夹失败')))
+        .finally(() => { movingFolder.current = false })
+      return
+    }
 
     const activeSiteId = Number(String(active.id).replace('site-', ''))
     const moved = sites.find((s) => s.id === activeSiteId)
@@ -433,12 +455,12 @@ export function SiteGrid({ onEditSite, onAddSite, onEditFolder }: Props) {
     <DndContext
       sensors={sensors}
       collisionDetection={(args) => {
-        const foldersUnderPointer = pointerWithin(args).filter((hit) => String(hit.id).startsWith('folder-'))
+        const foldersUnderPointer = String(args.active.id).startsWith('site-') ? pointerWithin(args).filter((hit) => String(hit.id).startsWith('folder-')) : []
         return foldersUnderPointer.length ? foldersUnderPointer : closestCenter(args)
       }}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => { setActiveSite(null); setDragWidth(null) }}
+      onDragCancel={() => { setActiveSite(null); setActiveFolder(null); setDragWidth(null) }}
     >
       {/* space-y 统一分组间距，最后一个分组不会像用 mb-* 那样多出一截尾部空白 ——
           内容做垂直居中时，那截空白会把整块往上顶 */}
@@ -481,6 +503,7 @@ export function SiteGrid({ onEditSite, onAddSite, onEditFolder }: Props) {
       />, document.body)}
 
       {createPortal(<DragOverlay dropAnimation={null}>
+        {activeFolder && <div className="opacity-90" style={{ width: dragWidth ?? 200 }}><FolderCard folder={activeFolder} sites={sites.filter(s => s.folder_id === activeFolder.id)} editMode={false} onOpen={() => undefined} onEdit={() => undefined} /></div>}
         {activeSite ? (
           <div className="rotate-3 opacity-90" style={{ width: dragWidth ?? CARD_PRESETS[cardSize].width }}>
             <SiteCard

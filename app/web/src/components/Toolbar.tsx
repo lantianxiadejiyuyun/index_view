@@ -9,6 +9,7 @@ import {
   LogOut,
   Minimize2,
   Moon,
+  Monitor,
   PanelsTopLeft,
   MoreHorizontal,
   NotebookPen,
@@ -180,6 +181,7 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
         </Link>
 
         {user && <Link to="/subscriptions" title="订阅中心" aria-label="订阅中心" className="rounded-xl p-2 text-fg/75 transition hover:bg-line/15 hover:text-fg"><Rss className="size-4" aria-hidden /></Link>}
+        <Link to="/desktop" title="自由桌面" aria-label="自由桌面" className="rounded-xl p-2 text-fg/75 transition hover:bg-line/15 hover:text-fg"><Monitor className="size-4" aria-hidden /></Link>
 
         <Link
           to="/settings"
@@ -208,6 +210,7 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
       <Modal open={moreOpen} title="更多功能" onClose={() => setMoreOpen(false)} size="sm">
         <nav aria-label="更多功能" className="grid grid-cols-2 gap-2">
           {[
+            { to: '/desktop', label: '自由桌面', icon: Monitor },
             { to: '/notes', label: '笔记', icon: NotebookPen },
             { to: '/photos', label: '照片墙', icon: Images },
             { to: '/services', label: '服务对接', icon: Server },

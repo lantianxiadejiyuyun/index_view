@@ -35,6 +35,7 @@ export function activeWallpaper(
 }
 
 export type AppSettings = {
+  home_mode: 'navigation' | 'desktop'
   site_title: string
   site_subtitle: string
   search_engine: string
@@ -87,6 +88,7 @@ function toNum(value: string | undefined, fallback: number, min = 0, max = 100):
 export function normalizeSettings(raw: Record<string, string> | undefined): AppSettings {
   const s = raw ?? {}
   return {
+    home_mode: pick(s.home_mode, ['navigation', 'desktop'] as const, 'navigation'),
     site_title: s.site_title || '我的导航',
     site_subtitle: s.site_subtitle || '',
     search_engine: s.search_engine || 'bing',

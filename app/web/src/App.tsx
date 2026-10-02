@@ -26,6 +26,7 @@ const ServersPage = lazy(() => import('./pages/ServersPage.tsx').then((m) => ({ 
 const SettingsPage = lazy(() => import('./pages/SettingsPage.tsx').then((m) => ({ default: m.SettingsPage })))
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage.tsx').then((m) => ({ default: m.SubscriptionsPage })))
 const WorkbenchPage = lazy(() => import('./pages/WorkbenchPage.tsx').then((m) => ({ default: m.WorkbenchPage })))
+const DesktopPage = lazy(() => import('./pages/DesktopPage.tsx').then((m) => ({ default: m.DesktopPage })))
 
 /**
  * 把设置里的视觉参数写进 CSS 变量。
@@ -189,6 +190,8 @@ export default function App() {
           <Suspense fallback={<LoadingOverlay open text="正在加载页面…" />}>
             <Routes>
               <Route path="/" element={<HomePage />} />
+              <Route path="/navigation" element={<HomePage navigationOnly />} />
+              <Route path="/desktop" element={<DesktopPage />} />
               {/* 已登录就别停在登录页了。带 state 来的一律先回原目标 */}
               <Route
                 path="/login"

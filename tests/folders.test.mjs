@@ -19,10 +19,11 @@ async function bundle(name, legacyVersion, databaseFile = dbFile) {
       import { Hono } from 'hono';
       import { siteRoutes } from './src/routes/sites.ts';
       import { folderRoutes } from './src/routes/folders.ts';
+      import { desktopRoutes } from './src/routes/desktop.ts';
       import { settingsRoutes } from './src/routes/settings.ts';
       import { bootstrapRoutes } from './src/routes/bootstrap.ts';
       import { importRoutes } from './src/routes/import.ts';
-      export const app = new Hono().route('/api', siteRoutes).route('/api', folderRoutes).route('/api', settingsRoutes).route('/api', bootstrapRoutes).route('/api', importRoutes);
+      export const app = new Hono().route('/api', siteRoutes).route('/api', folderRoutes).route('/api', desktopRoutes).route('/api', settingsRoutes).route('/api', bootstrapRoutes).route('/api', importRoutes);
       export { sql, closeDb } from './src/lib/db.ts';
       export { initDatabase } from './src/db/schema.ts';
       export { createAccessOnlySession, issueAccessToken } from './src/lib/tokens.ts';
@@ -341,4 +342,110 @@ test('HTML bookmark replacement removes old folders and merge preserves them', a
   assert.equal(data.folders.length, 0)
   assert.equal(data.sites.length, 1)
   assert.equal(data.sites[0].folder_id, null)
+})
+
+test('desktop endpoints and folder ordering require authentication', async () => {
+  for (const [route, method, body] of [['/desktop/layout', 'GET'], ['/desktop/layout', 'PATCH', {}], ['/desktop/move', 'POST', {}], ['/desktop/collect-groups', 'POST', {}], ['/folders/reorder', 'PATCH', {}]]) {
+    assert.equal((await request(route, body, method, false)).status, 401)
+  }
+})
+
+test('desktop position patches merge independently across screen sizes and reject stale IDs atomically', async () => {
+  const { sites } = await fixture()
+  const id = `site:${sites[0]}`
+  await json('/desktop/layout', { viewport: 'wide', reset: true }, 'PATCH')
+  await json('/desktop/layout', { viewport: 'compact', reset: true }, 'PATCH')
+  await json('/desktop/layout', { viewport: 'wide', placements: [{ id, col: 8, row: 3 }] }, 'PATCH')
+  await json('/desktop/layout', { viewport: 'compact', placements: [{ id, col: 1, row: 7 }] }, 'PATCH')
+  await json('/desktop/layout', { viewport: 'wide', placements: [{ id: 'widget:clock', col: 0, row: 4 }] }, 'PATCH')
+  const before = await json('/desktop/layout')
+  assert.deepEqual(before.layout.wide[id], { col: 8, row: 3 })
+  assert.deepEqual(before.layout.compact[id], { col: 1, row: 7 })
+  for (const placements of [[{ id, col: 3, row: 1 }, { id: 'folder:999999', col: 0, row: 0 }], [{ id, col: 0, row: -1 }], [{ id, col: 12, row: 1 }], [{ id, col: 1.5, row: 0 }], [{ id: '__proto__', col: 0, row: 0 }], [{ id, col: 0, row: 0 }, { id, col: 0, row: 1 }]]) {
+    await json('/desktop/layout', { viewport: 'wide', placements }, 'PATCH', 400)
+    assert.deepEqual(await json('/desktop/layout'), before)
+  }
+  await json('/desktop/layout', { viewport: 'compact', reset: true }, 'PATCH')
+  assert.deepEqual((await json('/desktop/layout')).layout.wide, before.layout.wide)
+})
+
+test('desktop folder drops preserve icon content and atomically detach with a saved position', async () => {
+  const { a, b, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Target', category_id: b, site_ids: [sites[2]] }, 'POST', 201)
+  const original = site(sites[0])
+  await json('/desktop/move', { site_id: sites[0], folder_id: folder.id, viewport: 'wide' })
+  assert.equal(site(sites[0]).folder_id, folder.id)
+  assert.equal(site(sites[0]).category_id, b)
+  assert.equal(site(sites[0]).url_public, original.url_public)
+  assert.equal(site(sites[0]).title, original.title)
+  assert.notEqual(a, b)
+  const before = site(sites[0])
+  await json('/desktop/move', { site_id: sites[0], folder_id: null, viewport: 'compact', position: { col: 4, row: 1 } }, 'POST', 400)
+  assert.deepEqual(site(sites[0]), before)
+  await json('/desktop/move', { site_id: sites[0], folder_id: null, viewport: 'wide', position: { col: 6, row: 9 } })
+  assert.equal(site(sites[0]).folder_id, null)
+  assert.deepEqual((await json('/desktop/layout')).layout.wide[`site:${sites[0]}`], { col: 6, row: 9 })
+})
+
+test('a desktop storage failure rolls back both folder membership and coordinates', async () => {
+  const { a, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Source', category_id: a, site_ids: [sites[0]] }, 'POST', 201)
+  const before = state()
+  h.sql.exec("CREATE TRIGGER fail_desktop BEFORE INSERT ON settings WHEN NEW.key = 'desktop_layout' BEGIN SELECT RAISE(ABORT, 'fixture'); END")
+  try {
+    assert.equal((await request('/desktop/move', { site_id: sites[0], folder_id: null, viewport: 'wide', position: { col: 0, row: 0 } })).status, 500)
+    assert.deepEqual(state(), before)
+    assert.equal(site(sites[0]).folder_id, folder.id)
+  } finally { h.sql.exec('DROP TRIGGER fail_desktop') }
+})
+
+test('folder reorder moves its members to the destination category without changing size or URLs', async () => {
+  const { a, b, sites } = await fixture()
+  const first = (await json('/folders', { name: 'One', category_id: a, columns: 10, rows: 6, site_ids: [sites[0]] }, 'POST', 201)).folder
+  const second = (await json('/folders', { name: 'Two', category_id: b }, 'POST', 201)).folder
+  const before = site(sites[0])
+  const result = await json('/folders/reorder', { items: [{ id: second.id, category_id: b }, { id: first.id, category_id: b }] }, 'PATCH')
+  assert.deepEqual(result.folders.map(f => f.id), [second.id, first.id])
+  assert.equal(result.folders[1].columns, 10)
+  assert.equal(result.folders[1].rows, 6)
+  assert.equal(site(sites[0]).category_id, b)
+  assert.equal(site(sites[0]).folder_id, first.id)
+  assert.equal(site(sites[0]).url_public, before.url_public)
+  const snapshot = state()
+  await json('/folders/reorder', { items: [{ id: first.id, category_id: a }, { id: 999999, category_id: b }] }, 'PATCH', 400)
+  assert.deepEqual(state(), snapshot)
+})
+
+test('collecting legacy groups creates folders once and preserves existing folders and categories', async () => {
+  const { a, sites } = await fixture()
+  const existing = (await json('/folders', { name: 'Existing', category_id: a, site_ids: [sites[0]] }, 'POST', 201)).folder
+  const originalCategories = state().categories
+  const collected = await json('/desktop/collect-groups', {})
+  assert.equal(collected.created, 2)
+  assert.equal(site(sites[0]).folder_id, existing.id)
+  assert.ok(collected.sites.every(site => site.folder_id))
+  assert.deepEqual(state().categories, originalCategories)
+  assert.equal((await json('/desktop/collect-groups', {})).created, 0)
+})
+
+test('desktop backup restore remaps layout IDs and preserves phone layout and home mode', async () => {
+  const { a, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Restore me', category_id: a, site_ids: [sites[0]] }, 'POST', 201)
+  await json('/settings', { home_mode: 'desktop' }, 'PUT')
+  await json('/desktop/layout', { viewport: 'wide', placements: [{ id: `folder:${folder.id}`, col: 7, row: 5 }, { id: `site:${sites[1]}`, col: 9, row: 1 }] }, 'PATCH')
+  await json('/desktop/layout', { viewport: 'compact', placements: [{ id: `folder:${folder.id}`, col: 1, row: 3 }] }, 'PATCH')
+  const exported = await json('/export')
+  await json('/import', { ...exported, mode: 'replace' })
+  const current = await json('/bootstrap')
+  const newFolder = current.folders.find(f => f.name === 'Restore me')
+  const newSite = current.sites.find(s => s.title === 'Site 1')
+  assert.notEqual(newFolder.id, folder.id)
+  const { layout } = await json('/desktop/layout')
+  assert.deepEqual(layout.wide[`folder:${newFolder.id}`], { col: 7, row: 5 })
+  assert.deepEqual(layout.compact[`folder:${newFolder.id}`], { col: 1, row: 3 })
+  assert.deepEqual(layout.wide[`site:${newSite.id}`], { col: 9, row: 1 })
+  assert.equal(current.settings.home_mode, 'desktop')
+  const before = state()
+  await json('/import', { ...exported, mode: 'replace', settings: { desktop_layout: '{broken' } }, 'POST', 400)
+  assert.deepEqual(state(), before)
 })

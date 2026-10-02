@@ -82,12 +82,13 @@ function MobileEditBar({
   )
 }
 
-export function HomePage() {
+export function HomePage({ navigationOnly = false }: { navigationOnly?: boolean }) {
   const needsLogin = useApp((s) => s.needsLogin)
   const editMode = useApp((s) => s.editMode)
   const canEdit = useApp((s) => s.canEdit)
   const user = useApp((s) => s.user)
   const appearance = useApp((s) => s.settings.appearance_preset)
+  const homeMode = useApp((s) => s.settings.home_mode)
   const minimal = useMinimal((s) => s.minimal)
   const setMinimal = useMinimal((s) => s.setMinimal)
 
@@ -112,6 +113,7 @@ export function HomePage() {
   }, [])
 
   if (needsLogin) return <Navigate to="/login" replace />
+  if (!navigationOnly && homeMode === 'desktop') return <Navigate to="/desktop" replace />
 
   // 极简模式：整页只有搜索框。
   // 工具栏、时钟、小组件、图标墙一律不渲染 —— 不是用 CSS 藏起来，

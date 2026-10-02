@@ -42,6 +42,10 @@ try {
   const response = await fetch(`http://127.0.0.1:${port}/api/health`)
   assert.equal(response.status, 200)
   assert.equal((await response.json()).service, 'home-dashboard')
+  for (const [route, method] of [['/desktop/layout', 'GET'], ['/desktop/layout', 'PATCH'], ['/desktop/move', 'POST'], ['/desktop/collect-groups', 'POST'], ['/folders/reorder', 'PATCH']]) {
+    const desktop = await fetch(`http://127.0.0.1:${port}/api${route}`, { method })
+    assert.equal(desktop.status, 401, `desktop route must be registered and protected: ${route}`)
+  }
   for (const action of ['preview', 'apply', 'undo']) {
     const organizer = await fetch(`http://127.0.0.1:${port}/api/navigation/ai/${action}`, {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',

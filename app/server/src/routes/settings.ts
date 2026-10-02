@@ -7,6 +7,7 @@ import { requireAuth } from '../middleware/auth.js'
 import { readAllSettings, SECRET_SETTING_KEYS } from './bootstrap.js'
 import type { AppEnv } from '../types.js'
 import { allFolders, allSites, folderColor, folderDimensions, NavigationInputError, referenceId } from '../lib/folders.js'
+import { importDesktopLayout } from './desktop.js'
 
 export const settingsRoutes = new Hono<AppEnv>()
 
@@ -22,6 +23,7 @@ const WRITABLE_KEYS = new Set([
   'search_engine',
   'custom_engines',
   'appearance_preset',
+  'home_mode',
   'wallpaper_light_type',
   'wallpaper_light_value',
   'wallpaper_dark_type',
@@ -53,6 +55,7 @@ const WRITABLE_KEYS = new Set([
  * 数据库里躺着非法值，排查问题时会被误导。这里直接拒掉，返回 400。
  */
 const ENUM_VALUES: Record<string, readonly string[]> = {
+  home_mode: ['navigation', 'desktop'],
   appearance_preset: ['classic', 'desktop', 'minimal', 'paper', 'terminal'],
   card_size: ['sm', 'md', 'lg'],
   grid_gap: ['sm', 'md', 'lg'],
@@ -234,6 +237,15 @@ settingsRoutes.post('/import', requireAuth, async (c) => {
     throw new NavigationInputError('文件里没有可导入的有效内容，现有内容已保留')
   }
 
+  const desktopLayout = body.settings?.desktop_layout
+  if (desktopLayout !== undefined) {
+    try {
+      if (typeof desktopLayout !== 'string' || desktopLayout.length > 512 * 1024) throw new Error()
+      const parsed = JSON.parse(desktopLayout)
+      if (!parsed || parsed.version !== 1) throw new Error()
+    } catch { throw new NavigationInputError('备份中的桌面布局无效') }
+  }
+  if (body.settings?.home_mode !== undefined && !ENUM_VALUES.home_mode!.includes(String(body.settings.home_mode))) throw new NavigationInputError('备份中的首页模式无效')
   const t = Date.now()
   let categoryCount = 0
   let folderCount = 0
@@ -269,10 +281,11 @@ settingsRoutes.post('/import', requireAuth, async (c) => {
       folderCount++
     })
 
+    const siteMap = new Map<number, number>()
     preparedSites.forEach(({ site, title, urlPublic, urlLan, oldCategoryId, oldFolderId, sortOrder }) => {
       const folder = oldFolderId === null ? undefined : folderMap.get(oldFolderId)
       const categoryId = folder ? folder.categoryId : oldCategoryId === null ? null : idMap.get(oldCategoryId) ?? null
-      sql.run(
+      const inserted = sql.run(
         `INSERT INTO sites (category_id, folder_id, title, description, url_public, url_lan, lan_port,
                             link_mode, icon_url, icon_text, color, source, sort_order,
                             clicks, created_at, updated_at)
@@ -294,8 +307,11 @@ settingsRoutes.post('/import', requireAuth, async (c) => {
         t,
         t,
       )
+      if (Number.isSafeInteger(site.id)) siteMap.set(Number(site.id), inserted.lastInsertRowid)
       siteCount += 1
     })
+
+    importDesktopLayout(desktopLayout as string | undefined, folderMap, siteMap, mode === 'replace')
 
     if (body.settings && typeof body.settings === 'object') {
       for (const [key, value] of Object.entries(body.settings)) {
