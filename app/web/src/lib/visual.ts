@@ -88,6 +88,9 @@ export function computeScrims(
   analyzed?: Tone | null,
 ): { scrim: number; effectiveTone: Tone } {
   const base = Math.min(0.85, Math.max(0, spec.dim / 100))
+  // Frames can change from bright to dark at any moment. Use stable white text and
+  // enough shade even on an all-white frame, without sampling or downloading twice.
+  if (spec.type === 'video') return { scrim: Math.max(0.55, base), effectiveTone: 'dark' }
   const tone = wallpaperTone(spec, isDark, analyzed)
 
   if (isDark) {

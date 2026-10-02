@@ -2,8 +2,10 @@ import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { ensureDirs, UPLOAD_DIR } from '../config.js'
 import { sql } from '../lib/db.js'
+import { detectVideoFormat } from '../lib/video-wallpaper.js'
 import { requireAuth } from '../middleware/auth.js'
 import type { AppEnv } from '../types.js'
 
@@ -37,6 +39,11 @@ const MAX_MB = (() => {
   return Number.isFinite(n) && n > 0 ? n : 20
 })()
 const MAX_BYTES = MAX_MB * 1024 * 1024
+const MAX_VIDEO_MB = (() => {
+  const n = Number(process.env.MAX_VIDEO_UPLOAD_MB)
+  return Number.isFinite(n) && n > 0 ? n : 100
+})()
+const MAX_VIDEO_BYTES = MAX_VIDEO_MB * 1024 * 1024
 
 /** 一次最多收多少个文件，防止一次拖进来几百张把内存打满 */
 const MAX_FILES = 40
@@ -211,6 +218,48 @@ uploadRoutes.post('/upload', requireAuth, async (c) => {
   return c.json({ ...first, uploaded: stored, failed }, 201)
 })
 
+/** Separate from image uploads so their limits and browser-generated derivatives stay unchanged. */
+uploadRoutes.post('/upload/video', requireAuth, bodyLimit({
+  maxSize: MAX_VIDEO_BYTES + 64 * 1024,
+  onError: (c) => c.json({ error: 'too_large', message: `视频超过 ${MAX_VIDEO_MB}MB 限制` }, 413),
+}), async (c) => {
+  let form: FormData
+  try { form = await c.req.formData() } catch {
+    return c.json({ error: 'bad_request', message: '表单解析失败' }, 400)
+  }
+  const incoming = [...form.values()].filter((value): value is File => value instanceof File)
+  const file = form.get('file')
+  if (!(file instanceof File) || incoming.length !== 1) {
+    return c.json({ error: 'bad_request', message: '请一次上传一个视频（字段名应为 file）' }, 400)
+  }
+  if (!file.size) return c.json({ error: 'bad_request', message: '文件是空的' }, 400)
+  if (file.size > MAX_VIDEO_BYTES) return c.json({ error: 'too_large', message: `视频超过 ${MAX_VIDEO_MB}MB 限制` }, 413)
+  const buf = Buffer.from(await file.arrayBuffer())
+  const format = detectVideoFormat(buf)
+  if (!format || path.extname(file.name).toLowerCase() !== format.ext) {
+    return c.json({ error: 'unsupported_type', message: '请上传有效的 MP4 或 WebM 视频，文件后缀需与实际格式一致' }, 415)
+  }
+  const filename = safeName(format.ext)
+  const target = path.join(UPLOAD_DIR, filename)
+  const originalName = file.name.slice(0, 200) || null
+  let id: number
+  let created = false
+  try {
+    const handle = await fs.promises.open(target, 'wx')
+    created = true
+    try { await handle.writeFile(buf) } finally { await handle.close() }
+    id = Number(sql.run(
+      'INSERT INTO uploads (filename, original_name, mime, size, created_at, thumb, large) VALUES (?, ?, ?, ?, ?, NULL, NULL)',
+      filename, originalName, format.mime, buf.length, Date.now(),
+    ).lastInsertRowid)
+  } catch (error) {
+    if (created) await fs.promises.rm(target, { force: true }).catch(() => {})
+    throw error
+  }
+  const stored: Stored = { id, url: `/uploads/${filename}`, filename, original_name: originalName, size: buf.length, mime: format.mime, thumb_url: null, large_url: null }
+  return c.json({ ...stored, uploaded: [stored], failed: [] }, 201)
+})
+
 /**
  * 给**已经传上去的**图补派生图。
  *
@@ -259,7 +308,9 @@ uploadRoutes.get('/uploads', requireAuth, (c) => {
   const limit = Math.min(200, Math.max(1, Number(c.req.query('limit')) || 120))
   const offset = Math.max(0, Number(c.req.query('offset')) || 0)
 
-  const total = sql.get<{ n: number }>('SELECT COUNT(*) AS n FROM uploads')?.n ?? 0
+  const type = c.req.query('type')
+  const filter = type === 'all' ? '' : type === 'video' ? " WHERE mime LIKE 'video/%'" : " WHERE mime LIKE 'image/%'"
+  const total = sql.get<{ n: number }>('SELECT COUNT(*) AS n FROM uploads' + filter)?.n ?? 0
   const rows = sql.all<{
     id: number
     filename: string
@@ -271,7 +322,7 @@ uploadRoutes.get('/uploads', requireAuth, (c) => {
     large: string | null
   }>(
     `SELECT id, filename, original_name, mime, size, created_at, thumb, large
-     FROM uploads ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
+     FROM uploads${filter} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
     limit,
     offset,
   )

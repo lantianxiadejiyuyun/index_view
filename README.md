@@ -288,6 +288,12 @@ NOTES_DIR=D:\OneDrive\我的笔记        # Windows 同步盘
 
 想给浅色配纯白、深色配纯黑：两套都选「纯色」再挑 `#ffffff` / `#000000` 即可。
 
+动态壁纸：在「壁纸类型」选择「动态壁纸」，上传 MP4 / WebM（默认最大 100MB），或填写视频直链后点「应用链接」。推荐 MP4 H.264 或 WebM VP9；视频平台页面链接不是视频直链。浅色、深色可以分别设置视频，上传文件随数据目录一起备份。
+
+视频静音循环播放，右下角可以暂停或继续；页面进入后台、预览滚出视口时暂停，系统开启「减少动态效果」时默认暂停。播放失败会退回渐变背景，设置预览会显示错误提示。动态视频至少压暗 55% 并使用稳定的白色文字，避免画面变化时文字闪跳；已有文字颜色手动配置仍有效。
+
+服务端可通过 `MAX_VIDEO_UPLOAD_MB` 调整视频上限；Nginx 的 `client_max_body_size` 应略大于文件上限以容纳表单开销，例如默认 100MB 视频使用 `110m`。上传视频仅校验容器与视频轨，不做转码，播放能力取决于浏览器支持的编码。
+
 ---
 
 ## 壁纸上的文字颜色
@@ -675,7 +681,7 @@ server {
     ssl_certificate     /etc/nginx/ssl/nav.example.com.pem;
     ssl_certificate_key /etc/nginx/ssl/nav.example.com.key;
 
-    client_max_body_size 12m;   # 书签导入 / 图标上传需要
+    client_max_body_size 110m;  # 支持默认 100MB 动态壁纸及表单开销
 
     # 探针订阅任务长连接，与网页和 HTTPS 回传共用 443。
     location = /api/agent/subscriptions/ws {

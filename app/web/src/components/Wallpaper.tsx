@@ -1,8 +1,9 @@
 import { memo, useEffect, useState, type CSSProperties } from 'react'
 import { activeWallpaper } from '../lib/settings.ts'
-import { resolveDark } from '../lib/visual.ts'
 import { derivedUrl, wallpaperStyle } from '../lib/wallpapers.ts'
 import { useApp } from '../store/app.ts'
+import { useTheme } from '../lib/useTheme.ts'
+import { VideoWallpaper } from './VideoWallpaper.tsx'
 
 /**
  * 全屏壁纸 + 压暗层。
@@ -27,7 +28,7 @@ export const Wallpaper = memo(function Wallpaper() {
   const settings = useApp((s) => s.settings)
   // 壁纸是「浅色一套、深色一套」，这里按当前实际主题取对应那套。
   // resolveDark 对 auto 会看系统偏好，所以系统切深浅色时壁纸也跟着换。
-  const active = activeWallpaper(settings, resolveDark(settings.theme))
+  const active = activeWallpaper(settings, useTheme(settings.theme))
 
   const isImage = active.type === 'image' || active.type === 'url'
   const thumb = isImage ? derivedUrl(active.value, 'thumb') : null
@@ -57,7 +58,11 @@ export const Wallpaper = memo(function Wallpaper() {
     // 但里面所有东西都挂在固定高度的 .wallpaper-stage 上，所以看不出来
     <div className="pointer-events-none fixed inset-0 -z-20 overflow-hidden">
       <div className="wallpaper-stage">
-        {useDerived ? (
+        {active.type === 'video' ? (
+          <div className="absolute inset-0" style={{ backgroundImage: base.backgroundImage }}>
+            <VideoWallpaper src={active.value} className="absolute inset-0" style={fx} controlPlacement="floating" />
+          </div>
+        ) : useDerived ? (
           <>
             {/* 缩略图：跟着首屏一起到，先让用户看到画面 */}
             <img

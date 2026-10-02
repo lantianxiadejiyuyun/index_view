@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ImagePlus, Loader2, Type, Upload } from 'lucide-react'
 import { api, errorMessage } from '../../lib/api.ts'
 import {
@@ -17,6 +17,8 @@ import { useWallpaperTone } from '../../lib/useWallpaperTone.ts'
 import { useApp } from '../../store/app.ts'
 import { toast } from '../../store/toast.ts'
 import { btnGhost } from '../Modal.tsx'
+import { VideoWallpaper } from '../VideoWallpaper.tsx'
+import { VideoWallpaperField } from './VideoWallpaperField.tsx'
 import {
   FieldBlock,
   Note,
@@ -52,6 +54,7 @@ const WALLPAPER_TYPES: { value: WallpaperType; label: string }[] = [
   { value: 'color', label: '纯色' },
   { value: 'image', label: '本地上传' },
   { value: 'url', label: '图片链接' },
+  { value: 'video', label: '动态壁纸' },
 ]
 
 const THEMES: { value: ThemePref; label: string }[] = [
@@ -97,16 +100,18 @@ const WALLPAPER_SLOTS: { value: WallpaperSlot; label: string }[] = [
  * 不这么做的话，从「渐变 aurora」切到「图片链接」会把 aurora 当成 URL，
  * 壁纸直接变成空白，看起来像坏了。
  */
-function valueForType(type: WallpaperType, current: string): string {
+function valueForType(type: WallpaperType, current: string, previous: WallpaperType): string {
   switch (type) {
     case 'gradient':
       return GRADIENT_PRESETS.some((p) => p.id === current) ? current : 'aurora'
     case 'color':
       return /^#[0-9a-fA-F]{6}$/.test(current) ? current : '#0b1020'
     case 'url':
-      return /^https?:\/\//i.test(current) ? current : ''
+      return previous !== 'video' && /^https?:\/\//i.test(current) ? current : ''
     case 'image':
-      return /^(?:\/uploads\/|https?:)/i.test(current) ? current : ''
+      return previous !== 'video' && /^(?:\/uploads\/|https?:)/i.test(current) ? current : ''
+    case 'video':
+      return ''
   }
 }
 
@@ -131,7 +136,9 @@ function AppearancePreview({
 }) {
   const style = wallpaperStyle(type, value, blur)
   const card = CARD_PRESETS[cardSize]
-  const empty = !value && (type === 'image' || type === 'url')
+  const empty = !value && (type === 'image' || type === 'url' || type === 'video')
+  const [videoFailed, setVideoFailed] = useState(false)
+  useEffect(() => setVideoFailed(false), [type, value])
 
   // 预览必须和真实首页用同一套算法（含图片壁纸的明暗采样），
   // 否则会出现「预览好看、保存后变样」。
@@ -143,13 +150,23 @@ function AppearancePreview({
   return (
     <div className="relative h-36 overflow-hidden rounded-2xl border border-line/10 sm:h-44">
       <div className="absolute inset-0" style={style} />
+      {type === 'video' && value && (
+        <VideoWallpaper
+          key={value}
+          src={value}
+          className="absolute inset-0 size-full"
+          style={{ filter: style.filter, transform: style.transform }}
+          onError={() => setVideoFailed(true)}
+          onLoadedData={() => setVideoFailed(false)}
+        />
+      )}
       <div
-        className="wallpaper-scrim absolute inset-0"
+        className="wallpaper-scrim pointer-events-none absolute inset-0"
         style={{ ['--scrim' as string]: String(scrim) }}
       />
 
       <div
-        className="absolute inset-0 flex items-center justify-center"
+        className="pointer-events-none absolute inset-0 flex items-center justify-center"
         style={{ gap: GAP_PRESETS[gap] }}
       >
         {[0, 1, 2].map((i) => (
@@ -162,10 +179,17 @@ function AppearancePreview({
         ))}
       </div>
 
-      <span className="absolute bottom-2 left-3 text-[10px] text-fg/50">壁纸与卡片效果预览</span>
+      <span className={`pointer-events-none absolute text-[10px] ${type === 'video' ? 'bottom-3 left-16 right-3 text-right text-white/80' : 'bottom-2 left-3 text-fg/50'}`}>
+        壁纸与卡片效果预览
+      </span>
       {empty && (
-        <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-xs text-fg/70">
-          还没有选择图片
+        <span className={`absolute inset-x-0 top-1/2 -translate-y-1/2 text-center text-xs ${type === 'video' ? 'text-white/80' : 'text-fg/70'}`}>
+          {type === 'video' ? '选择视频，或粘贴视频直链' : '还没有选择图片'}
+        </span>
+      )}
+      {type === 'video' && videoFailed && (
+        <span role="alert" className="absolute inset-x-3 top-2 rounded-lg bg-slate-950/75 px-3 py-2 text-center text-xs leading-relaxed text-white">
+          视频无法播放，请检查链接是否有效，或更换 MP4 / WebM 视频。
         </span>
       )}
     </div>
@@ -178,6 +202,7 @@ export function AppearanceSection() {
   const { save, readOnly } = useSettingsSave()
 
   const [uploading, setUploading] = useState(false)
+  const [videoUploading, setVideoUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   /**
@@ -215,7 +240,7 @@ export function AppearanceSection() {
     const remembered = memory.current[slot][next]
     void save({
       [typeKey]: next,
-      [valueKey]: remembered ?? valueForType(next, value),
+      [valueKey]: remembered ?? valueForType(next, value, type),
     })
   }
 
@@ -226,8 +251,7 @@ export function AppearanceSection() {
       body.append('file', file)
       const res = await api<{ url: string }>('/api/upload', { method: 'POST', body })
       memory.current[slot].image = res.url
-      await save({ [typeKey]: 'image', [valueKey]: res.url })
-      toast.success('壁纸已上传')
+      if (await save({ [typeKey]: 'image', [valueKey]: res.url })) toast.success('壁纸已上传')
     } catch (err) {
       toast.error(errorMessage(err, '上传失败'))
     } finally {
@@ -262,21 +286,23 @@ export function AppearanceSection() {
 
       {/* 壁纸分两套。这里选的是「现在编辑哪一套」，不是「现在用哪一套」——
           用哪一套由主题自动决定（浅色主题用浅色那套）。 */}
-      <Segmented
-        label="正在编辑哪套壁纸"
-        value={slot}
-        options={WALLPAPER_SLOTS}
-        onChange={(next) => setSlot(next)}
-        hint={
-          settings.theme === 'auto'
-            ? '主题设为「跟随系统」时，系统切深浅色，壁纸也跟着换。两套都配好即可。'
-            : `当前主题是「${settings.theme === 'dark' ? '深色' : '浅色'}」，首页用的是${
-                slot === (settings.theme === 'dark' ? 'dark' : 'light') ? '这一套' : '另一套'
-              }。`
-        }
-      />
+      <fieldset disabled={uploading || videoUploading} className="min-w-0 space-y-4">
+        <Segmented
+          label="正在编辑哪套壁纸"
+          value={slot}
+          options={WALLPAPER_SLOTS}
+          onChange={(next) => setSlot(next)}
+          hint={
+            settings.theme === 'auto'
+              ? '主题设为「跟随系统」时，系统切深浅色，壁纸也跟着换。两套都配好即可。'
+              : `当前主题是「${settings.theme === 'dark' ? '深色' : '浅色'}」，首页用的是${
+                  slot === (settings.theme === 'dark' ? 'dark' : 'light') ? '这一套' : '另一套'
+                }。`
+          }
+        />
 
-      <Segmented label="壁纸类型" value={type} options={WALLPAPER_TYPES} onChange={changeType} />
+        <Segmented label="壁纸类型" value={type} options={WALLPAPER_TYPES} onChange={changeType} />
+      </fieldset>
 
       {type === 'gradient' && (
         <FieldBlock label="渐变预设" hint="全部由 CSS 渐变生成，零请求、任意分辨率都不糊">
@@ -380,6 +406,7 @@ export function AppearanceSection() {
 
       {type === 'url' && (
         <SettingTextField
+          key={`wallpaper-url-${slot}`}
           id="set-wallpaper-url"
           label="图片链接"
           value={value}
@@ -394,6 +421,19 @@ export function AppearanceSection() {
               直接粘贴图片地址
             </span>
           }
+        />
+      )}
+
+      {type === 'video' && (
+        <VideoWallpaperField
+          key={`wallpaper-video-${slot}`}
+          value={value}
+          onUploadingChange={setVideoUploading}
+          onSave={async (next) => {
+            const saved = await save({ [typeKey]: 'video', [valueKey]: next })
+            if (saved) memory.current[slot].video = next
+            return saved
+          }}
         />
       )}
 
@@ -426,7 +466,7 @@ export function AppearanceSection() {
             dim.setDraft(v)
             commitDim.schedule(v)
           }}
-          hint="压暗后白色文字更容易看清"
+          hint={type === 'video' ? '动态壁纸至少压暗 55%，让明亮画面上的文字也清晰可读' : '压暗后白色文字更容易看清'}
         />
       </div>
 

@@ -5,7 +5,7 @@
  * 这里集中做类型转换，让组件里拿到的都是干净的类型。
  */
 
-export type WallpaperType = 'gradient' | 'color' | 'image' | 'url'
+export type WallpaperType = 'gradient' | 'color' | 'image' | 'url' | 'video'
 export type ThemePref = 'auto' | 'light' | 'dark'
 export type CardSize = 'sm' | 'md' | 'lg'
 export type GapSize = 'sm' | 'md' | 'lg'
@@ -92,16 +92,16 @@ export function normalizeSettings(raw: Record<string, string> | undefined): AppS
     // 这两个新键没值时兜底读老键，保证升级后壁纸不会凭空消失
     wallpaper_light_type: pick(
       s.wallpaper_light_type ?? s.wallpaper_type,
-      ['gradient', 'color', 'image', 'url'] as const,
+      ['gradient', 'color', 'image', 'url', 'video'] as const,
       'gradient',
     ),
-    wallpaper_light_value: s.wallpaper_light_value || s.wallpaper_value || 'paper',
+    wallpaper_light_value: s.wallpaper_light_value ?? s.wallpaper_value ?? 'paper',
     wallpaper_dark_type: pick(
       s.wallpaper_dark_type ?? s.wallpaper_type,
-      ['gradient', 'color', 'image', 'url'] as const,
+      ['gradient', 'color', 'image', 'url', 'video'] as const,
       'gradient',
     ),
-    wallpaper_dark_value: s.wallpaper_dark_value || s.wallpaper_value || 'aurora',
+    wallpaper_dark_value: s.wallpaper_dark_value ?? s.wallpaper_value ?? 'aurora',
     wallpaper_blur: toNum(s.wallpaper_blur, 0, 0, 40),
     wallpaper_dim: toNum(s.wallpaper_dim, 28, 0, 85),
     theme: pick(s.theme, ['auto', 'light', 'dark'] as const, 'auto'),

@@ -194,7 +194,7 @@ test('WSS uses server clock for leases, rejects expired or excessive leases, kee
   await connect(w, state)
   const serverTime = Date.now() - 86_400_000
   state.send({ ...state.makeJob('clock-skew'), expires_at: serverTime + 90_000 }, serverTime)
-  await eventually(() => state.results.length === 1)
+  await eventually(() => state.results.length === 1 && !w.state().busy)
   for (let i = 0; i < 5; i++) { w.setState({ retryAt: 0 }); await w.subscriptionTick() }
   assert.equal(state.results.length, 4)
   assert.equal(w.state().pending, null)

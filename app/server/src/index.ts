@@ -23,6 +23,7 @@ import { settingsRoutes } from './routes/settings.js'
 import { subscriptionRoutes } from './routes/subscriptions.js'
 import { siteRoutes } from './routes/sites.js'
 import { uploadRoutes } from './routes/upload.js'
+import { uploadedVideoRoutes } from './routes/uploaded-video.js'
 import { vaultRoutes } from './routes/vault.js'
 import { widgetRoutes } from './routes/widgets.js'
 import { workbenchRoutes } from './routes/workbench.js'
@@ -74,6 +75,7 @@ app.route('/api', api)
 app.all('/api/*', (c) => c.json({ error: 'not_found', message: '接口不存在' }, 404))
 
 // ── 上传文件 ──────────────────────────────────────────────────
+app.route('/', uploadedVideoRoutes)
 /**
  * 派生图路由。接受**两种形式**：
  *

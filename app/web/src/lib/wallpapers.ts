@@ -78,6 +78,17 @@ export function derivedUrl(value: string, kind: 'thumb' | 'large'): string | nul
   return m?.[1] ? `/uploads/derived/${m[1]}.${kind}` : null
 }
 
+/** Keep imported settings under the same source contract as the video URL editor. */
+export function videoWallpaperSource(value: string): string {
+  const source = value.trim()
+  if (/^\/uploads\/[A-Za-z0-9_-]+\.(mp4|webm)$/i.test(source)) return source
+  try {
+    const url = new URL(source)
+    if (['http:', 'https:'].includes(url.protocol) && !url.username && !url.password) return source
+  } catch { /* Invalid imported values use the static fallback. */ }
+  return ''
+}
+
 export type WallpaperStyle = {
   backgroundColor?: string
   backgroundImage?: string
@@ -98,6 +109,10 @@ export function wallpaperStyle(type: string, value: string, blurPx: number): Wal
   }
 
   switch (type) {
+    case 'video':
+      // A quiet fallback stays visible until the first frame, or if the video cannot load.
+      style.backgroundImage = findPreset('aurora').css
+      return style
     case 'color':
       style.backgroundColor = value || '#0b1020'
       return style

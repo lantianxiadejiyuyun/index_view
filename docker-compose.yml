@@ -35,6 +35,9 @@ services:
       # 自建订阅源在内网时才需要开启；默认只允许公网订阅 URL。
       SUBSCRIPTIONS_ALLOW_PRIVATE_NETWORK: "false"
 
+      # 动态壁纸视频默认最多 100MB；Nginx 反代 client_max_body_size 建议设为 110m。
+      # MAX_VIDEO_UPLOAD_MB: "100"
+
       # 高级：想手工固定密钥就填这里（留空则首次启动自动生成并存库）
       # JWT_SECRET: ""
       # AGENT_TOKEN: ""
