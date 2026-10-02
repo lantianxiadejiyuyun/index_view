@@ -59,9 +59,68 @@ export class ApiError extends Error {
  */
 export function errorMessage(err: unknown, fallback = '操作失败'): string {
   if (err instanceof ApiError) return err.message || fallback
+  if (err instanceof TypeError && /failed to fetch|networkerror|load failed/i.test(err.message)) {
+    return '无法连接服务器，请检查网络后重试'
+  }
   if (err instanceof Error) return err.message || fallback
   if (typeof err === 'string' && err) return err
   return fallback
+}
+
+const TRANSIENT_STATUSES = new Set([502, 503, 504])
+
+function networkError(err: unknown, signal?: AbortSignal | null): never {
+  signal?.throwIfAborted()
+  if (err instanceof TypeError) {
+    throw new ApiError(0, { error: 'network_error', message: '无法连接服务器，请检查网络后重试' })
+  }
+  throw err
+}
+
+/** 等待共享操作时，只取消当前调用，不中断其他请求正在使用的会话刷新。 */
+function withAbort<T>(promise: Promise<T>, signal?: AbortSignal | null): Promise<T> {
+  if (!signal) return promise
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason ?? new DOMException('请求已取消', 'AbortError'))
+    signal.addEventListener('abort', abort, { once: true })
+    if (signal.aborted) abort()
+    promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', abort))
+  })
+}
+
+/** 只有读取请求可以在短暂断网或网关重启时重试一次，写入结果未知时不能重放。 */
+async function fetchResponse(path: string, init: RequestInit): Promise<Response> {
+  const method = (init.method ?? 'GET').toUpperCase()
+  const canRetry = method === 'GET' || method === 'HEAD'
+  for (let attempt = 0; ; attempt += 1) {
+    init.signal?.throwIfAborted()
+    try {
+      const res = await fetch(path, init)
+      init.signal?.throwIfAborted()
+      if (!canRetry || attempt > 0 || !TRANSIENT_STATUSES.has(res.status)) return res
+      await res.body?.cancel().catch(() => {})
+    } catch (err) {
+      init.signal?.throwIfAborted()
+      if (!canRetry || attempt > 0 || !(err instanceof TypeError)) networkError(err, init.signal)
+    }
+    await withAbort(new Promise<void>((resolve) => setTimeout(resolve, 250)), init.signal)
+  }
+}
+
+async function responseError(res: Response): Promise<ApiError> {
+  const raw: unknown = await res.json().catch(() => null)
+  const body: ApiErrorBody = {}
+  if (raw && typeof raw === 'object') {
+    const fields = raw as Record<string, unknown>
+    if (typeof fields.error === 'string') body.error = fields.error
+    if (typeof fields.message === 'string') body.message = fields.message
+  }
+  if (!body.message && res.status >= 500) body.message = '服务器暂时不可用，请稍后重试'
+  return new ApiError(res.status, body)
+}
+
+function invalidResponse(): ApiError {
+  return new ApiError(0, { error: 'invalid_response', message: '服务器返回了无效数据，请稍后重试' })
 }
 
 /** 刷新会话；并发调用只会真正打一次接口 */
@@ -71,20 +130,24 @@ export function refreshSession(): Promise<boolean> {
   const version = tokenVersion
   refreshPromise = (async () => {
     try {
-      const res = await fetch('/api/auth/refresh', {
+      const res = await fetchResponse('/api/auth/refresh', {
         method: 'POST',
         credentials: 'include',
       })
       // 刷新期间发生登录或退出时，迟到的刷新响应不能覆盖新会话。
       if (version !== tokenVersion) return accessToken !== null
-      if (!res.ok) return false
-      const data = (await res.json()) as { access_token?: string }
+      if (res.status === 401) return false
+      if (!res.ok) throw await responseError(res)
+      const data: unknown = await res.json().catch(() => { throw invalidResponse() })
       if (version !== tokenVersion) return accessToken !== null
-      if (typeof data.access_token !== 'string' || !data.access_token) return false
+      if (!data || typeof data !== 'object' || !('access_token' in data)
+        || typeof data.access_token !== 'string' || !data.access_token) throw invalidResponse()
       setAccessToken(data.access_token)
       return true
-    } catch {
-      return version !== tokenVersion && accessToken !== null
+    } catch (err) {
+      if (version !== tokenVersion) return accessToken !== null
+      // 断网、5xx 和无效响应均不能证明会话已失效。
+      throw err
     }
   })().finally(() => {
     refreshPromise = null
@@ -116,30 +179,41 @@ export async function api<T>(
     headers.set('Content-Type', 'application/json')
   }
 
-  const res = await fetch(path, { ...init, headers, credentials: 'include', signal })
+  const res = await fetchResponse(path, { ...init, headers, credentials: 'include', signal })
 
   if (res.status === 401 && retry) {
     signal?.throwIfAborted()
     // 有些旧请求的 401 会在其他请求完成刷新后才返回，直接使用新 token 重试即可。
     const ok = requestTokenVersion !== tokenVersion
       ? accessToken !== null
-      : await refreshSession()
+      : await withAbort(refreshSession(), signal)
     signal?.throwIfAborted()
     if (ok) return api<T>(path, init, { ...options, retry: false })
     if (requestTokenVersion === tokenVersion) emitExpired()
   }
 
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as ApiErrorBody
-    throw new ApiError(res.status, body)
+    const err = await responseError(res)
+    signal?.throwIfAborted()
+    throw err
   }
 
   if (res.status === 204 || res.headers.get('content-length') === '0') {
     return undefined as T
   }
 
-  const text = await res.text()
-  return (text ? JSON.parse(text) : undefined) as T
+  let text: string
+  try {
+    text = await res.text()
+  } catch (err) {
+    networkError(err, signal)
+  }
+  signal?.throwIfAborted()
+  try {
+    return (text ? JSON.parse(text) : undefined) as T
+  } catch {
+    throw invalidResponse()
+  }
 }
 
 export const jsonBody = (data: unknown): RequestInit => ({

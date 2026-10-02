@@ -38,14 +38,24 @@ export function freePosition(item: DesktopItem, target: DesktopPosition, occupie
 export function arrangeDesktop(items: DesktopItem[], positions: Record<string, DesktopPosition>, columns: number): PlacedItem[] {
   const placed: PlacedItem[] = []
   const ordered = [...items.filter(item => positions[item.id]), ...items.filter(item => !positions[item.id])]
-  for (const item of ordered) placed.push({ ...item, ...freePosition(item, positions[item.id] ?? { col: 0, row: 0 }, placed, columns) })
+  // Saved placements belong to the user. Resizing or moving another tile must not reorder them.
+  for (const item of ordered) placed.push({ ...item, ...(positions[item.id] ? clampPosition(item, positions[item.id]!, columns) : freePosition(item, { col: 0, row: 0 }, placed, columns)) })
   return items.map(item => placed.find(p => p.id === item.id)!)
 }
 
-export function dropPosition(item: DesktopItem, origin: DesktopPosition, delta: { x: number; y: number }, cellWidth: number, rowHeight: number, gap: number, occupied: PlacedItem[], columns: number): DesktopPosition {
-  return freePosition(item, { col: origin.col + delta.x / (cellWidth + gap), row: origin.row + delta.y / (rowHeight + gap) }, occupied.filter(p => p.id !== item.id), columns)
+function clampPosition(item: DesktopItem, target: DesktopPosition, columns: number): DesktopPosition {
+  return { col: Math.max(0, Math.min(columns - item.width, Math.round(target.col))), row: Math.max(0, Math.min(10000, Math.round(target.row))) }
 }
 
-export function canvasDropPosition(item: DesktopItem, preview: { left: number; top: number }, canvas: { left: number; top: number }, cellWidth: number, rowHeight: number, gap: number, occupied: PlacedItem[], columns: number): DesktopPosition {
-  return freePosition(item, { col: (preview.left - canvas.left) / (cellWidth + gap), row: (preview.top - canvas.top) / (rowHeight + gap) }, occupied.filter(p => p.id !== item.id), columns)
+export function vacantDropPosition(item: DesktopItem, target: DesktopPosition, occupied: PlacedItem[], columns: number): DesktopPosition | null {
+  const position = clampPosition(item, target, columns)
+  return occupied.some(other => other.id !== item.id && overlaps({ ...item, ...position }, other)) ? null : position
+}
+
+export function dropPosition(item: DesktopItem, origin: DesktopPosition, delta: { x: number; y: number }, cellWidth: number, rowHeight: number, gap: number, occupied: PlacedItem[], columns: number): DesktopPosition | null {
+  return vacantDropPosition(item, { col: origin.col + delta.x / (cellWidth + gap), row: origin.row + delta.y / (rowHeight + gap) }, occupied, columns)
+}
+
+export function canvasDropPosition(item: DesktopItem, preview: { left: number; top: number }, canvas: { left: number; top: number }, cellWidth: number, rowHeight: number, gap: number, occupied: PlacedItem[], columns: number): DesktopPosition | null {
+  return vacantDropPosition(item, { col: (preview.left - canvas.left) / (cellWidth + gap), row: (preview.top - canvas.top) / (rowHeight + gap) }, occupied, columns)
 }

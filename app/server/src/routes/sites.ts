@@ -1,14 +1,20 @@
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { readJson } from '../lib/body.js'
 import { sql } from '../lib/db.js'
+import { putSetting } from '../db/schema.js'
 import { initialOf, num, str } from '../lib/parse.js'
 import { requireAuth } from '../middleware/auth.js'
 import type { AppEnv } from '../types.js'
-import { NavigationInputError, siteLocation } from '../lib/folders.js'
+import { allSites, NavigationInputError, siteLocation } from '../lib/folders.js'
+import { readDesktopLayout } from './desktop.js'
 
 export const siteRoutes = new Hono<AppEnv>()
 
+class SiteSelectionChangedError extends Error {}
+
 siteRoutes.onError((err, c) => {
+  if (err instanceof SiteSelectionChangedError) return c.json({ error: 'sites_changed', message: err.message }, 409)
   if (err instanceof NavigationInputError) return c.json({ error: 'bad_request', message: err.message }, 400)
   throw err
 })
@@ -139,6 +145,56 @@ siteRoutes.patch('/categories/reorder', requireAuth, async (c) => {
 })
 
 // ── 图标（站点）───────────────────────────────────────────────
+
+/** Explicit scopes prevent an empty or malformed selection from clearing the library. */
+siteRoutes.post('/sites/bulk-delete', requireAuth, bodyLimit({
+  maxSize: 256 * 1024,
+  onError: c => c.json({ error: 'payload_too_large', message: '删除请求过大，请减少所选图标' }, 413),
+}), async (c) => {
+  const body = await readJson(c)
+  const removeAll = body.all === true
+  let selected: number[] = []
+  let expectedIds = new Set<number>()
+  if (removeAll) {
+    if (body.ids !== undefined || body.confirm !== 'delete-all-sites') {
+      throw new NavigationInputError('删除所有图标需要明确确认，且不能同时指定图标列表')
+    }
+    if (!Array.isArray(body.expected_ids) || body.expected_ids.length > 10000 || body.expected_ids.some(id => typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0)) {
+      throw new NavigationInputError('请提交已确认的完整图标清单，最多 10000 个图标')
+    }
+    expectedIds = new Set(body.expected_ids as number[])
+    if (expectedIds.size !== body.expected_ids.length) throw new NavigationInputError('确认清单中的图标不能重复')
+  } else {
+    if (body.all !== undefined || body.confirm !== undefined || body.expected_ids !== undefined || !Array.isArray(body.ids) || body.ids.length < 1 || body.ids.length > 10000) {
+      throw new NavigationInputError('请选择 1 至 10000 个图标，删除全部请使用专用操作')
+    }
+    if (body.ids.some(id => typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0)) {
+      throw new NavigationInputError('图标 ID 无效')
+    }
+    selected = body.ids as number[]
+    if (new Set(selected).size !== selected.length) throw new NavigationInputError('图标不能重复')
+  }
+
+  const result = sql.tx(() => {
+    const ids = removeAll ? sql.all<{ id: number }>('SELECT id FROM sites ORDER BY id').map(site => site.id) : selected
+    // The user's reviewed snapshot must still be complete: another device may have added or removed icons.
+    if (removeAll && (ids.length !== expectedIds.size || ids.some(id => !expectedIds.has(id)))) {
+      throw new SiteSelectionChangedError('图标清单已变更，请刷新清单后重新确认')
+    }
+    // Validate the whole selection before deleting anything. A stale selection is never partially applied.
+    for (const id of ids) {
+      if (!sql.get('SELECT id FROM sites WHERE id = ?', id)) throw new NavigationInputError('所选图标已变更，请刷新后重新选择')
+    }
+    if (removeAll) sql.run('DELETE FROM sites')
+    else for (const id of ids) sql.run('DELETE FROM sites WHERE id = ?', id)
+    // Persist pruning in the same transaction so backups cannot retain deleted icon positions.
+    const layout = readDesktopLayout()
+    putSetting('desktop_layout', JSON.stringify(layout))
+    return { ok: true, deleted_count: ids.length, deleted_ids: ids, sites: allSites(), desktop_layout: layout }
+  })
+  c.header('Cache-Control', 'no-store')
+  return c.json(result)
+})
 
 siteRoutes.post('/sites', requireAuth, async (c) => {
   const body = await readJson(c)

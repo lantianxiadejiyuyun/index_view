@@ -12,7 +12,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'ai', title: 'AI 配置', icon: Sparkles, group: '智能与安全', description: '首页图标整理与路由助手的 AI 服务、密钥及连接测试' },
   { id: 'account', title: '账号与安全', icon: ShieldCheck, group: '智能与安全', description: '登录设备、账号密码与探针令牌' },
   { id: 'backup', title: '数据备份', icon: Database, group: '数据管理', description: '导出导航数据，或从备份文件恢复' },
-  { id: 'bookmarks', title: '书签导入', icon: Bookmark, group: '数据管理', description: '导入浏览器书签并整理到导航站' },
+  { id: 'bookmarks', title: '书签与图标', icon: Bookmark, group: '数据管理', description: '导入浏览器书签，批量删除或清空图标' },
 ] as const
 
 export type SettingsSectionId = typeof SETTINGS_SECTIONS[number]['id']

@@ -20,6 +20,7 @@ import {
   Settings,
   Sparkles,
   Sun,
+  Trash2,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useApp } from '../store/app.ts'
@@ -27,6 +28,7 @@ import { useMinimal } from '../store/minimal.ts'
 import { toast } from '../store/toast.ts'
 import { useTheme } from '../lib/useTheme.ts'
 import { Modal } from './Modal.tsx'
+import { BulkSiteDeleteModal } from './BulkSiteDelete.tsx'
 
 function IconButton({
   label,
@@ -62,6 +64,7 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
 
   const [busy, setBusy] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   const isDark = useTheme(settings.theme)
 
@@ -126,6 +129,9 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
                 </IconButton>
                 <IconButton label="添加文件夹" onClick={onAddFolder}>
                   <FolderPlus className="size-4" aria-hidden />
+                </IconButton>
+                <IconButton label="批量删除图标" onClick={() => setBulkDeleteOpen(true)}>
+                  <Trash2 className="size-4" aria-hidden />
                 </IconButton>
               </>
             )}
@@ -209,6 +215,7 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
       </div>
       <Modal open={moreOpen} title="更多功能" onClose={() => setMoreOpen(false)} size="sm">
         <nav aria-label="更多功能" className="grid grid-cols-2 gap-2">
+          {canEdit && <button type="button" onClick={() => { setMoreOpen(false); setBulkDeleteOpen(true) }} className="flex min-h-16 items-center gap-3 rounded-2xl border border-line/10 bg-line/5 px-4 text-sm text-fg/85 active:bg-line/15"><Trash2 className="size-5 shrink-0 text-rose-500" aria-hidden />批量删除图标</button>}
           {[
             { to: '/desktop', label: '自由桌面', icon: Monitor },
             { to: '/notes', label: '笔记', icon: NotebookPen },
@@ -221,6 +228,7 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
         </nav>
         {user ? <button type="button" disabled={busy} onClick={() => { setMoreOpen(false); void handleLogout() }} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-line/15 text-sm text-fg/65 disabled:opacity-50"><LogOut className="size-4 shrink-0" aria-hidden /><span className="truncate">退出登录（{user.username}）</span></button> : <Link to="/login" onClick={() => setMoreOpen(false)} className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-500 text-sm text-white"><LogIn className="size-4" aria-hidden />登录</Link>}
       </Modal>
+      {canEdit && <BulkSiteDeleteModal open={bulkDeleteOpen} onClose={() => setBulkDeleteOpen(false)} />}
     </div>
   )
 }

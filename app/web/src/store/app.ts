@@ -11,6 +11,7 @@ import { currentNetMode, type NetMode } from '../lib/net.ts'
 import { normalizeSettings, type AppSettings, type ThemePref } from '../lib/settings.ts'
 import { deviceTheme, isThemePref } from '../lib/device-theme.ts'
 import type { Bootstrap, Category, Folder, SessionUser, Site } from '../lib/types.ts'
+import type { DesktopLayout } from '../lib/desktop-layout.ts'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -50,6 +51,8 @@ export type ReorderItem = {
   sort_order: number
 }
 
+export type BulkSiteDeleteInput = { ids: number[] } | { all: true; confirm: 'delete-all-sites'; expected_ids: number[] }
+
 type AppState = {
   status: Status
   errorMessage: string | null
@@ -86,6 +89,8 @@ type AppState = {
   createSite: (input: SiteInput) => Promise<Site>
   updateSite: (id: number, patch: Partial<SiteInput>) => Promise<void>
   deleteSite: (id: number) => Promise<void>
+  bulkDeleteSites: (input: BulkSiteDeleteInput) => Promise<number>
+  refreshSitesForDeletion: () => Promise<Site[]>
   reorderSites: (items: ReorderItem[]) => Promise<void>
   registerClick: (id: number) => void
 
@@ -118,8 +123,9 @@ export const useApp = create<AppState>()((set, get) => ({
       // 所以它不会返回 401，也就不会触发客户端的静默刷新。
       // 不主动试一次的话，已登录用户刷新后会看到「登录」按钮，误以为掉线了。
       if (!data.user && !silentRestoreTried) {
+        const restored = await refreshSession()
         silentRestoreTried = true
-        if (await refreshSession()) {
+        if (restored) {
           data = await api<Bootstrap>('/api/bootstrap', {}, { retry: false })
         }
       }
@@ -320,6 +326,33 @@ export const useApp = create<AppState>()((set, get) => ({
   async deleteSite(id) {
     await api(`/api/sites/${id}`, { method: 'DELETE' })
     set((s) => ({ sites: s.sites.filter((x) => x.id !== id) }))
+  },
+
+  async bulkDeleteSites(input) {
+    const res = await api<{ sites: Site[]; deleted_count: number; desktop_layout: DesktopLayout }>(
+      '/api/sites/bulk-delete', jsonBody(input),
+    )
+    set((s) => ({
+      sites: res.sites,
+      rawSettings: { ...s.rawSettings, desktop_layout: JSON.stringify(res.desktop_layout) },
+    }))
+    clearLinkCache()
+    prewarmLinks(res.sites, get().netMode)
+    return res.deleted_count
+  },
+
+  async refreshSitesForDeletion() {
+    // Refresh only the reviewed collection so the deletion dialog stays mounted.
+    const res = await api<Bootstrap>('/api/bootstrap', { cache: 'no-store' })
+    set((s) => ({
+      sites: res.sites,
+      folders: res.folders ?? [],
+      categories: res.categories,
+      rawSettings: { ...s.rawSettings, desktop_layout: res.settings.desktop_layout ?? '' },
+    }))
+    clearLinkCache()
+    prewarmLinks(res.sites, get().netMode)
+    return res.sites
   },
 
   async reorderSites(items) {

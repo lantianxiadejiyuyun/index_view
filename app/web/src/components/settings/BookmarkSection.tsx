@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react'
-import { Bookmark, ChevronDown, ChevronRight, Loader2, TriangleAlert, Upload } from 'lucide-react'
+import { Bookmark, ChevronDown, ChevronRight, Loader2, Trash2, TriangleAlert, Upload } from 'lucide-react'
 import { api, errorMessage } from '../../lib/api.ts'
 import { useApp } from '../../store/app.ts'
 import { toast } from '../../store/toast.ts'
-import { btnGhost, btnPrimary } from '../Modal.tsx'
+import { btnDanger, btnGhost, btnPrimary } from '../Modal.tsx'
+import { BulkSiteDeleteModal } from '../BulkSiteDelete.tsx'
 import { LoginRequired, Note, Segmented } from './controls.tsx'
 import { SettingsSection } from './Section.tsx'
 
@@ -33,7 +34,9 @@ const MODE_OPTIONS: { value: ImportMode; label: string }[] = [
 
 export function BookmarkSection() {
   const canEdit = useApp((s) => s.canEdit)
+  const siteCount = useApp((s) => s.sites.length)
   const fileRef = useRef<HTMLInputElement>(null)
+  const operation = useRef(false)
 
   const [preview, setPreview] = useState<BookmarkPreview | null>(null)
   const [fileName, setFileName] = useState('')
@@ -42,6 +45,8 @@ export function BookmarkSection() {
   const [parsing, setParsing] = useState(false)
   const [committing, setCommitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deleteMode, setDeleteMode] = useState<'selected' | 'all' | null>(null)
+  const disabled = parsing || committing || deleteMode !== null
 
   function reset() {
     setPreview(null)
@@ -52,6 +57,8 @@ export function BookmarkSection() {
   }
 
   async function previewFile(selected: File) {
+    if (operation.current || deleteMode !== null) return
+    operation.current = true
     setParsing(true)
     setError(null)
     setPreview(null)
@@ -70,6 +77,7 @@ export function BookmarkSection() {
       setError(errorMessage(err, '解析失败'))
       toast.error(errorMessage(err, '解析失败'))
     } finally {
+      operation.current = false
       setParsing(false)
       // 清空 input，同一个文件改完再选也能重新触发 change
       if (fileRef.current) fileRef.current.value = ''
@@ -77,7 +85,7 @@ export function BookmarkSection() {
   }
 
   async function commit() {
-    if (!preview) return
+    if (!preview || operation.current || deleteMode !== null) return
 
     if (mode === 'replace') {
       const ok = window.confirm(
@@ -86,6 +94,7 @@ export function BookmarkSection() {
       if (!ok) return
     }
 
+    operation.current = true
     setCommitting(true)
     try {
       const res = await api<{ ok: boolean; categories: number; sites: number }>(
@@ -98,6 +107,7 @@ export function BookmarkSection() {
     } catch (err) {
       toast.error(errorMessage(err, '导入失败'))
     } finally {
+      operation.current = false
       setCommitting(false)
     }
   }
@@ -105,10 +115,10 @@ export function BookmarkSection() {
   return (
     <SettingsSection
       id="bookmarks"
-      description="从浏览器导出的 bookmarks.html 批量生成分组与图标"
+      description="导入浏览器书签，或批量清理导航图标"
     >
       {!canEdit ? (
-        <LoginRequired>书签导入需要管理员登录后才能使用</LoginRequired>
+        <LoginRequired>书签导入与图标清理需要管理员登录后才能使用</LoginRequired>
       ) : (
         <>
           <Note tone="info" icon={Bookmark}>
@@ -120,6 +130,7 @@ export function BookmarkSection() {
           <input
             ref={fileRef}
             type="file"
+            disabled={disabled}
             accept="text/html,.html,.htm"
             className="hidden"
             onChange={(e) => {
@@ -130,7 +141,7 @@ export function BookmarkSection() {
           <button
             type="button"
             className={`${btnGhost} flex w-full items-center justify-center gap-1.5 sm:w-auto`}
-            disabled={parsing}
+            disabled={disabled}
             onClick={() => fileRef.current?.click()}
           >
             {parsing ? (
@@ -188,7 +199,7 @@ export function BookmarkSection() {
                 })}
               </ul>
 
-              <Segmented label="导入方式" value={mode} options={MODE_OPTIONS} onChange={setMode} />
+              <fieldset disabled={disabled}><Segmented label="导入方式" value={mode} options={MODE_OPTIONS} onChange={setMode} /></fieldset>
 
               {mode === 'replace' && (
                 <Note tone="danger" icon={TriangleAlert}>
@@ -198,13 +209,13 @@ export function BookmarkSection() {
               )}
 
               <div className="flex justify-end gap-2">
-                <button type="button" className={btnGhost} onClick={reset}>
+                <button type="button" className={btnGhost} disabled={disabled} onClick={reset}>
                   取消
                 </button>
                 <button
                   type="button"
                   className={`${btnPrimary} flex items-center gap-1.5`}
-                  disabled={committing}
+                  disabled={disabled}
                   onClick={() => void commit()}
                 >
                   {committing && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
@@ -213,6 +224,18 @@ export function BookmarkSection() {
               </div>
             </div>
           )}
+          <div className="space-y-3 border-t border-line/15 pt-5">
+            <div>
+              <h3 className="text-sm font-semibold text-fg">清理图标</h3>
+              <p className="mt-1 text-xs leading-relaxed text-fg/55">当前共有 {siteCount} 个图标。删除图标会保留文件夹、分组、壁纸和其他设置。</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button type="button" className={btnGhost} disabled={disabled || siteCount === 0} onClick={() => { if (!operation.current) setDeleteMode('selected') }}>批量选择删除</button>
+              <button type="button" className={`${btnDanger} inline-flex items-center justify-center gap-1.5 disabled:cursor-not-allowed disabled:opacity-50`} disabled={disabled || siteCount === 0} onClick={() => { if (!operation.current) setDeleteMode('all') }}><Trash2 className="size-4" aria-hidden />删除所有图标</button>
+            </div>
+            <p className="text-xs leading-relaxed text-fg/50">删除前会展示清单并要求确认；删除所有图标还需输入确认文字。此操作无法撤销，可先导出数据备份。</p>
+          </div>
+          <BulkSiteDeleteModal open={deleteMode !== null} all={deleteMode === 'all'} onClose={() => setDeleteMode(null)} />
         </>
       )}
     </SettingsSection>

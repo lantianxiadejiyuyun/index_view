@@ -11,12 +11,29 @@ test('desktop leaves intentional blank space, reserves saved tiles before automa
   assert.equal(placed[0].row, 2)
   for (const a of placed) for (const b of placed) if (a.id !== b.id) assert.equal(overlaps(a, b), false)
 })
-test('drop coordinates snap to cells, clamp to the canvas and seek a free position', () => {
+test('drop coordinates snap to cells, clamp to the canvas and reject occupied targets without rearranging', () => {
   const item = { id: 'folder:1', width: 2, height: 2 }
   assert.deepEqual(dropPosition(item, { col: 1, row: 2 }, { x: 200, y: 100 }, 90, 90, 10, [], 4), { col: 2, row: 3 })
   assert.deepEqual(dropPosition(item, { col: 1, row: 2 }, { x: -999, y: -999 }, 90, 90, 10, [], 4), { col: 0, row: 0 })
   const occupied = [{ id: 'widget:clock', width: 4, height: 2, col: 0, row: 0 }]
-  assert.deepEqual(dropPosition(item, { col: 0, row: 0 }, { x: 0, y: 0 }, 90, 90, 10, occupied, 4), { col: 0, row: 2 })
+  assert.equal(dropPosition(item, { col: 0, row: 0 }, { x: 0, y: 0 }, 90, 90, 10, occupied, 4), null)
+  assert.deepEqual(occupied, [{ id: 'widget:clock', width: 4, height: 2, col: 0, row: 0 }])
+  assert.equal(canvasDropPosition(item, { left: 0, top: 100 }, { left: 0, top: 0 }, 90, 90, 10, occupied, 4), null)
+})
+test('saved placements stay fixed even if a resized folder overlaps them', () => {
+  const items = [{ id: 'site:1', width: 1, height: 1 }, { id: 'folder:1', width: 3, height: 3 }]
+  const positions = { 'site:1': { col: 2, row: 2 }, 'folder:1': { col: 0, row: 0 } }
+  const placed = arrangeDesktop(items, positions, 4)
+  for (const item of placed) assert.deepEqual({col:item.col,row:item.row},positions[item.id])
+  assert.deepEqual(positions, { 'site:1': { col: 2, row: 2 }, 'folder:1': { col: 0, row: 0 } })
+})
+test('removing a saved tile leaves its space empty rather than compacting survivors', () => {
+  const items = [{ id: 'folder:1', width: 2, height: 2 }, { id: 'site:1', width: 1, height: 1 }, { id: 'site:2', width: 1, height: 1 }]
+  const initial = arrangeDesktop(items, {}, 4)
+  const saved = Object.fromEntries(initial.map(({id,col,row}) => [id,{col,row}]))
+  const after = arrangeDesktop(items.filter(item => item.id !== 'site:1'), saved, 4)
+  assert.deepEqual(after.find(item => item.id === 'site:2'), initial.find(item => item.id === 'site:2'))
+  assert.deepEqual(after.find(item => item.id === 'folder:1'), initial.find(item => item.id === 'folder:1'))
 })
 test('imported layout rejects invalid positions and keeps device layouts independent', () => {
   const parsed = parseDesktopLayout(JSON.stringify({ wide: { 'site:1': { col: 10, row: 2 }, 'folder:1': { col: -1, row: 2 }, bad: { col: 1, row: 1 } }, compact: { 'site:1': { col: 2, row: 8 }, 'site:2': { col: 6, row: 0 } } }))
