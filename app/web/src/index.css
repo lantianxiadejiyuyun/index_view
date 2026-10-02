@@ -273,9 +273,54 @@
   }
 }
 
+.site-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--site-grid-gap);
+}
+
+.site-grid-item {
+  min-width: 0;
+  width: var(--site-desktop-width);
+}
+
+.site-card {
+  --site-icon-size: var(--site-desktop-icon);
+  --site-card-pad: var(--site-desktop-pad);
+}
+
 /* Keep phone inputs at the native readable size so iOS does not zoom the form
    when a field receives focus. Desktop density remains unchanged. */
 @media (max-width: 639px) {
+  .site-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px 8px;
+  }
+  .site-grid-item {
+    width: 100%;
+  }
+  .site-card {
+    --site-icon-size: clamp(32px, 9vw, 40px);
+    --site-card-pad: 10px 6px;
+    height: 100%;
+    min-width: 0;
+  }
+  .site-card-button {
+    height: 100%;
+    gap: 6px;
+    border-radius: 16px;
+  }
+  .site-card-label {
+    min-height: 2.6em;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  .site-card-add {
+    min-height: 88px;
+    border-radius: 16px;
+  }
   input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']),
   textarea,
   select {

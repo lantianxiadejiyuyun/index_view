@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, type CSSProperties } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -78,13 +78,14 @@ function SortableCard({
   return (
     <div
       ref={setNodeRef}
+      className="site-grid-item"
       style={{
         transform: CSS.Transform.toString(transform),
         transition,
         // 编辑模式下禁掉浏览器手势，否则触摸拖拽会变成滚页面
         touchAction: editMode ? 'none' : undefined,
-        width: CARD_PRESETS[cardSize].width,
-      }}
+        '--site-desktop-width': `${CARD_PRESETS[cardSize].width}px`,
+      } as CSSProperties}
       {...attributes}
       {...listeners}
     >
@@ -193,10 +194,8 @@ function CategorySection({
         style={editMode ? { padding: '0.5rem' } : undefined}
       >
         <SortableContext items={ids} strategy={rectSortingStrategy}>
-          {/* 居中自适应换行，而不是固定列数的网格：
-              收藏只有两三个时整组会居中，不会挤在左边、右边空一大片；
-              多了以后照常换行，视觉上像 Launchpad */}
-          <div className="flex flex-wrap justify-center" style={{ gap }}>
+          {/* 手机固定四列；桌面仍按卡片大小居中换行。 */}
+          <div className="site-grid" style={{ '--site-grid-gap': gap } as CSSProperties}>
             {group.sites.map((site) => (
               <SortableCard
                 key={site.id}
@@ -215,8 +214,8 @@ function CategorySection({
               <button
                 type="button"
                 onClick={() => onAddSite(categoryId)}
-                style={{ width: CARD_PRESETS[cardSize].width }}
-                className="glass flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-[1.35rem] border border-dashed border-line/25 text-fg/55 transition hover:border-line/50 hover:text-fg"
+                style={{ '--site-desktop-width': `${CARD_PRESETS[cardSize].width}px` } as CSSProperties}
+                className="site-grid-item site-card-add glass flex min-h-[92px] flex-col items-center justify-center gap-1.5 rounded-[1.35rem] border border-dashed border-line/25 text-fg/55 transition hover:border-line/50 hover:text-fg"
               >
                 <Plus className="size-5" aria-hidden />
                 <span className="text-xs">添加</span>
@@ -255,6 +254,7 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
   const registerClick = useApp((s) => s.registerClick)
 
   const [activeSite, setActiveSite] = useState<Site | null>(null)
+  const [dragWidth, setDragWidth] = useState<number | null>(null)
 
   const groups = useMemo<Group[]>(() => {
     const sorted = [...sites].sort((a, b) => a.sort_order - b.sort_order)
@@ -293,10 +293,12 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
   function handleDragStart(event: DragStartEvent) {
     const site = sites.find((s) => `site-${s.id}` === String(event.active.id))
     setActiveSite(site ?? null)
+    setDragWidth(event.active.rect.current.initial?.width ?? null)
   }
 
   function handleDragEnd(event: DragEndEvent) {
     setActiveSite(null)
+    setDragWidth(null)
     const { active, over } = event
     if (!over) return
 
@@ -375,7 +377,7 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveSite(null)}
+      onDragCancel={() => { setActiveSite(null); setDragWidth(null) }}
     >
       {/* space-y 统一分组间距，最后一个分组不会像用 mb-* 那样多出一截尾部空白 ——
           内容做垂直居中时，那截空白会把整块往上顶 */}
@@ -405,7 +407,7 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
 
       <DragOverlay dropAnimation={null}>
         {activeSite ? (
-          <div className="rotate-3 opacity-90" style={{ width: CARD_PRESETS[cardSize].width }}>
+          <div className="rotate-3 opacity-90" style={{ width: dragWidth ?? CARD_PRESETS[cardSize].width }}>
             <SiteCard
               site={activeSite}
               editMode={false}

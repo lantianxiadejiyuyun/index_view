@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { Globe, Home, Pencil, Trash2 } from 'lucide-react'
 import { faviconUrl } from '../lib/api.ts'
 import { emojiOf, initialOf, letterGradient } from '../lib/icon.ts'
@@ -35,7 +35,7 @@ function SiteIcon({ site, px }: { site: Site; px: number }) {
     return (
       <span
         className="flex shrink-0 items-center justify-center leading-none"
-        style={{ width: px, height: px, fontSize: px * 0.62 }}
+        style={{ width: 'var(--site-icon-size)', height: 'var(--site-icon-size)', fontSize: 'calc(var(--site-icon-size) * 0.62)' }}
         aria-hidden
       >
         {emoji}
@@ -55,8 +55,8 @@ function SiteIcon({ site, px }: { site: Site; px: number }) {
         onError={() => setFailed(true)}
         className="shrink-0 rounded-xl object-contain"
         style={{
-          width: px,
-          height: px,
+          width: 'var(--site-icon-size)',
+          height: 'var(--site-icon-size)',
           // 不少网站的 favicon 是纯黑图形（GitHub、Vercel 等），
           // 直接放在深色玻璃卡片上会糊成一团。加一圈极淡的白色轮廓光，
           // 让深色图标的剪影能读出来，同时几乎不影响彩色图标。
@@ -70,9 +70,9 @@ function SiteIcon({ site, px }: { site: Site; px: number }) {
     <span
       className="flex shrink-0 items-center justify-center rounded-xl font-semibold text-fg shadow-inner"
       style={{
-        width: px,
-        height: px,
-        fontSize: px * 0.42,
+        width: 'var(--site-icon-size)',
+        height: 'var(--site-icon-size)',
+        fontSize: 'calc(var(--site-icon-size) * 0.42)',
         background: site.color || letterGradient(site.title),
       }}
       aria-hidden
@@ -98,8 +98,9 @@ export function SiteCard({
 
   return (
     <div
+      style={{ '--site-desktop-icon': `${preset.icon}px`, '--site-desktop-pad': `${preset.pad}px` } as CSSProperties}
       className={[
-        'group relative flex flex-col items-center rounded-[1.35rem] transition-all duration-300 ease-out',
+        'site-card group relative flex flex-col items-center rounded-[1.35rem] transition-all duration-300 ease-out',
         // 编辑模式下轻微抖动，提示「现在可以拖」
         editMode ? 'animate-wiggle' : 'hover:-translate-y-1.5',
         dragging ? 'opacity-40' : '',
@@ -110,7 +111,7 @@ export function SiteCard({
         onClick={editMode ? onEdit : onOpen}
         title={site.description || site.title}
         className={[
-          'glass flex w-full flex-col items-center gap-2 rounded-[1.35rem] transition duration-300 ease-out',
+          'site-card-button glass flex w-full flex-col items-center gap-2 rounded-[1.35rem] transition duration-300 ease-out',
           // 边框与投影在 hover 时一起加强，卡片会有「被托起来」的实感
           'ring-1 ring-line/10 hover:ring-line/25',
           'hover:shadow-[0_18px_40px_-16px_rgb(0_0_0/var(--glass-shadow-pop))]',
@@ -118,12 +119,12 @@ export function SiteCard({
           'focus:outline-none',
           editMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
         ].join(' ')}
-        style={{ padding: preset.pad }}
+        style={{ padding: 'var(--site-card-pad)' }}
       >
         <SiteIcon site={site} px={preset.icon} />
 
         <span
-          className={`line-clamp-2 w-full break-words text-center font-medium text-fg ${preset.label}`}
+          className={`site-card-label line-clamp-2 w-full break-words text-center font-medium text-fg ${preset.label}`}
         >
           {site.title}
         </span>
