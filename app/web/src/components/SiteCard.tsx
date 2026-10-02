@@ -3,6 +3,7 @@ import { Globe, Home, Pencil, Trash2 } from 'lucide-react'
 import { faviconUrl } from '../lib/api.ts'
 import { emojiOf, initialOf, letterGradient } from '../lib/icon.ts'
 import { resolveLink } from '../lib/link.ts'
+import { luminance } from '../lib/visual.ts'
 import { CARD_PRESETS, type CardSize } from '../lib/settings.ts'
 import type { Site } from '../lib/types.ts'
 
@@ -29,12 +30,14 @@ function SiteIcon({ site, px }: { site: Site; px: number }) {
   }, [src])
 
   const emoji = emojiOf(site.title)
+  const iconText = site.icon_text?.trim() || initialOf(site.title)
+  const iconTextScale = Math.min(0.42, 0.82 / Array.from(iconText).length)
 
   // 标题以 emoji 开头时，用 emoji 当图标比去抓 favicon 更贴切
   if (emoji && !custom) {
     return (
       <span
-        className="flex shrink-0 items-center justify-center leading-none"
+        className="site-card-icon flex shrink-0 items-center justify-center leading-none"
         style={{ width: 'var(--site-icon-size)', height: 'var(--site-icon-size)', fontSize: 'calc(var(--site-icon-size) * 0.62)' }}
         aria-hidden
       >
@@ -53,14 +56,10 @@ function SiteIcon({ site, px }: { site: Site; px: number }) {
         loading="lazy"
         decoding="async"
         onError={() => setFailed(true)}
-        className="shrink-0 rounded-xl object-contain"
+        className="site-card-icon site-card-icon-image shrink-0 rounded-xl object-contain"
         style={{
           width: 'var(--site-icon-size)',
           height: 'var(--site-icon-size)',
-          // 不少网站的 favicon 是纯黑图形（GitHub、Vercel 等），
-          // 直接放在深色玻璃卡片上会糊成一团。加一圈极淡的白色轮廓光，
-          // 让深色图标的剪影能读出来，同时几乎不影响彩色图标。
-          filter: 'drop-shadow(0 0 1px rgba(255,255,255,0.75)) drop-shadow(0 0 4px rgba(255,255,255,0.3))',
         }}
       />
     )
@@ -68,16 +67,17 @@ function SiteIcon({ site, px }: { site: Site; px: number }) {
 
   return (
     <span
-      className="flex shrink-0 items-center justify-center rounded-xl font-semibold text-fg shadow-inner"
+      className="site-card-icon site-card-icon-letter flex shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-xl font-semibold text-fg shadow-inner"
       style={{
         width: 'var(--site-icon-size)',
         height: 'var(--site-icon-size)',
-        fontSize: 'calc(var(--site-icon-size) * 0.42)',
+        fontSize: `calc(var(--site-icon-size) * ${iconTextScale})`,
         background: site.color || letterGradient(site.title),
-      }}
+        '--site-icon-ink': site.color && luminance(site.color) > 0.55 ? '#0f172a' : '#ffffff',
+      } as CSSProperties}
       aria-hidden
     >
-      {site.icon_text?.trim() || initialOf(site.title)}
+      {iconText}
     </span>
   )
 }
@@ -102,13 +102,14 @@ export function SiteCard({
       className={[
         'site-card group relative flex flex-col items-center rounded-[1.35rem] transition-all duration-300 ease-out',
         // 编辑模式下轻微抖动，提示「现在可以拖」
-        editMode ? 'animate-wiggle' : 'hover:-translate-y-1.5',
+        editMode ? 'site-card-editing animate-wiggle' : 'site-card-browse',
         dragging ? 'opacity-40' : '',
       ].join(' ')}
     >
       <button
         type="button"
         onClick={editMode ? onEdit : onOpen}
+        aria-label={editMode ? `编辑 ${site.title}` : site.title}
         title={site.description || site.title}
         className={[
           'site-card-button glass flex w-full flex-col items-center gap-2 rounded-[1.35rem] transition duration-300 ease-out',
@@ -134,7 +135,7 @@ export function SiteCard({
       {dual && !editMode && link && (
         <span
           className={[
-            'pointer-events-none absolute -right-1 -top-1 flex items-center gap-0.5 rounded-full px-1.5 py-0.5',
+            'site-card-network pointer-events-none absolute -right-1 -top-1 flex items-center gap-0.5 rounded-full px-1.5 py-0.5',
             'text-[9px] font-medium shadow-md backdrop-blur',
             link.kind === 'lan'
               ? 'bg-emerald-500/85 text-white'
@@ -152,14 +153,14 @@ export function SiteCard({
       )}
 
       {editMode && (
-        <div className="absolute -right-1.5 -top-1.5 flex gap-1">
+        <div className="site-card-actions absolute -right-1.5 -top-1.5 flex gap-1" onPointerDown={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation()
               onEdit()
             }}
-            className="rounded-full bg-sky-500 p-1.5 text-white shadow-lg transition hover:bg-sky-400"
+            className="site-card-edit rounded-full bg-sky-500 p-1.5 text-white shadow-lg transition hover:bg-sky-400"
             aria-label={`编辑 ${site.title}`}
           >
             <Pencil className="size-3" aria-hidden />
@@ -170,7 +171,7 @@ export function SiteCard({
               e.stopPropagation()
               onDelete()
             }}
-            className="rounded-full bg-rose-500 p-1.5 text-white shadow-lg transition hover:bg-rose-400"
+            className="site-card-delete rounded-full bg-rose-500 p-1.5 text-white shadow-lg transition hover:bg-rose-400"
             aria-label={`删除 ${site.title}`}
           >
             <Trash2 className="size-3" aria-hidden />

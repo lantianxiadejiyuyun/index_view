@@ -304,37 +304,105 @@
   --site-card-pad: var(--site-desktop-pad);
 }
 
-/* Keep phone inputs at the native readable size so iOS does not zoom the form
-   when a field receives focus. Desktop density remains unchanged. */
+.site-card-icon-image {
+  filter: drop-shadow(0 0 1px rgb(255 255 255 / 0.75)) drop-shadow(0 0 4px rgb(255 255 255 / 0.3));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .site-card-browse:hover {
+    transform: translateY(-6px);
+  }
+}
+
 @media (max-width: 639px) {
   .site-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px 8px;
+    gap: 16px clamp(8px, 2.4vw, 12px);
   }
   .site-grid-item {
     width: 100%;
   }
   .site-card {
-    --site-icon-size: clamp(32px, 9vw, 40px);
-    --site-card-pad: 10px 6px;
+    --site-icon-size: clamp(36px, 10.5vw, 44px);
+    --site-card-pad: 14px 4px 10px;
     height: 100%;
     min-width: 0;
   }
   .site-card-button {
     height: 100%;
-    gap: 6px;
-    border-radius: 16px;
+    gap: 8px;
+    border-radius: 18px;
+    transition: transform 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / var(--glass-sheen)), 0 4px 12px -5px rgb(0 0 0 / var(--glass-shadow));
+  }
+  .site-card-browse .site-card-button:active {
+    transform: scale(0.95);
+  }
+  .site-card-button:focus-visible,
+  .site-card-delete:focus-visible {
+    outline: 2px solid rgb(var(--accent-rgb));
+    outline-offset: 3px;
+  }
+  .site-card-icon {
+    border-radius: 12px;
+  }
+  .site-card-icon-image {
+    padding: 3px;
+    background: rgb(255 255 255 / 0.96);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+    filter: none;
+  }
+  .site-card-icon-letter {
+    color: var(--site-icon-ink);
   }
   .site-card-label {
-    min-height: 2.6em;
-    font-size: 11px;
-    line-height: 1.3;
+    height: 32px;
+    font-size: 12px;
+    line-height: 16px;
+    overflow-wrap: anywhere;
+  }
+  .site-card-network {
+    top: -6px;
+    right: 4px;
+    padding: 2px 5px;
+    border: 1px solid rgb(255 255 255 / 0.55);
+    font-size: 9px;
+    line-height: 12px;
+    box-shadow: 0 2px 5px rgb(0 0 0 / 0.12);
+  }
+  .site-grid-dropzone {
+    --site-grid-edit-inset: 0px;
+  }
+  .site-card-actions {
+    top: -9px;
+    right: -3px;
+  }
+  .site-card-edit {
+    display: none;
+  }
+  .site-card-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 5px solid transparent;
+    background-clip: padding-box;
+    box-shadow: none;
+    padding: 0;
+  }
+  .site-card-editing {
+    animation: none;
+  }
+  .site-card-editing .site-card-button {
+    border-style: dashed;
   }
   .site-card-add {
-    min-height: 88px;
-    border-radius: 16px;
+    min-height: 102px;
+    border-radius: 18px;
   }
+  /* Avoid iOS zooming when a form field receives focus. */
   input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']),
   textarea,
   select {

@@ -86,8 +86,8 @@ function SortableCard({
         touchAction: editMode ? 'none' : undefined,
         '--site-desktop-width': `${CARD_PRESETS[cardSize].width}px`,
       } as CSSProperties}
-      {...attributes}
-      {...listeners}
+      {...(editMode ? attributes : {})}
+      {...(editMode ? listeners : {})}
     >
       <SiteCard
         site={site}
@@ -186,12 +186,12 @@ function CategorySection({
       <div
         ref={setNodeRef}
         className={[
-          'rounded-2xl transition-colors',
+          'site-grid-dropzone rounded-2xl transition-colors',
           // 拖动悬停时给个明确的落点提示
           isOver && editMode ? 'bg-line/10 ring-2 ring-dashed ring-line/35' : '',
           editMode && group.sites.length === 0 ? 'ring-1 ring-dashed ring-line/20' : '',
         ].join(' ')}
-        style={editMode ? { padding: '0.5rem' } : undefined}
+        style={editMode ? { padding: '0.5rem var(--site-grid-edit-inset, 0.5rem)' } : undefined}
       >
         <SortableContext items={ids} strategy={rectSortingStrategy}>
           {/* 手机固定四列；桌面仍按卡片大小居中换行。 */}
