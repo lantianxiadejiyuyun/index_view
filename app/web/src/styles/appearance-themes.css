@@ -167,7 +167,7 @@
   }
   :root[data-appearance='desktop'] .desktop-toolbar > a,
   :root[data-appearance='desktop'] .desktop-toolbar > button { min-width: 40px; min-height: 40px; display: flex; align-items: center; justify-content: center; }
-  :root[data-appearance='desktop'] .home-main { max-width: 1320px; padding: 48px 40px 120px; }
+  :root[data-appearance='desktop'] .home-main { padding: 48px 40px 120px; }
   :root[data-appearance='desktop'] .home-content { display: grid; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); align-items: start; gap: 40px; }
   :root[data-appearance='desktop'] .home-overview { padding-top: 30px; }
   :root[data-appearance='desktop'] .home-clock { text-align: left; }
@@ -177,9 +177,7 @@
   :root[data-appearance='desktop'] .home-widgets { flex-direction: column; }
   :root[data-appearance='desktop'] .home-widgets > * { width: 100%; }
   :root[data-appearance='desktop'] .home-search input { font-size: 13px; }
-  :root[data-appearance='minimal'] .home-main { max-width: 1040px; }
   :root[data-appearance='minimal'] .home-clock-time { font-size: 88px; }
-  :root[data-appearance='terminal'] .home-main { max-width: 1040px; }
 }
 
 @media (max-width: 639px) {

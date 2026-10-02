@@ -150,7 +150,7 @@ export function HomePage({ navigationOnly = false }: { navigationOnly?: boolean 
 
       <main
         className={[
-          'home-main mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 pt-5 sm:px-6 sm:pt-8',
+          'home-main mx-auto flex w-full max-w-[1800px] flex-1 flex-col px-4 pt-5 sm:px-6 sm:pt-8',
           // 编辑模式时手机上有一条悬浮操作条压在最底部，只有那时才需要额外的底部留白。
           // 平时也留这么多的话，内容因为做了垂直居中会被整体顶得偏上。
           editMode
