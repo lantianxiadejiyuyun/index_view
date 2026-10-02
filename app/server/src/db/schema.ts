@@ -324,6 +324,38 @@ const MIGRATIONS: Migration[] = [
       END;
     `,
   },
+  {
+    version: 13,
+    name: 'independent-device-sessions',
+    up: `
+      CREATE TABLE auth_sessions (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        client TEXT NOT NULL DEFAULT 'web' CHECK (client IN ('web', 'extension')),
+        ua TEXT,
+        ip TEXT,
+        created_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        revoked_at INTEGER
+      );
+      CREATE INDEX idx_auth_sessions_user ON auth_sessions(user_id, revoked_at, expires_at);
+      ALTER TABLE refresh_tokens ADD COLUMN session_id TEXT REFERENCES auth_sessions(id) ON DELETE CASCADE;
+      ALTER TABLE refresh_tokens ADD COLUMN replacement_hash TEXT;
+      CREATE INDEX idx_refresh_session ON refresh_tokens(session_id);
+      -- Preserve every live v12 cookie. Its hash supplies a stable, opaque ID;
+      -- previously revoked tokens cannot identify or revoke another device.
+      INSERT INTO auth_sessions (id, user_id, ua, ip, created_at, last_seen_at, expires_at)
+        SELECT substr(token_hash, 1, 32), user_id, substr(ua, 1, 512), substr(ip, 1, 128),
+          created_at, created_at, expires_at
+        FROM refresh_tokens WHERE revoked_at IS NULL
+          AND expires_at > CAST(unixepoch('subsec') * 1000 AS INTEGER);
+      UPDATE refresh_tokens SET session_id = substr(token_hash, 1, 32)
+        WHERE revoked_at IS NULL AND EXISTS (
+          SELECT 1 FROM auth_sessions WHERE id = substr(refresh_tokens.token_hash, 1, 32)
+        );
+    `,
+  },
 ]
 export const DEFAULT_SETTINGS: Record<string, string> = {
   site_title: '我的导航',

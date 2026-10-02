@@ -2,13 +2,14 @@
  * 全局应用状态。
  *
  * 刻意保持「服务端是唯一真相」：所有写操作都先打接口，成功后再用返回值更新本地，
- * 唯一例外是拖拽排序 —— 那个必须乐观更新，否则拖完会弹回原位，手感很差。
+ * 主题偏好只保存在当前浏览器；拖拽排序使用乐观更新以保证操作手感。
  */
 import { create } from 'zustand'
 import { ApiError, api, errorMessage, jsonBody, refreshSession, setAccessToken } from '../lib/api.ts'
 import { clearLinkCache, prewarmLinks } from '../lib/link.ts'
 import { currentNetMode, type NetMode } from '../lib/net.ts'
-import { normalizeSettings, type AppSettings } from '../lib/settings.ts'
+import { normalizeSettings, type AppSettings, type ThemePref } from '../lib/settings.ts'
+import { deviceTheme, isThemePref } from '../lib/device-theme.ts'
 import type { Bootstrap, Category, SessionUser, Site } from '../lib/types.ts'
 
 type Status = 'loading' | 'ready' | 'error'
@@ -59,6 +60,7 @@ type AppState = {
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
   setEditMode: (value: boolean) => void
+  setTheme: (value: ThemePref, persist?: boolean) => void
   saveSettings: (patch: Record<string, string | number | boolean>) => Promise<void>
 
   createCategory: (name: string, icon?: string | null) => Promise<Category>
@@ -83,7 +85,7 @@ export const useApp = create<AppState>()((set, get) => ({
 
   user: null,
   canEdit: false,
-  settings: normalizeSettings(undefined),
+  settings: { ...normalizeSettings(undefined), theme: deviceTheme.current() ?? 'auto' },
   rawSettings: {},
   categories: [],
   sites: [],
@@ -108,6 +110,7 @@ export const useApp = create<AppState>()((set, get) => ({
       if (data.user) silentRestoreTried = true
 
       const settings = normalizeSettings(data.settings)
+      settings.theme = deviceTheme.initialize(data.settings.theme)
       set({
         status: 'ready',
         needsLogin: false,
@@ -168,14 +171,24 @@ export const useApp = create<AppState>()((set, get) => ({
     set({ editMode: value })
   },
 
+  setTheme(value, persist = true) {
+    if (!isThemePref(value)) return
+    deviceTheme.set(value, persist)
+    set((s) => ({ settings: { ...s.settings, theme: value } }))
+  },
+
   async saveSettings(patch) {
+    // 即便旧组件把主题和其它设置一起提交，也只能把其它设置同步到服务器。
+    const { theme, ...sharedPatch } = patch
+    if (isThemePref(theme)) get().setTheme(theme)
+    if (Object.keys(sharedPatch).length === 0) return
     const res = await api<{ settings: Record<string, string> }>('/api/settings', {
       method: 'PUT',
-      body: JSON.stringify(patch),
+      body: JSON.stringify(sharedPatch),
     })
     set({
       rawSettings: res.settings,
-      settings: normalizeSettings(res.settings),
+      settings: { ...normalizeSettings(res.settings), theme: deviceTheme.initialize(res.settings.theme) },
     })
     prewarmLinks(get().sites, get().netMode)
   },

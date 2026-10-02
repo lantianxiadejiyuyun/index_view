@@ -396,12 +396,15 @@ export function Segmented<T extends string>({
   options,
   onChange,
   hint,
+  deviceLocal = false,
 }: {
   label: string
   value: T
   options: { value: T; label: string; icon?: LucideIcon; title?: string }[]
   onChange: (next: T) => void
   hint?: ReactNode
+  /** 本地显示偏好无须管理员权限；其它共享设置仍由 readOnly 控制。 */
+  deviceLocal?: boolean
 }) {
   const { readOnly } = useSettingsSave()
 
@@ -418,7 +421,7 @@ export function Segmented<T extends string>({
               role="radio"
               aria-checked={active}
               title={opt.title}
-              disabled={readOnly}
+              disabled={readOnly && !deviceLocal}
               onClick={() => onChange(opt.value)}
               className={[
                 'flex min-h-11 min-w-[4.5rem] flex-1 items-center justify-center gap-1.5 rounded-xl px-3 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50',

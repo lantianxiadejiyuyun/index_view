@@ -1,4 +1,4 @@
-# 密码管理器设计说明（v0.3.0）
+# 密码管理器设计说明（v0.3.1）
 
 ## 数据与密钥
 
@@ -91,6 +91,6 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 - `tests/extension-*.test.mjs`、`tests/server-vault.test.mjs`：纯模块、后台会话、内容脚本、翻译完整性、语言切换、表单缓存和隔离数据库回归。
 - `scripts/test-extension-browser.mjs`：独立浏览器配置的端到端验证，包含介绍、四语界面、服务器草稿与凭据复用。
 
-在根目录运行 `pnpm test:extension` 验证扩展和密文接口，`pnpm test:browser` 运行可选浏览器回归；浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.3.0.zip`。
+在根目录运行 `pnpm test:extension` 验证扩展和密文接口，`pnpm test:browser` 运行可选浏览器回归；浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.3.1.zip`。
 
 尚未实现：TOTP、Passkey、团队共享、Chrome CSV 导入、条目自动合并和网页密码自动采集保存。

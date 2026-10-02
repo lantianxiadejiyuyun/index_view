@@ -84,8 +84,10 @@ export async function testConnection(base) {
   return { ok: true, service: typeof data.service === 'string' ? data.service : '' }
 }
 
-export async function login(base, username, password) {
-  const data = await call(base, '/api/auth/login', { method: 'POST', body: { username, password } })
+export async function login(base, username, password, previousToken) {
+  const data = await call(base, '/api/auth/login', {
+    method: 'POST', token: previousToken, body: { username, password, client: 'extension' },
+  })
   if (typeof data.access_token !== 'string' || !data.access_token) throw new SyncError('服务器没返回有效 access_token', { code: 'invalid_response' })
   return { token: data.access_token, user: data.user ?? null }
 }

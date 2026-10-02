@@ -29,7 +29,7 @@ export function PageShell({
         <div className={`mx-auto flex items-center gap-3 ${wide ? 'max-w-6xl' : 'max-w-3xl'}`}>
           <Link
             to="/"
-            className="glass flex size-9 shrink-0 items-center justify-center rounded-xl text-fg/80 transition hover:text-fg"
+            className="glass flex size-11 shrink-0 items-center justify-center rounded-xl text-fg/80 transition hover:text-fg"
             aria-label="返回首页"
           >
             <ArrowLeft className="size-4" aria-hidden />
@@ -39,7 +39,7 @@ export function PageShell({
             {/* 标题直接压在壁纸上，用 wp（跟随壁纸明暗）而不是 fg（跟随主题） */}
             <h1 className="text-shadow-soft truncate text-base font-semibold text-wp">{title}</h1>
             {description && (
-              <p className="text-shadow-soft truncate text-xs text-wp/80">{description}</p>
+              <p className="text-shadow-soft mt-0.5 text-xs leading-relaxed text-wp/80 sm:truncate">{description}</p>
             )}
           </div>
 

@@ -17,6 +17,7 @@ import { toast } from '../../store/toast.ts'
 import { btnGhost, btnPrimary, fieldClass, labelClass } from '../Modal.tsx'
 import { LoginRequired, Note } from './controls.tsx'
 import { SettingsSection } from './Section.tsx'
+import { LoginSessions } from './LoginSessions.tsx'
 
 /** 复制到剪贴板。内网 HTTP 下没有 clipboard API，得退回到临时 textarea 的老办法 */
 async function copyText(text: string): Promise<void> {
@@ -321,7 +322,7 @@ export function AccountSection() {
   const user = useApp((s) => s.user)
 
   return (
-    <SettingsSection id="account" description="账号、密码与探针令牌">
+    <SettingsSection id="account" description="账号、登录设备、密码与探针令牌">
       {!canEdit ? (
         <LoginRequired>账号与安全需要管理员登录后才能查看</LoginRequired>
       ) : (
@@ -331,6 +332,7 @@ export function AccountSection() {
             <span className="font-mono text-sm text-fg">{user?.username ?? '—'}</span>
           </div>
 
+          <LoginSessions key={user?.id} />
           <PasswordForm />
           <AgentTokenPanel />
         </>

@@ -76,8 +76,26 @@ try {
   assert.equal(profile.rules.prepend_source, true)
   assert.equal(profile.rules.append_source, false)
   assert.deepEqual(profile.rules.rules, analysis.rules)
+  const secondLogin = await fetch(`http://127.0.0.1:${port}/api/auth/login`, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'user-agent': 'Mobile bundle fixture' },
+    body: JSON.stringify({ username: 'smoke-test', password: 'test-only-password' }),
+  })
+  assert.equal(secondLogin.status, 200)
+  const secondToken = (await secondLogin.json()).access_token
+  const sessionResponse = await fetch(`http://127.0.0.1:${port}/api/auth/sessions`, { headers: { authorization: `Bearer ${token}` } })
+  assert.equal(sessionResponse.headers.get('cache-control'), 'no-store')
+  const { sessions } = await sessionResponse.json()
+  assert.equal(sessions.length, 2)
+  assert.equal(sessions.filter((session) => session.current).length, 1)
+  const removed = await fetch(`http://127.0.0.1:${port}/api/auth/sessions/${sessions.find((session) => !session.current).id}`, {
+    method: 'DELETE', headers: { authorization: `Bearer ${token}` },
+  })
+  assert.equal(removed.status, 200)
+  assert.equal((await fetch(`http://127.0.0.1:${port}/api/auth/me`, { headers: { authorization: `Bearer ${secondToken}` } })).status, 401)
+  assert.equal((await fetch(`http://127.0.0.1:${port}/api/auth/me`, { headers: { authorization: `Bearer ${token}` } })).status, 200)
   console.log('PASS: standalone server starts without node_modules, migrates SQLite, and serves authenticated subscriptions')
   console.log('PASS: standalone rule import maps source groups and persists source-name prefix settings')
+  console.log('PASS: independent device sessions and immediate single-device revocation')
 } finally {
   child.kill()
   await closed

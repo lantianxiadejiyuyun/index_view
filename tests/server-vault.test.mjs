@@ -26,7 +26,7 @@ before(async () => {
         export { vaultRoutes } from './src/routes/vault.ts';
         export { sql, closeDb } from './src/lib/db.ts';
         export { initDatabase } from './src/db/schema.ts';
-        export { issueAccessToken } from './src/lib/tokens.ts';
+        export { issueAccessToken, createRefreshToken } from './src/lib/tokens.ts';
       `,
       resolveDir: serverRoot,
       loader: 'ts',
@@ -58,7 +58,8 @@ before(async () => {
   })
   harness = await import(pathToFileURL(bundleFile).href)
   harness.initDatabase()
-  token = await harness.issueAccessToken({ id: 1, username: 'vault-test' })
+  const session = harness.createRefreshToken(1, 'fixture', null)
+  token = await harness.issueAccessToken({ id: 1, username: 'vault-test' }, session.sessionId)
 
   writeFileSync(workerFile, `
     const { vaultRoutes, closeDb } = await import(${JSON.stringify(pathToFileURL(bundleFile).href)});
@@ -119,7 +120,9 @@ test('vault responses are authenticated, isolated by account, and never cached',
   assert.equal((await put({ base_version: 0, blob })).status, 200)
   const saved = await get()
   assert.equal((await saved.json()).blob, blob)
-  const otherToken = await harness.issueAccessToken({ id: 2, username: 'another-user' })
+  harness.sql.run("INSERT INTO users (id, username, password_hash, created_at, updated_at) VALUES (2, 'another-user', 'unused', 1, 1)")
+  const otherSession = harness.createRefreshToken(2, 'fixture', null)
+  const otherToken = await harness.issueAccessToken({ id: 2, username: 'another-user' }, otherSession.sessionId)
   assert.deepEqual(await (await get(otherToken)).json(), { version: 0, blob: null, updated_at: null })
 })
 

@@ -23,7 +23,7 @@ before(async () => {
       export { subscriptionRoutes } from './src/routes/subscriptions.ts';
       export * from './src/lib/subscriptions.ts'; export * from './src/lib/subscription-relay.ts';
       export { sql, closeDb } from './src/lib/db.ts'; export { initDatabase } from './src/db/schema.ts';
-      export { issueAccessToken } from './src/lib/tokens.ts';
+      export { issueAccessToken, createRefreshToken } from './src/lib/tokens.ts';
     `, resolveDir: serverRoot, loader: 'ts' },
     bundle: true, platform: 'node', format: 'esm', target: 'node22', outfile: bundle,
     banner: { js: SERVER_ESM_BANNER },
@@ -45,8 +45,10 @@ before(async () => {
   h = await import(pathToFileURL(bundle).href)
   h.initDatabase()
   h.sql.run("INSERT INTO users (id, username, password_hash, created_at, updated_at) VALUES (2, 'relay-other', 'unused', 1, 1)")
-  token = await h.issueAccessToken({ id: 1, username: 'relay-fixture' })
-  otherToken = await h.issueAccessToken({ id: 2, username: 'relay-other' })
+  const session = h.createRefreshToken(1, 'fixture', null)
+  const otherSession = h.createRefreshToken(2, 'fixture', null)
+  token = await h.issueAccessToken({ id: 1, username: 'relay-fixture' }, session.sessionId)
+  otherToken = await h.issueAccessToken({ id: 2, username: 'relay-other' }, otherSession.sessionId)
 })
 beforeEach(() => {
   h.sql.run('DELETE FROM subscription_profiles')
@@ -111,8 +113,8 @@ async function cachedSource() {
   return created
 }
 
-test('v12 defaults to direct fetching and exposes relay metadata without node secrets', async () => {
-  assert.equal(h.sql.get('PRAGMA user_version').user_version, 12)
+test('v13 preserves direct fetching defaults and relay metadata without node secrets', async () => {
+  assert.equal(h.sql.get('PRAGMA user_version').user_version, 13)
   const direct = await source({ fetch_agent_id: null })
   assert.equal(direct.fetch_agent_id, null)
   assert.equal(direct.fetch_agent_name, null)

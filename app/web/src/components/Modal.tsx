@@ -37,7 +37,7 @@ export function Modal({ open, title, onClose, children, footer, size = 'md' }: M
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
       <div
         className="absolute inset-0 bg-black/55 backdrop-blur-sm"
         onClick={onClose}
@@ -49,27 +49,27 @@ export function Modal({ open, title, onClose, children, footer, size = 'md' }: M
         aria-modal="true"
         aria-label={title}
         className={[
-          'glass animate-rise relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden',
+          'glass glass-pop animate-rise relative z-10 flex max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] w-full flex-col overflow-hidden sm:max-h-[92dvh]',
           'rounded-t-3xl sm:rounded-3xl',
           SIZES[size],
         ].join(' ')}
       >
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-line/10 px-5 py-4">
-          <h2 className="text-base font-semibold text-fg">{title}</h2>
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-line/10 px-4 py-3 sm:px-5 sm:py-4">
+          <h2 className="min-w-0 break-words text-base font-semibold text-fg">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-fg/60 transition hover:bg-line/15 hover:text-fg"
+            className="flex size-11 shrink-0 items-center justify-center rounded-xl text-fg/60 transition hover:bg-line/15 hover:text-fg"
             aria-label="关闭"
           >
             <X className="size-4" aria-hidden />
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 ${footer ? '' : 'pb-[calc(1rem+env(safe-area-inset-bottom))]'}`}>{children}</div>
 
         {footer && (
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line/10 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line/10 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-4">
             {footer}
           </div>
         )}
@@ -80,15 +80,15 @@ export function Modal({ open, title, onClose, children, footer, size = 'md' }: M
 
 /** 表单控件统一样式，避免每个弹窗重复写一长串 class */
 export const fieldClass =
-  'w-full rounded-xl border border-line/15 bg-line/10 px-3 py-2.5 text-sm text-fg outline-none transition placeholder:text-fg/40 focus:border-line/40 focus:bg-line/15'
+  'min-h-11 w-full min-w-0 rounded-xl border border-line/15 bg-line/10 px-3 py-2.5 text-sm text-fg outline-none transition placeholder:text-fg/40 focus:border-line/40 focus:bg-line/15'
 
 export const labelClass = 'mb-1.5 block text-xs font-medium text-fg/70'
 
 export const btnPrimary =
-  'rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50'
+  'min-h-11 rounded-xl bg-brand-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50'
 
 export const btnGhost =
-  'rounded-xl border border-line/15 px-4 py-2.5 text-sm font-medium text-fg/80 transition hover:bg-line/10 hover:text-fg disabled:opacity-50'
+  'min-h-11 rounded-xl border border-line/15 px-4 py-2.5 text-sm font-medium text-fg/80 transition hover:bg-line/10 hover:text-fg disabled:opacity-50'
 
 export const btnDanger =
-  'rounded-xl border border-rose-400/30 bg-rose-500/15 px-4 py-2.5 text-sm font-medium text-danger transition hover:bg-rose-500/25'
+  'min-h-11 rounded-xl border border-rose-400/30 bg-rose-500/15 px-4 py-2.5 text-sm font-medium text-danger transition hover:bg-rose-500/25'

@@ -437,7 +437,11 @@ const handlers = {
     if (!password) throw new Error('账号和密码都要填')
     await sync.testConnection(check.base)
     active(current)
-    const { token } = await sync.login(check.base, user, password)
+    // Only replace an in-memory session from this exact binding. Never send a
+    // previous server/account's bearer token to an edited destination.
+    const saved = current.vault.account
+    const previousToken = saved?.base === check.base && saved.user === user ? current.token : undefined
+    const { token } = await sync.login(check.base, user, password, previousToken)
     active(current)
     const remote = await sync.pull(check.base, token)
     active(current)

@@ -174,6 +174,7 @@ function AppearancePreview({
 
 export function AppearanceSection() {
   const settings = useApp((s) => s.settings)
+  const setTheme = useApp((s) => s.setTheme)
   const { save, readOnly } = useSettingsSave()
 
   const [uploading, setUploading] = useState(false)
@@ -254,7 +255,9 @@ export function AppearanceSection() {
         label="主题"
         value={settings.theme}
         options={THEMES}
-        onChange={(next) => void save({ theme: next })}
+        onChange={setTheme}
+        deviceLocal
+        hint="仅保存在当前浏览器，切换深浅色不会影响其它设备。壁纸和其它外观配置仍可同步。"
       />
 
       {/* 壁纸分两套。这里选的是「现在编辑哪一套」，不是「现在用哪一套」——

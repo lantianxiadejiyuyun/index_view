@@ -124,6 +124,10 @@ test('first binding uploads to an empty server and encrypted data alone persists
   assert.equal(persisted.includes(PASSWORD), false)
   assert.equal(persisted.includes('fixture-token'), false)
   assert.equal(h.requests.find((request) => request.method === 'PUT').body.base_version, 0)
+  const login = h.requests.find((request) => request.url.pathname === '/api/auth/login')
+  assert.equal(login.body.client, 'extension')
+  assert.equal(login.options.credentials, 'omit')
+  assert.equal(login.options.headers.Authorization, undefined)
 })
 
 test('existing remote vault is never overwritten on bind and restores with its own salt and password', async (t) => {
@@ -186,6 +190,42 @@ test('changing the binding resets the version instead of reusing the previous se
   assert.equal(result.pushed, true)
   assert.equal(result.version, 1)
   assert.equal(h.requests.find((request) => request.url.origin.includes('second') && request.method === 'PUT').body.base_version, 0)
+  const login = h.requests.find((request) => request.url.origin.includes('second') && request.url.pathname === '/api/auth/login')
+  assert.equal(login.options.headers.Authorization, undefined)
+  assert.equal(login.options.credentials, 'omit')
+  assert.equal(login.body.client, 'extension')
+})
+
+test('reconnecting the same normalized binding replaces only its own extension session', async (t) => {
+  const h = await setup(t)
+  await h.ok('create', { password: PASSWORD })
+  await h.connect()
+  await h.ok('account-connect', { base: 'https://sync.example.test/', user: ' fixture-user ', password: '' })
+  const logins = h.requests.filter((request) => request.url.pathname === '/api/auth/login')
+  assert.equal(logins.length, 2)
+  assert.equal(logins[0].options.headers.Authorization, undefined)
+  assert.equal(logins[1].options.headers.Authorization, 'Bearer fixture-token')
+  assert.equal(logins[1].options.credentials, 'omit')
+  assert.deepEqual(logins[1].body, { username: 'fixture-user', password: 'fixture-account-password', client: 'extension' })
+})
+
+test('changing either server or username never sends the old session bearer to login', async (t) => {
+  for (const [base, user] of [
+    ['https://sync.example.test', 'another-user'],
+    ['https://second.example.test', 'fixture-user'],
+  ]) {
+    await t.test(`${base} ${user}`, async (t) => {
+      const h = await setup(t)
+      await h.ok('create', { password: PASSWORD })
+      await h.connect()
+      h.servers.set('https://second.example.test', { version: 0, blob: null })
+      await h.ok('account-connect', { base, user, password: 'replacement-password' })
+      const login = h.requests.filter((request) => request.url.pathname === '/api/auth/login').at(-1)
+      assert.equal(login.options.headers.Authorization, undefined)
+      assert.equal(login.options.credentials, 'omit')
+      assert.equal(login.body.client, 'extension')
+    })
+  }
 })
 
 test('locking while account login is pending cannot revive the session or persist a binding', async (t) => {
@@ -338,6 +378,10 @@ test('expired server tokens are refreshed once and malformed remote files preser
   })
   assert.equal((await h.ok('sync-push')).pushed, true)
   assert.equal(h.requests.filter((request) => request.url.pathname === '/api/auth/login').length, 2)
+  const relogin = h.requests.filter((request) => request.url.pathname === '/api/auth/login').at(-1)
+  assert.equal(relogin.body.client, 'extension')
+  assert.equal(relogin.options.headers.Authorization, undefined, 'a rejected token must be discarded before reauth')
+  assert.equal(relogin.options.credentials, 'omit')
   const originalFile = structuredClone(h.storage.file)
   const server = h.servers.get('https://sync.example.test')
   server.blob = JSON.stringify({ v: 99, payload: {} })

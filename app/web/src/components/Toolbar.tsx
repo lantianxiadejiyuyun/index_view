@@ -8,6 +8,7 @@ import {
   LogOut,
   Minimize2,
   Moon,
+  MoreHorizontal,
   NotebookPen,
   Pencil,
   Plus,
@@ -20,6 +21,8 @@ import { Link } from 'react-router-dom'
 import { useApp } from '../store/app.ts'
 import { useMinimal } from '../store/minimal.ts'
 import { toast } from '../store/toast.ts'
+import { useTheme } from '../lib/useTheme.ts'
+import { Modal } from './Modal.tsx'
 
 function IconButton({
   label,
@@ -49,24 +52,17 @@ export function Toolbar({ onAddSite, onAddCategory }: { onAddSite: () => void; o
   const setEditMode = useApp((s) => s.setEditMode)
   const user = useApp((s) => s.user)
   const settings = useApp((s) => s.settings)
-  const saveSettings = useApp((s) => s.saveSettings)
+  const setTheme = useApp((s) => s.setTheme)
   const logout = useApp((s) => s.logout)
   const setMinimal = useMinimal((s) => s.setMinimal)
 
   const [busy, setBusy] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
 
-  const isDark =
-    settings.theme === 'dark' ||
-    (settings.theme === 'auto' &&
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches)
+  const isDark = useTheme(settings.theme)
 
-  async function toggleTheme() {
-    try {
-      await saveSettings({ theme: isDark ? 'light' : 'dark' })
-    } catch {
-      toast.error('主题切换失败')
-    }
+  function toggleTheme() {
+    setTheme(isDark ? 'light' : 'dark')
   }
 
   async function handleLogout() {
@@ -83,7 +79,13 @@ export function Toolbar({ onAddSite, onAddCategory }: { onAddSite: () => void; o
 
   return (
     <div className="flex items-center justify-end gap-2 px-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:gap-3 sm:px-5 sm:pt-[calc(1.25rem+env(safe-area-inset-top))]">
-      <div className="glass flex flex-wrap items-center justify-end gap-0.5 rounded-2xl p-1 sm:gap-1">
+      <nav aria-label="手机快捷操作" className="glass grid w-full grid-flow-col auto-cols-fr gap-1 rounded-2xl p-1 sm:hidden">
+        {canEdit && <button type="button" aria-label={editMode ? '完成编辑' : '编辑首页'} onClick={() => setEditMode(!editMode)} className={`flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium ${editMode ? 'bg-emerald-500/85 text-white' : 'text-fg/80 active:bg-line/15'}`}>{editMode ? <Check className="size-4" aria-hidden /> : <Pencil className="size-4" aria-hidden />}{editMode ? '完成' : '编辑'}</button>}
+        <button type="button" aria-label={isDark ? '切换到浅色' : '切换到深色'} onClick={toggleTheme} className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-fg/80 active:bg-line/15">{isDark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}{isDark ? '浅色' : '深色'}</button>
+        {user && <Link to="/subscriptions" aria-label="订阅中心" className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-fg/80 active:bg-line/15"><Rss className="size-4" aria-hidden />订阅</Link>}
+        <button type="button" aria-haspopup="dialog" aria-expanded={moreOpen} onClick={() => setMoreOpen(true)} className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-fg/80 active:bg-line/15"><MoreHorizontal className="size-4" aria-hidden />更多</button>
+      </nav>
+      <div className="glass hidden flex-wrap items-center justify-end gap-1 rounded-2xl p-1 sm:flex">
         {canEdit && (
           <>
             <button
@@ -194,6 +196,19 @@ export function Toolbar({ onAddSite, onAddCategory }: { onAddSite: () => void; o
           </Link>
         )}
       </div>
+      <Modal open={moreOpen} title="更多功能" onClose={() => setMoreOpen(false)} size="sm">
+        <nav aria-label="更多功能" className="grid grid-cols-2 gap-2">
+          {[
+            { to: '/notes', label: '笔记', icon: NotebookPen },
+            { to: '/photos', label: '照片墙', icon: Images },
+            { to: '/services', label: '服务对接', icon: Server },
+            { to: '/servers', label: '服务器面板', icon: Activity },
+            { to: '/settings', label: '设置', icon: Settings },
+          ].map(({ to, label, icon: Icon }) => <Link key={to} to={to} onClick={() => setMoreOpen(false)} className="flex min-h-16 items-center gap-3 rounded-2xl border border-line/10 bg-line/5 px-4 text-sm text-fg/85 transition active:bg-line/15"><Icon className="size-5 shrink-0 text-accent" aria-hidden />{label}</Link>)}
+          <button type="button" onClick={() => { setMoreOpen(false); setMinimal(true) }} className="flex min-h-16 items-center gap-3 rounded-2xl border border-line/10 bg-line/5 px-4 text-sm text-fg/85 active:bg-line/15"><Minimize2 className="size-5 shrink-0 text-accent" aria-hidden />极简模式</button>
+        </nav>
+        {user ? <button type="button" disabled={busy} onClick={() => { setMoreOpen(false); void handleLogout() }} className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-line/15 text-sm text-fg/65 disabled:opacity-50"><LogOut className="size-4 shrink-0" aria-hidden /><span className="truncate">退出登录（{user.username}）</span></button> : <Link to="/login" onClick={() => setMoreOpen(false)} className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-500 text-sm text-white"><LogIn className="size-4" aria-hidden />登录</Link>}
+      </Modal>
     </div>
   )
 }

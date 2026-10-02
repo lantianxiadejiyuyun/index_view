@@ -1,12 +1,5 @@
-/**
- * 双 token 认证核心。
- *
- * access  ：JWT，2 小时，前端只存内存（防 XSS 窃取）
- * refresh ：256 位随机串，默认 30 天，HttpOnly Cookie，每次刷新即轮换
- *
- * 轮换带重放检测：一个已经用过的 refresh token 再次出现，说明它泄露过，
- * 此时直接撤销该用户全部会话，逼所有设备重新登录。
- */
+/** Access JWTs and refresh tokens are both bound to a revocable device session. */
+import { createHmac, randomBytes } from 'node:crypto'
 import { sign, verify } from 'hono/jwt'
 import type { JWTPayload } from 'hono/utils/jwt/types'
 import { REFRESH_DAYS } from '../config.js'
@@ -15,137 +8,236 @@ import { sql } from './db.js'
 import { newRefreshToken, sha256 } from './password.js'
 import type { SessionUser } from '../types.js'
 
-export const ACCESS_TTL_SEC = 2 * 60 * 60 // 2 小时
+export const ACCESS_TTL_SEC = 2 * 60 * 60
 export const REFRESH_COOKIE = 'hd_rt'
+export const REFRESH_ROTATE_INTERVAL_MS = 60_000
+export const REFRESH_RETRY_GRACE_MS = 30_000
 const REFRESH_TTL_MS = REFRESH_DAYS * 24 * 60 * 60 * 1000
+const SESSION_ID = /^[a-f0-9]{32}$/
 
 type RefreshRow = {
   id: number
   user_id: number
   token_hash: string
-  ua: string | null
-  ip: string | null
+  session_id: string | null
+  replacement_hash: string | null
   expires_at: number
   revoked_at: number | null
   created_at: number
 }
+type SessionRow = {
+  id: string
+  user_id: number
+  client: 'web' | 'extension'
+  ua: string | null
+  ip: string | null
+  created_at: number
+  last_seen_at: number
+  expires_at: number
+  revoked_at: number | null
+}
+export type AuthenticatedSession = { user: SessionUser; sessionId: string; client: 'web' | 'extension' }
 
-export async function issueAccessToken(user: SessionUser): Promise<string> {
+function metadata(value: string | null, max: number): string | null {
+  return value?.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, max) || null
+}
+
+function activeSession(id: string, userId: number, now = Date.now()): SessionRow | undefined {
+  return sql.get<SessionRow>(
+    'SELECT * FROM auth_sessions WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND expires_at > ?',
+    id, userId, now,
+  )
+}
+
+export async function issueAccessToken(user: SessionUser, sessionId: string): Promise<string> {
+  if (!activeSession(sessionId, user.id)) throw new Error('Cannot issue access token for an inactive session')
   const iat = Math.floor(Date.now() / 1000)
-  const payload: JWTPayload = {
-    sub: user.id,
-    username: user.username,
-    iat,
-    exp: iat + ACCESS_TTL_SEC,
-  }
+  const payload: JWTPayload = { sub: user.id, username: user.username, sid: sessionId, iat, exp: iat + ACCESS_TTL_SEC }
   return sign(payload, getSecrets().jwtSecret, 'HS256')
 }
 
-export async function verifyAccessToken(token: string): Promise<SessionUser | null> {
+export async function verifyAccessToken(token: string): Promise<AuthenticatedSession | null> {
   try {
     const payload = await verify(token, getSecrets().jwtSecret, 'HS256')
     const id = Number(payload.sub)
-    if (!Number.isFinite(id) || id <= 0) return null
-    return { id, username: String(payload.username ?? '') }
+    const sid = payload.sid
+    if (!Number.isSafeInteger(id) || id <= 0 || typeof sid !== 'string' || !SESSION_ID.test(sid)) return null
+    const now = Date.now()
+    const session = activeSession(sid, id, now)
+    if (!session) return null
+    const user = sql.get<SessionUser>('SELECT id, username FROM users WHERE id = ?', id)
+    if (!user) return null
+    // Access-only clients (including the extension) also keep an accurate activity time.
+    sql.run('UPDATE auth_sessions SET last_seen_at = ? WHERE id = ? AND last_seen_at < ?', now, sid, now - 60_000)
+    return { user, sessionId: sid, client: session.client }
   } catch {
-    // 过期或签名不合法都走这里，调用方统一按未登录处理
     return null
   }
+}
+
+/** Must be called within the caller's transaction. */
+function revokeRows(sessionId: string, userId: number, now: number): void {
+  sql.run('UPDATE auth_sessions SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL', now, sessionId, userId)
+  sql.run('UPDATE refresh_tokens SET revoked_at = ? WHERE session_id = ? AND user_id = ? AND revoked_at IS NULL', now, sessionId, userId)
 }
 
 export function createRefreshToken(
   userId: number,
   ua: string | null,
   ip: string | null,
-): { raw: string; expiresAt: number } {
-  const { raw, hash } = newRefreshToken()
-  const expiresAt = Date.now() + REFRESH_TTL_MS
-  sql.run(
-    `INSERT INTO refresh_tokens (user_id, token_hash, ua, ip, expires_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    userId,
-    hash,
-    ua,
-    ip,
-    expiresAt,
-    Date.now(),
-  )
-  return { raw, expiresAt }
+  previous: { raw?: string; sessionId?: string } = {},
+): { raw: string; expiresAt: number; sessionId: string } {
+  return sql.tx(() => {
+    const now = Date.now()
+    // A repeat login in the same browser replaces its old session. It never
+    // touches a different user's session or another device without its token.
+    if (previous.raw && previous.raw.length <= 512) {
+      const old = sql.get<RefreshRow>('SELECT * FROM refresh_tokens WHERE token_hash = ? AND user_id = ?', sha256(previous.raw), userId)
+      if (old?.session_id) revokeRows(old.session_id, userId, now)
+    }
+    if (previous.sessionId && activeSession(previous.sessionId, userId)?.client === 'web') revokeRows(previous.sessionId, userId, now)
+    const sessionId = randomBytes(16).toString('hex')
+    const { raw, hash } = newRefreshToken()
+    const expiresAt = now + REFRESH_TTL_MS
+    const userAgent = metadata(ua, 512)
+    const address = metadata(ip, 128)
+    sql.run(`INSERT INTO auth_sessions (id, user_id, ua, ip, created_at, last_seen_at, expires_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`, sessionId, userId, userAgent, address, now, now, expiresAt)
+    sql.run(`INSERT INTO refresh_tokens (user_id, token_hash, ua, ip, expires_at, created_at, session_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`, userId, hash, userAgent, address, expiresAt, now, sessionId)
+    return { raw, expiresAt, sessionId }
+  })
+}
+
+/** The extension omits cookies; its session lives exactly as long as its access token. */
+export function createAccessOnlySession(userId: number, ua: string | null, ip: string | null, previousSessionId?: string): string {
+  return sql.tx(() => {
+    const now = Date.now()
+    if (previousSessionId && activeSession(previousSessionId, userId)?.client === 'extension') revokeRows(previousSessionId, userId, now)
+    const sessionId = randomBytes(16).toString('hex')
+    sql.run(`INSERT INTO auth_sessions (id, user_id, client, ua, ip, created_at, last_seen_at, expires_at)
+      VALUES (?, ?, 'extension', ?, ?, ?, ?, ?)`, sessionId, userId, metadata(ua, 512), metadata(ip, 128), now, now, now + ACCESS_TTL_SEC * 1000)
+    return sessionId
+  })
+}
+
+export function sessionUsesCookie(userId: number, sessionId: string): boolean {
+  return sql.get<{ client: string }>('SELECT client FROM auth_sessions WHERE user_id = ? AND id = ?', userId, sessionId)?.client === 'web'
+}
+
+export function revokeSession(userId: number, sessionId: string): boolean {
+  return sql.tx(() => {
+    if (!sql.get('SELECT 1 FROM auth_sessions WHERE id = ? AND user_id = ?', sessionId, userId)) return false
+    revokeRows(sessionId, userId, Date.now())
+    return true
+  })
 }
 
 export function revokeRefreshToken(raw: string): void {
-  sql.run(
-    'UPDATE refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL',
-    Date.now(),
-    sha256(raw),
-  )
+  if (raw.length > 512) return
+  const row = sql.get<RefreshRow>('SELECT * FROM refresh_tokens WHERE token_hash = ?', sha256(raw))
+  if (row?.session_id) revokeSession(row.user_id, row.session_id)
+}
+
+function revokeUserRows(userId: number, now: number): void {
+  sql.run('UPDATE auth_sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL', now, userId)
+  sql.run('UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL', now, userId)
 }
 
 export function revokeAllSessions(userId: number): void {
-  sql.run(
-    'UPDATE refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL',
-    Date.now(),
-    userId,
-  )
+  sql.tx(() => revokeUserRows(userId, Date.now()))
 }
 
-/** 顺手清理过期/撤销很久的记录，避免表无限增长 */
+export function updatePasswordAndRevokeSessions(userId: number, passwordHash: string): void {
+  sql.tx(() => {
+    const now = Date.now()
+    sql.run('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', passwordHash, now, userId)
+    revokeUserRows(userId, now)
+  })
+}
+
+export function revokeOtherSessions(userId: number, currentId: string): number {
+  return sql.tx(() => {
+    const now = Date.now()
+    const others = sql.all<{ id: string }>('SELECT id FROM auth_sessions WHERE user_id = ? AND id != ? AND revoked_at IS NULL AND expires_at > ?', userId, currentId, now)
+    for (const { id } of others) revokeRows(id, userId, now)
+    return others.length
+  })
+}
+
+function deviceName(ua: string | null): string {
+  if (!ua) return '未知设备'
+  const browser = /Edg\//i.test(ua) ? 'Edge' : /Firefox\//i.test(ua) ? 'Firefox' : /(?:Chrome|CriOS)\//i.test(ua) ? 'Chrome' : /Safari\//i.test(ua) ? 'Safari' : '其他客户端'
+  const os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS' : /Windows/i.test(ua) ? 'Windows' : /Macintosh|Mac OS X/i.test(ua) ? 'macOS' : /Linux/i.test(ua) ? 'Linux' : ''
+  return os ? `${browser} · ${os}` : browser
+}
+
+export function listSessions(userId: number, currentId: string) {
+  return sql.all<SessionRow>('SELECT * FROM auth_sessions WHERE user_id = ? AND revoked_at IS NULL AND expires_at > ? ORDER BY last_seen_at DESC, created_at DESC', userId, Date.now())
+    .map(({ id, client, ua, ip, created_at, last_seen_at, expires_at }) => ({ id, device: client === 'extension' ? 'Chrome 扩展' : deviceName(ua), ua, ip, created_at, last_seen_at, expires_at, current: id === currentId }))
+}
+
+/** Keep used token hashes until the session ends, so a late replay still has a family. */
 export function pruneRefreshTokens(): void {
-  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
-  sql.run('DELETE FROM refresh_tokens WHERE expires_at < ? OR revoked_at < ?', Date.now(), cutoff)
+  sql.tx(() => {
+    const now = Date.now()
+    const cutoff = now - 7 * 24 * 60 * 60 * 1000
+    sql.run('DELETE FROM auth_sessions WHERE expires_at <= ? OR revoked_at < ?', now, cutoff)
+    sql.run('DELETE FROM refresh_tokens WHERE session_id IS NULL AND (expires_at <= ? OR revoked_at < ?)', now, cutoff)
+  })
 }
 
 export type RotateResult =
-  | { ok: true; user: SessionUser; raw: string; expiresAt: number }
+  | { ok: true; user: SessionUser; sessionId: string; raw: string; expiresAt: number }
   | { ok: false; reason: 'missing' | 'expired' | 'replay' }
 
-/**
- * 轮换：校验旧 token → 作废 → 签发新的。
- * 返回新的 raw token，由调用方写入 Cookie。
- */
+// Reconstruct a successor during the bounded retry window without retaining any
+// plaintext refresh credentials. Domain separation avoids reuse as a JWT key.
+function nextRefresh(raw: string, sessionId: string): string {
+  return createHmac('sha256', getSecrets().jwtSecret).update(`home-dashboard:refresh:v1:${sessionId}:${raw}`).digest('base64url')
+}
+
 export function rotateRefreshToken(raw: string | undefined): RotateResult {
-  if (!raw) return { ok: false, reason: 'missing' }
-
-  const row = sql.get<RefreshRow>('SELECT * FROM refresh_tokens WHERE token_hash = ?', sha256(raw))
-  if (!row) return { ok: false, reason: 'missing' }
-
-  if (row.revoked_at) {
-    // 已作废的 token 被再次使用 = 泄露信号，全部会话下线
-    revokeAllSessions(row.user_id)
-    console.warn(`[auth] 检测到 refresh token 重放，已撤销用户 ${row.user_id} 的全部会话`)
-    return { ok: false, reason: 'replay' }
-  }
-
-  if (row.expires_at < Date.now()) return { ok: false, reason: 'expired' }
-
-  const user = sql.get<{ id: number; username: string }>(
-    'SELECT id, username FROM users WHERE id = ?',
-    row.user_id,
-  )
-  if (!user) return { ok: false, reason: 'missing' }
-
-  sql.run('UPDATE refresh_tokens SET revoked_at = ? WHERE id = ?', Date.now(), row.id)
-  const next = createRefreshToken(user.id, row.ua, row.ip)
-  return { ok: true, user, raw: next.raw, expiresAt: next.expiresAt }
+  if (!raw || raw.length > 512) return { ok: false, reason: 'missing' }
+  return sql.tx((): RotateResult => {
+    const now = Date.now()
+    const row = sql.get<RefreshRow>('SELECT * FROM refresh_tokens WHERE token_hash = ?', sha256(raw))
+    if (!row?.session_id) return { ok: false, reason: 'missing' }
+    const session = activeSession(row.session_id, row.user_id, now)
+    if (!session) return { ok: false, reason: 'expired' }
+    const user = sql.get<SessionUser>('SELECT id, username FROM users WHERE id = ?', row.user_id)
+    if (!user) return { ok: false, reason: 'missing' }
+    if (row.revoked_at !== null) {
+      if (row.replacement_hash && now - row.revoked_at <= REFRESH_RETRY_GRACE_MS) {
+        const next = nextRefresh(raw, row.session_id)
+        const successor = sql.get<RefreshRow>('SELECT * FROM refresh_tokens WHERE token_hash = ? AND session_id = ? AND revoked_at IS NULL AND expires_at > ?', sha256(next), row.session_id, now)
+        if (sha256(next) === row.replacement_hash && successor) {
+          return { ok: true, user, sessionId: session.id, raw: next, expiresAt: successor.expires_at }
+        }
+      }
+      revokeRows(session.id, user.id, now)
+      return { ok: false, reason: 'replay' }
+    }
+    if (row.expires_at <= now) return { ok: false, reason: 'expired' }
+    sql.run('UPDATE auth_sessions SET last_seen_at = ? WHERE id = ?', now, session.id)
+    if (now - row.created_at < REFRESH_ROTATE_INTERVAL_MS) {
+      return { ok: true, user, sessionId: session.id, raw, expiresAt: row.expires_at }
+    }
+    const next = nextRefresh(raw, session.id)
+    const hash = sha256(next)
+    const expiresAt = now + REFRESH_TTL_MS
+    sql.run('UPDATE refresh_tokens SET revoked_at = ?, replacement_hash = ? WHERE id = ?', now, hash, row.id)
+    sql.run(`INSERT INTO refresh_tokens (user_id, token_hash, ua, ip, expires_at, created_at, session_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`, user.id, hash, session.ua, session.ip, expiresAt, now, session.id)
+    sql.run('UPDATE auth_sessions SET expires_at = ? WHERE id = ?', expiresAt, session.id)
+    return { ok: true, user, sessionId: session.id, raw: next, expiresAt }
+  })
 }
 
 export function refreshCookieOptions(expiresAt: number) {
-  return {
-    httpOnly: true,
-    sameSite: 'Lax' as const,
-    // 本地 http 调试时必须允许非 Secure，否则 Cookie 根本不会下发
-    secure: process.env.COOKIE_SECURE === 'true',
-    path: '/api/auth',
-    expires: new Date(expiresAt),
-  }
+  return { httpOnly: true, sameSite: 'Lax' as const, secure: process.env.COOKIE_SECURE === 'true', path: '/api/auth', expires: new Date(expiresAt) }
 }
 
 export function clearCookieOptions() {
-  return {
-    httpOnly: true,
-    sameSite: 'Lax' as const,
-    secure: process.env.COOKIE_SECURE === 'true',
-    path: '/api/auth',
-    maxAge: 0,
-  }
+  return { httpOnly: true, sameSite: 'Lax' as const, secure: process.env.COOKIE_SECURE === 'true', path: '/api/auth', maxAge: 0 }
 }

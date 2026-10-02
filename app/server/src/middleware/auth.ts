@@ -2,7 +2,7 @@ import type { MiddlewareHandler } from 'hono'
 import { verifyAccessToken } from '../lib/tokens.js'
 import type { AppEnv } from '../types.js'
 
-function bearer(header: string | undefined): string | null {
+export function bearer(header: string | undefined): string | null {
   if (!header) return null
   const m = /^Bearer\s+(.+)$/i.exec(header.trim())
   return m?.[1] ?? null
@@ -13,11 +13,12 @@ function bearer(header: string | undefined): string | null {
  */
 export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const token = bearer(c.req.header('Authorization'))
-  const user = token ? await verifyAccessToken(token) : null
-  if (!user) {
+  const session = token ? await verifyAccessToken(token) : null
+  if (!session) {
     return c.json({ error: 'unauthorized', message: '登录已过期，请重新登录' }, 401)
   }
-  c.set('user', user)
+  c.set('user', session.user)
+  c.set('sessionId', session.sessionId)
   await next()
 }
 
@@ -27,7 +28,10 @@ export const requireAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
  */
 export const optionalAuth: MiddlewareHandler<AppEnv> = async (c, next) => {
   const token = bearer(c.req.header('Authorization'))
-  const user = token ? await verifyAccessToken(token) : null
-  if (user) c.set('user', user)
+  const session = token ? await verifyAccessToken(token) : null
+  if (session) {
+    c.set('user', session.user)
+    c.set('sessionId', session.sessionId)
+  }
   await next()
 }

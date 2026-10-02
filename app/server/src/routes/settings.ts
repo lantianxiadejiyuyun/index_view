@@ -21,7 +21,6 @@ const WRITABLE_KEYS = new Set([
   'wallpaper_dark_value',
   'wallpaper_blur',
   'wallpaper_dim',
-  'theme',
   'card_size',
   'grid_gap',
   'glass',
@@ -47,7 +46,6 @@ const WRITABLE_KEYS = new Set([
  * 数据库里躺着非法值，排查问题时会被误导。这里直接拒掉，返回 400。
  */
 const ENUM_VALUES: Record<string, readonly string[]> = {
-  theme: ['auto', 'light', 'dark'],
   card_size: ['sm', 'md', 'lg'],
   grid_gap: ['sm', 'md', 'lg'],
   glass: ['none', 'sm', 'md', 'lg'],
@@ -128,6 +126,8 @@ settingsRoutes.get('/export', requireAuth, (c) => {
      FROM sites ORDER BY sort_order, id`,
   )
   const settings = readAllSettings(false)
+  // 深浅色已迁移为每台设备的本地偏好，不再随备份导出或导入。
+  delete settings.theme
   return c.json(
     {
       exported_at: new Date().toISOString(),

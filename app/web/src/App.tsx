@@ -4,7 +4,9 @@ import { TriangleAlert } from 'lucide-react'
 import { onSessionExpired } from './lib/api.ts'
 import { GLASS_PRESETS, GAP_PRESETS, activeWallpaper } from './lib/settings.ts'
 import { derivedUrl } from './lib/wallpapers.ts'
-import { computeScrims, resolveDark } from './lib/visual.ts'
+import { computeScrims } from './lib/visual.ts'
+import { DEVICE_THEME_KEY, isThemePref } from './lib/device-theme.ts'
+import { useTheme } from './lib/useTheme.ts'
 import { useWallpaperTone } from './lib/useWallpaperTone.ts'
 import { useApp } from './store/app.ts'
 import { useLoading } from './store/loading.ts'
@@ -100,14 +102,6 @@ function wallpaperSpec(
   }
 }
 
-function persistThemePref(pref: string): void {
-  try {
-    localStorage.setItem('hd.theme', pref)
-  } catch {
-    /* 无痕模式下 localStorage 可能不可用 */
-  }
-}
-
 export default function App() {
   const status = useApp((s) => s.status)
   const errorMessage = useApp((s) => s.errorMessage)
@@ -119,7 +113,7 @@ export default function App() {
 
   const [booted, setBooted] = useState(false)
   // 主题解析成「实际是不是深色」后作为单一真相，CSS 变量与 class 都从它派生
-  const [isDark, setIsDark] = useState(() => resolveDark(settings.theme))
+  const isDark = useTheme(settings.theme)
   // 图片壁纸的真实明暗：采样得到，拿不到则为 null（退回跟随主题）
   const imgTone = useWallpaperTone(wallpaperSpec(settings, isDark))
 
@@ -136,16 +130,16 @@ export default function App() {
   }, [bootstrap])
 
   useEffect(() => {
-    const sync = () => setIsDark(resolveDark(settings.theme))
-    sync()
-    persistThemePref(settings.theme)
-
-    // 跟随系统时要实时响应系统主题切换
-    if (settings.theme !== 'auto') return
-    const mq = window.matchMedia('(prefers-color-scheme: dark)')
-    mq.addEventListener('change', sync)
-    return () => mq.removeEventListener('change', sync)
-  }, [settings.theme])
+    // 同一浏览器的标签页共享本地偏好，不向服务器写入。
+    const sync = (event: StorageEvent) => {
+      if (event.key !== DEVICE_THEME_KEY && event.key !== null) return
+      if (event.storageArea !== window.localStorage) return
+      const value = event.key === null ? null : event.newValue
+      useApp.getState().setTheme(isThemePref(value) ? value : 'auto', false)
+    }
+    window.addEventListener('storage', sync)
+    return () => window.removeEventListener('storage', sync)
+  }, [])
 
   useEffect(() => {
     applyThemeClass(isDark)

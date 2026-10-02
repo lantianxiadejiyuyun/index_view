@@ -29,7 +29,7 @@ before(async () => {
       export * from './src/lib/subscriptions.ts'; export * from './src/lib/subscription-relay.ts';
       export { attachSubscriptionRelayWebSocket } from './src/lib/subscription-relay-ws.ts';
       export { sql, closeDb } from './src/lib/db.ts'; export { initDatabase } from './src/db/schema.ts';
-      export { issueAccessToken } from './src/lib/tokens.ts';
+      export { issueAccessToken, createRefreshToken } from './src/lib/tokens.ts';
       export function startFixture() {
         const app = new Hono(); app.route('/api', subscriptionRoutes);
         return serve({ fetch: app.fetch, port: 0, hostname: '127.0.0.1' });
@@ -53,7 +53,8 @@ before(async () => {
   })
   h = await import(pathToFileURL(bundle).href)
   h.initDatabase()
-  token = await h.issueAccessToken({ id: 1, username: 'ws-fixture' })
+  const session = h.createRefreshToken(1, 'fixture', null)
+  token = await h.issueAccessToken({ id: 1, username: 'ws-fixture' }, session.sessionId)
 })
 beforeEach(async () => {
   h.sql.run('DELETE FROM subscription_profiles')

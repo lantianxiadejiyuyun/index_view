@@ -48,7 +48,7 @@ before(async () => {
         export * from './src/lib/subscriptions.ts';
         export { sql, closeDb } from './src/lib/db.ts';
         export { initDatabase } from './src/db/schema.ts';
-        export { issueAccessToken } from './src/lib/tokens.ts';
+        export { issueAccessToken, createRefreshToken } from './src/lib/tokens.ts';
         export { parseSubscription } from './src/lib/subscription-codec.ts';
       `,
       resolveDir: serverRoot, loader: 'ts',
@@ -87,8 +87,10 @@ before(async () => {
   harness = await import(pathToFileURL(bundleFile).href)
   harness.initDatabase()
   harness.sql.run(`INSERT INTO users (id, username, password_hash, created_at, updated_at) VALUES (2, 'other-fixture', 'not-used', 1, 1)`)
-  token = await harness.issueAccessToken({ id: 1, username: 'subscription-fixture' })
-  otherToken = await harness.issueAccessToken({ id: 2, username: 'other-fixture' })
+  const session = harness.createRefreshToken(1, 'fixture', null)
+  const otherSession = harness.createRefreshToken(2, 'fixture', null)
+  token = await harness.issueAccessToken({ id: 1, username: 'subscription-fixture' }, session.sessionId)
+  otherToken = await harness.issueAccessToken({ id: 2, username: 'other-fixture' }, otherSession.sessionId)
 })
 beforeEach(() => {
   harness.sql.run('DELETE FROM subscription_profiles')
@@ -127,8 +129,8 @@ async function refresh(id, auth = token) {
 }
 async function listing(auth = token) { return (await request('', { auth })).json() }
 
-test('migration v12 creates durable subscription tables, and creation does not fetch', async () => {
-  assert.equal(harness.sql.get('PRAGMA user_version').user_version, 12)
+test('migration v13 retains durable subscription tables, and creation does not fetch', async () => {
+  assert.equal(harness.sql.get('PRAGMA user_version').user_version, 13)
   const created = await source()
   assert.equal(created.refresh_interval_minutes, 60)
   assert.equal(created.proxy_count, 0)

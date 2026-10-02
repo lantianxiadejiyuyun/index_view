@@ -273,6 +273,16 @@
   }
 }
 
+/* Keep phone inputs at the native readable size so iOS does not zoom the form
+   when a field receives focus. Desktop density remains unchanged. */
+@media (max-width: 639px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 @layer utilities {
   /* ⚠ 这里刻意**没有** safe-top / safe-bottom 这类工具类。
      它们会写 padding-top / padding-bottom，和 Tailwind 的 pt-* / pb-* 同层同优先级，
