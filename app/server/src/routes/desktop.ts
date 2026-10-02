@@ -9,7 +9,7 @@ import type { AppEnv } from '../types.js'
 
 type Position = { col: number; row: number }
 type Layout = { version: 1; wide: Record<string, Position>; compact: Record<string, Position> }
-const widgets = new Set(['clock', 'search', 'weather', 'quote', 'workbench'])
+const widgets = new Set(['clock', 'search', 'weather', 'quote', 'workbench', 'calendar'])
 const key = 'desktop_layout'
 export const desktopRoutes = new Hono<AppEnv>()
 desktopRoutes.use('/desktop/*', requireAuth)

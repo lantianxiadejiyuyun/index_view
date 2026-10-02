@@ -24,6 +24,8 @@ const WRITABLE_KEYS = new Set([
   'custom_engines',
   'appearance_preset',
   'home_mode',
+  'desktop_header_mode',
+  'show_calendar',
   'wallpaper_light_type',
   'wallpaper_light_value',
   'wallpaper_dark_type',
@@ -56,6 +58,7 @@ const WRITABLE_KEYS = new Set([
  */
 const ENUM_VALUES: Record<string, readonly string[]> = {
   home_mode: ['navigation', 'desktop'],
+  desktop_header_mode: ['hero', 'widgets'],
   appearance_preset: ['classic', 'desktop', 'minimal', 'paper', 'terminal'],
   card_size: ['sm', 'md', 'lg'],
   grid_gap: ['sm', 'md', 'lg'],
@@ -246,6 +249,7 @@ settingsRoutes.post('/import', requireAuth, async (c) => {
     } catch { throw new NavigationInputError('备份中的桌面布局无效') }
   }
   if (body.settings?.home_mode !== undefined && !ENUM_VALUES.home_mode!.includes(String(body.settings.home_mode))) throw new NavigationInputError('备份中的首页模式无效')
+  if (body.settings?.desktop_header_mode !== undefined && !ENUM_VALUES.desktop_header_mode!.includes(String(body.settings.desktop_header_mode))) throw new NavigationInputError('备份中的桌面时钟与搜索位置无效')
   const t = Date.now()
   let categoryCount = 0
   let folderCount = 0

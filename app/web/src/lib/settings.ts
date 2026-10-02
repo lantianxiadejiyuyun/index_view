@@ -36,6 +36,8 @@ export function activeWallpaper(
 
 export type AppSettings = {
   home_mode: 'navigation' | 'desktop'
+  desktop_header_mode: 'hero' | 'widgets'
+  show_calendar: boolean
   site_title: string
   site_subtitle: string
   search_engine: string
@@ -89,6 +91,8 @@ export function normalizeSettings(raw: Record<string, string> | undefined): AppS
   const s = raw ?? {}
   return {
     home_mode: pick(s.home_mode, ['navigation', 'desktop'] as const, 'navigation'),
+    desktop_header_mode: pick(s.desktop_header_mode, ['hero', 'widgets'] as const, 'hero'),
+    show_calendar: toBool(s.show_calendar, true),
     site_title: s.site_title || '我的导航',
     site_subtitle: s.site_subtitle || '',
     search_engine: s.search_engine || 'bing',

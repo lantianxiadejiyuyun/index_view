@@ -449,3 +449,58 @@ test('desktop backup restore remaps layout IDs and preserves phone layout and ho
   await json('/import', { ...exported, mode: 'replace', settings: { desktop_layout: '{broken' } }, 'POST', 400)
   assert.deepEqual(state(), before)
 })
+
+test('calendar layout persists independently on both devices and rejects unknown widgets atomically', async () => {
+  const { sites } = await fixture()
+  for (const viewport of ['wide', 'compact']) await json('/desktop/layout', { viewport, reset: true }, 'PATCH')
+  await json('/desktop/layout', { viewport: 'wide', placements: [{ id: `site:${sites[0]}`, col: 1, row: 4 }, { id: 'widget:clock', col: 5, row: 1 }] }, 'PATCH')
+  const original = (await json('/desktop/layout')).layout
+  await json('/desktop/layout', { viewport: 'wide', placements: [{ id: 'widget:calendar', col: 8, row: 7 }] }, 'PATCH')
+  await json('/desktop/layout', { viewport: 'compact', placements: [{ id: 'widget:calendar', col: 0, row: 11 }] }, 'PATCH')
+  const before = await json('/desktop/layout')
+  assert.deepEqual(before.layout.wide, { ...original.wide, 'widget:calendar': { col: 8, row: 7 } })
+  assert.deepEqual(before.layout.compact, { 'widget:calendar': { col: 0, row: 11 } })
+  await json('/desktop/layout', { viewport: 'wide', placements: [{ id: 'widget:calendar', col: 0, row: 0 }, { id: 'widget:unknown', col: 4, row: 4 }] }, 'PATCH', 400)
+  assert.deepEqual(await json('/desktop/layout'), before)
+  assert.deepEqual(JSON.parse((await json('/export')).settings.desktop_layout), before.layout)
+})
+
+test('calendar backup replace restores both positions and merge preserves existing widget positions', async () => {
+  await fixture()
+  for (const viewport of ['wide', 'compact']) await json('/desktop/layout', { viewport, reset: true }, 'PATCH')
+  await json('/desktop/layout', { viewport: 'wide', placements: [{ id: 'widget:calendar', col: 8, row: 4 }, { id: 'widget:clock', col: 0, row: 12 }, { id: 'widget:search', col: 3, row: 12 }] }, 'PATCH')
+  await json('/desktop/layout', { viewport: 'compact', placements: [{ id: 'widget:calendar', col: 0, row: 7 }, { id: 'widget:clock', col: 0, row: 0 }, { id: 'widget:search', col: 0, row: 2 }] }, 'PATCH')
+  const backup = await json('/export')
+  const original = (await json('/desktop/layout')).layout
+  await json('/desktop/layout', { viewport: 'wide', placements: [{ id: 'widget:calendar', col: 4, row: 14 }] }, 'PATCH')
+  await json('/import', { ...backup, mode: 'replace' })
+  assert.deepEqual((await json('/desktop/layout')).layout, original)
+
+  await json('/desktop/layout', { viewport: 'wide', placements: [{ id: 'widget:calendar', col: 4, row: 14 }] }, 'PATCH')
+  await json('/desktop/layout', { viewport: 'compact', placements: [{ id: 'widget:calendar', col: 0, row: 18 }] }, 'PATCH')
+  const current = (await json('/desktop/layout')).layout
+  await json('/import', { ...backup, mode: 'merge' })
+  assert.deepEqual((await json('/desktop/layout')).layout, current)
+})
+
+test('desktop header and calendar preferences preserve coordinates and reject invalid modes before mutation', async () => {
+  const { sites } = await fixture()
+  await json('/desktop/layout', { viewport: 'wide', placements: [{ id: `site:${sites[0]}`, col: 5, row: 9 }, { id: 'widget:clock', col: 1, row: 2 }, { id: 'widget:search', col: 4, row: 5 }, { id: 'widget:calendar', col: 8, row: 12 }] }, 'PATCH')
+  const layout = await json('/desktop/layout')
+  for (const [mode, visible] of [['widgets', false], ['hero', true]]) {
+    const result = await json('/settings', { desktop_header_mode: mode, show_calendar: visible }, 'PUT')
+    assert.equal(result.settings.desktop_header_mode, mode)
+    assert.equal(result.settings.show_calendar, String(visible))
+    assert.deepEqual(await json('/desktop/layout'), layout)
+  }
+  const before = await json('/settings')
+  await json('/settings', { desktop_header_mode: 'automatic', show_calendar: false }, 'PUT', 400)
+  assert.deepEqual(await json('/settings'), before)
+  assert.deepEqual(await json('/desktop/layout'), layout)
+
+  const backup = await json('/export')
+  const original = state()
+  await json('/import', { ...backup, mode: 'replace', settings: { ...backup.settings, desktop_header_mode: 'automatic' } }, 'POST', 400)
+  assert.deepEqual(state(), original)
+  assert.deepEqual(await json('/settings'), before)
+})

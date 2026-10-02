@@ -46,3 +46,19 @@ test('dragging remains accurate when scrolling moves the canvas under a stationa
   assert.deepEqual(canvasDropPosition(item, { left: 16, top: 398 }, { left: 16, top: -434 }, 74.25, 92, 12, [], 4), { col: 0, row: 8 })
   assert.deepEqual(canvasDropPosition(item, { left: 16, top: 398 }, { left: 16, top: -330 }, 74.25, 92, 12, [], 4), { col: 0, row: 7 })
 })
+
+test('calendar positions survive parsing on both devices without displacing saved icons', () => {
+  const saved = {
+    version: 1,
+    wide: { 'widget:calendar': { col: 8, row: 4 }, 'site:1': { col: 6, row: 8 } },
+    compact: { 'widget:calendar': { col: 0, row: 9 }, 'site:1': { col: 3, row: 2 } },
+  }
+  const parsed = parseDesktopLayout(JSON.stringify(saved))
+  assert.deepEqual(parsed, saved)
+  for (const [view, columns, calendarWidth] of [['wide', 12, 4], ['compact', 4, 4]]) {
+    const items = [{ id: 'widget:calendar', width: calendarWidth, height: 2 }, { id: 'site:1', width: 1, height: 1 }]
+    const placed = arrangeDesktop(items, parsed[view], columns)
+    for (const item of placed) assert.deepEqual({ col: item.col, row: item.row }, saved[view][item.id])
+    assert.equal(overlaps(placed[0], placed[1]), false)
+  }
+})
