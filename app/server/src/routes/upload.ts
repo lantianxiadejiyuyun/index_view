@@ -127,9 +127,10 @@ uploadRoutes.post('/upload', requireAuth, async (c) => {
   const raw = [...form.getAll('file'), ...form.getAll('files')]
   const incoming = raw.filter((f): f is File => f instanceof File)
 
-  // 派生图和原图按**顺序配对**：客户端第 N 张原图对应第 N 张缩略图。
-  // 之所以按序号而不是文件名配对，是因为原图在落盘前还没有名字。
-  // 客户端要么两张都传、要么都不传，所以不会错位。
+  // New clients explicitly identify the source index: GIFs, small files or
+  // failed decodes may omit either derivative without shifting later images.
+  // Pick one mode for the entire request; never mix indexed and legacy lists.
+  const indexedDerived = Array.from(form.keys()).some(key => /^(thumb|large)_\d+$/.test(key))
   const thumbs = form.getAll('thumb').filter((f): f is File => f instanceof File)
   const larges = form.getAll('large').filter((f): f is File => f instanceof File)
 
@@ -171,8 +172,8 @@ uploadRoutes.post('/upload', requireAuth, async (c) => {
 
     // 派生图用原图的随机名前缀，方便删除时按前缀一起清掉
     const prefix = filename.replace(/\.[^.]+$/, '')
-    const thumbName = await writeDerived(prefix, 'thumb', thumbs[index])
-    const largeName = await writeDerived(prefix, 'large', larges[index])
+    const thumbName = await writeDerived(prefix, 'thumb', indexedDerived ? firstFile(form.get(`thumb_${index}`)) : thumbs[index])
+    const largeName = await writeDerived(prefix, 'large', indexedDerived ? firstFile(form.get(`large_${index}`)) : larges[index])
 
     // 磁盘上用生成的随机名（避免重名和路径问题），
     // 但把用户原来的文件名留着，照片墙上要显示它而不是一串哈希

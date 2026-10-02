@@ -28,9 +28,9 @@ export function categoryReference(value: unknown): number | null {
 }
 
 export function folderDimensions(columns: unknown, rows: unknown): { columns: number; rows: number } {
-  if (typeof columns !== 'number' || !Number.isInteger(columns) || columns < 1 || columns > 4 ||
-      typeof rows !== 'number' || !Number.isInteger(rows) || rows < 1 || rows > 3) {
-    throw new NavigationInputError('文件夹尺寸必须为 1–4 列、1–3 行')
+  if (typeof columns !== 'number' || !Number.isSafeInteger(columns) || columns < 1 ||
+      typeof rows !== 'number' || !Number.isSafeInteger(rows) || rows < 1) {
+    throw new NavigationInputError('文件夹列数和行数必须为有效的正整数')
   }
   return { columns, rows }
 }

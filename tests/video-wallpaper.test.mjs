@@ -5,6 +5,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { after, before, test } from 'node:test'
 import { build } from 'esbuild'
+import { crc32, deflateSync, inflateSync } from 'node:zlib'
 import { SERVER_ESM_BANNER } from '../scripts/server-bundle-options.mjs'
 
 const root = path.resolve(tmpdir())
@@ -40,6 +41,23 @@ function webm(track = 1, docType = 'webm', unknownSegment = false) {
     ebml('1a45dfa3', ebml('4282', Buffer.from(docType))),
     unknownSegment ? Buffer.concat([Buffer.from('18538067ff', 'hex'), contents]) : ebml('18538067', contents),
   ])
+}
+
+/** Valid grayscale PNG with full scanlines, compressed without external image libraries. */
+function png(width, height) {
+  function chunk(type, data) {
+    const typed = Buffer.concat([Buffer.from(type), data])
+    const prefix = Buffer.alloc(4); prefix.writeUInt32BE(data.length)
+    const checksum = Buffer.alloc(4); checksum.writeUInt32BE(crc32(typed))
+    return Buffer.concat([prefix, typed, checksum])
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width); header.writeUInt32BE(height, 4)
+  header[8] = 1 // one-bit grayscale; filter/compression/interlace are all zero
+  const scanlines = Buffer.alloc((Math.ceil(width / 8) + 1) * height)
+  const compressed = deflateSync(scanlines)
+  assert.deepEqual(inflateSync(compressed), scanlines)
+  return Buffer.concat([Buffer.from('89504e470d0a1a0a', 'hex'), chunk('IHDR', header), chunk('IDAT', compressed), chunk('IEND', Buffer.alloc(0))])
 }
 before(async () => {
   const output = path.join(workspace, 'harness.mjs')
@@ -189,4 +207,65 @@ test('light and dark wallpaper types accept video without changing local theme s
   assert.equal(result.settings.wallpaper_light_type, 'video')
   assert.equal(result.settings.wallpaper_dark_type, 'video')
   assert.deepEqual(result.ignored, ['theme'])
+})
+
+test('image upload preserves full high-resolution PNG pixels, aspect ratio and original bytes', async () => {
+  assert.equal((await upload(form(png(1, 1), 'private.png', 'image/png'), false, '/upload')).status, 401)
+  for (const [width, height] of [[12000, 8000], [8000, 12000], [80000, 2]]) {
+    const original = png(width, height)
+    const response = await upload(form(original, `original-${width}x${height}.png`, 'image/png'), true, '/upload')
+    assert.equal(response.status, 201)
+    const result = await response.json()
+    const saved = readFileSync(path.join(uploadDir, result.filename))
+    assert.deepEqual(saved, original)
+    assert.equal(saved.readUInt32BE(16), width)
+    assert.equal(saved.readUInt32BE(20), height)
+    assert.equal(result.size, original.length)
+    assert.equal(result.thumb_url, null)
+    assert.equal(result.large_url, null)
+  }
+})
+
+test('indexed derivatives stay with their original across GIFs, missing large images and failed decodes', async () => {
+  const sources = [
+    { name: 'animated.gif', mime: 'image/gif', bytes: Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64') },
+    // Decoder-independent payloads: this endpoint stores JPEG uploads as-is;
+    // the browser already produced or skipped each derivative before this API.
+    { name: 'small.jpg', mime: 'image/jpeg', bytes: Buffer.from('small-jpeg-original') },
+    { name: 'large.jpg', mime: 'image/jpeg', bytes: Buffer.from('large-jpeg-original') },
+    { name: 'undecodable.png', mime: 'image/png', bytes: Buffer.from('decode-failed-original') },
+  ]
+  const body = new FormData()
+  for (const source of sources) body.append('file', new File([source.bytes], source.name, { type: source.mime }))
+  for (const [field, value] of [['thumb_1', 'small-thumbnail'], ['thumb_2', 'large-thumbnail'], ['large_2', 'large-preview']]) {
+    body.append(field, new File([value], field + '.jpg', { type: 'image/jpeg' }))
+  }
+  // A mixed-mode request must never use these legacy values to fill holes.
+  body.append('thumb', new File(['wrong-thumbnail'], 'wrong.jpg', { type: 'image/jpeg' }))
+  body.append('large', new File(['wrong-preview'], 'wrong.jpg', { type: 'image/jpeg' }))
+  const response = await upload(body, true, '/upload')
+  assert.equal(response.status, 201)
+  const { uploaded } = await response.json()
+  const derived = url => readFileSync(path.join(uploadDir, 'derived', path.basename(url)), 'utf8')
+  assert.equal(uploaded.length, sources.length)
+  for (const [index, source] of sources.entries()) assert.deepEqual(readFileSync(path.join(uploadDir, uploaded[index].filename)), source.bytes)
+  assert.equal(uploaded[0].thumb_url, null)
+  assert.equal(uploaded[0].large_url, null)
+  assert.equal(derived(uploaded[1].thumb_url), 'small-thumbnail')
+  assert.equal(uploaded[1].large_url, null)
+  assert.equal(derived(uploaded[2].thumb_url), 'large-thumbnail')
+  assert.equal(derived(uploaded[2].large_url), 'large-preview')
+  assert.equal(uploaded[3].thumb_url, null)
+  assert.equal(uploaded[3].large_url, null)
+})
+
+test('legacy derivative fields remain supported when the whole form uses legacy pairing', async () => {
+  const body = form(png(2, 3), 'legacy.png', 'image/png')
+  body.append('thumb', new File(['legacy-thumbnail'], 'thumb.jpg', { type: 'image/jpeg' }))
+  body.append('large', new File(['legacy-large'], 'large.jpg', { type: 'image/jpeg' }))
+  const response = await upload(body, true, '/upload')
+  assert.equal(response.status, 201)
+  const result = await response.json()
+  assert.equal(readFileSync(path.join(uploadDir, 'derived', path.basename(result.thumb_url)), 'utf8'), 'legacy-thumbnail')
+  assert.equal(readFileSync(path.join(uploadDir, 'derived', path.basename(result.large_url)), 'utf8'), 'legacy-large')
 })

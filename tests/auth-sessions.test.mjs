@@ -98,7 +98,7 @@ function ageToken(cookie, age = 61_000) { h.sql.run('UPDATE refresh_tokens SET c
 
 
 test('v12 migration preserves live cookies, upgrades to sid, and rejects legacy access and revoked cookies', async () => {
-  assert.equal(h.sql.get('PRAGMA user_version').user_version, 14)
+  assert.equal(h.sql.get('PRAGMA user_version').user_version, 15)
   const token = await h.sign({ sub: 1, username: 'legacy-fixture', exp: Math.floor(Date.now() / 1000) + 3600 }, secret, 'HS256')
   assert.equal((await request('/me', { token })).status, 401)
   const response = await refresh(legacyRaw)

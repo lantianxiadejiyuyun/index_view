@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import {
   DndContext,
@@ -57,14 +57,15 @@ type Props = {
   onEditFolder: (folder: Folder) => void
 }
 
-function FolderDropCard({ folder, sites, editMode, onOpen, onEdit }: {
-  folder: Folder; sites: Site[]; editMode: boolean; onOpen: () => void; onEdit: () => void
+function FolderDropCard({ folder, sites, editMode, onOpen, onEdit, gridColumns }: {
+  folder: Folder; sites: Site[]; editMode: boolean; onOpen: () => void; onEdit: () => void; gridColumns: number
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `folder-${folder.id}`, data: { type: 'folder', folderId: folder.id, categoryId: folder.category_id }, disabled: !editMode,
   })
-  return <div ref={setNodeRef} className="folder-grid-item" style={{ gridColumn: `span ${folder.columns}`, gridRow: `span ${folder.rows}` }}>
-    <FolderCard folder={folder} sites={sites} editMode={editMode} onOpen={onOpen} onEdit={onEdit} isOver={isOver} />
+  const displayColumns = Math.min(folder.columns, gridColumns)
+  return <div ref={setNodeRef} className="folder-grid-item" style={{ gridColumn: `span ${displayColumns}`, gridRow: `span ${folder.rows}` }}>
+    <FolderCard folder={folder} sites={sites} editMode={editMode} onOpen={onOpen} onEdit={onEdit} isOver={isOver} displayColumns={displayColumns} />
   </div>
 }
 
@@ -157,6 +158,26 @@ function CategorySection({
   })
 
   const ids = group.sites.map((s) => `site-${s.id}`)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [gridColumns, setGridColumns] = useState(4)
+  const hasFolders = group.folders.length > 0
+
+  useLayoutEffect(() => {
+    const grid = gridRef.current
+    if (!grid || !hasFolders) return
+    const measure = () => {
+      const gapPixels = Number.parseFloat(getComputedStyle(grid).columnGap) || 0
+      const columns = window.matchMedia('(max-width: 639px)').matches
+        ? 4
+        : Math.max(1, Math.floor((grid.clientWidth + gapPixels) / (CARD_PRESETS[cardSize].width + gapPixels)))
+      setGridColumns((previous) => previous === columns ? previous : columns)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(grid)
+    window.addEventListener('resize', measure)
+    return () => { observer.disconnect(); window.removeEventListener('resize', measure) }
+  }, [cardSize, gap, hasFolders, editMode])
 
   // 分组标题也压在壁纸上，而且是页面中下部的小字 —— 它必须自己判断，
   // 因为壁纸上亮下暗时，兜底的「顶部判定」在这里恰好是反的
@@ -219,8 +240,8 @@ function CategorySection({
       >
         <SortableContext items={ids} strategy={rectSortingStrategy}>
           {/* 手机固定四列；桌面仍按卡片大小居中换行。 */}
-          <div className={`site-grid ${group.folders.length ? 'site-grid-with-folders' : ''}`} style={{ '--site-grid-gap': gap, '--folder-cell-width': `${CARD_PRESETS[cardSize].width}px` } as CSSProperties}>
-            {group.folders.map((folder) => <FolderDropCard key={`folder-${folder.id}`} folder={folder} sites={allSites.filter((site) => site.folder_id === folder.id)} editMode={editMode} onOpen={() => onOpenFolder(folder)} onEdit={() => onEditFolder(folder)} />)}
+          <div ref={gridRef} className={`site-grid ${hasFolders ? 'site-grid-with-folders' : ''}`} style={{ '--site-grid-gap': gap, '--folder-grid-columns': gridColumns, '--folder-cell-width': `${CARD_PRESETS[cardSize].width}px` } as CSSProperties}>
+            {group.folders.map((folder) => <FolderDropCard key={`folder-${folder.id}`} folder={folder} sites={allSites.filter((site) => site.folder_id === folder.id)} editMode={editMode} gridColumns={gridColumns} onOpen={() => onOpenFolder(folder)} onEdit={() => onEditFolder(folder)} />)}
             {group.sites.map((site) => (
               <SortableCard
                 key={site.id}

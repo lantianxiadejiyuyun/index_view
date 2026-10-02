@@ -130,7 +130,7 @@ async function refresh(id, auth = token) {
 async function listing(auth = token) { return (await request('', { auth })).json() }
 
 test('current migration retains durable subscription tables, and creation does not fetch', async () => {
-  assert.equal(harness.sql.get('PRAGMA user_version').user_version, 14)
+  assert.equal(harness.sql.get('PRAGMA user_version').user_version, 15)
   const created = await source()
   assert.equal(created.refresh_interval_minutes, 60)
   assert.equal(created.proxy_count, 0)

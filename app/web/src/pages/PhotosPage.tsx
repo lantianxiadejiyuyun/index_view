@@ -19,7 +19,7 @@ import { btnGhost, btnPrimary } from '../components/Modal.tsx'
 import { api, errorMessage } from '../lib/api.ts'
 import type { UploadItem } from '../lib/types.ts'
 import { useApp } from '../store/app.ts'
-import { beginLoading, endLoading } from '../store/loading.ts'
+import { beginLoading, endLoading, updateLoading } from '../store/loading.ts'
 import { toast } from '../store/toast.ts'
 
 const PAGE_SIZE = 200
@@ -119,21 +119,19 @@ export function PhotosPage() {
         // 生成和上传都**逐张来**：一次几十张的 canvas 解码会把内存打满，
         // 而且逐张能顺带报进度。
         const body = new FormData()
-        let done = 0
-        for (const f of files) {
-          done += 1
+        for (const [index, f] of files.entries()) {
           if (files.length > 1) {
-            beginLoading(`正在处理第 ${done}/${files.length} 张…`)
+            updateLoading(`正在处理第 ${index + 1}/${files.length} 张…`)
           }
           body.append('file', f)
           const derived = await makeDerivatives(f)
-          // 字段名带序号？不需要 —— 服务端按出现顺序配对，
-          // 两张都传或都不传，不会错位
-          if (derived.thumb) body.append('thumb', derived.thumb, 'thumb.webp')
-          if (derived.large) body.append('large', derived.large, 'large.webp')
+          // 原图始终按 file 顺序提交。派生图明确携带原图序号，
+          // GIF、解码失败或小图跳过某项时，后面的预览也不会配到前一张。
+          if (derived.thumb) body.append(`thumb_${index}`, derived.thumb, 'thumb.webp')
+          if (derived.large) body.append(`large_${index}`, derived.large, 'large.webp')
         }
 
-        beginLoading(files.length > 1 ? `正在上传 ${files.length} 张…` : '正在上传…')
+        updateLoading(files.length > 1 ? `正在上传 ${files.length} 张…` : '正在上传…')
         const res = await api<{ uploaded: UploadItem[]; failed?: Array<{ name: string; message: string }> }>(
           '/api/upload',
           { method: 'POST', body },
@@ -227,7 +225,7 @@ export function PhotosPage() {
     let ok = 0
     try {
       for (const [index, item] of targets.entries()) {
-        beginLoading(`正在处理 ${index + 1}/${targets.length}…`)
+        updateLoading(`正在处理 ${index + 1}/${targets.length}…`)
         try {
           const res = await fetch(`/uploads/${item.filename}`)
           if (!res.ok) continue
@@ -257,7 +255,7 @@ export function PhotosPage() {
   return (
     <PageShell
       title="照片墙"
-      description={`上传的图片都放在这里，共 ${total} 张`}
+      description={`共 ${total} 张 · 保留原图，不限制像素尺寸；单张文件默认最大 20MB`}
       wide
       actions={
         <div className="flex items-center gap-2">
@@ -359,7 +357,7 @@ export function PhotosPage() {
                 : '还没有上传过图片'}
             </span>
             <span className="text-xs text-fg/50">
-              点击选择文件，或直接把图片拖到这里（支持多选，单张最大 20MB）
+              点击选择文件，或直接拖入图片。支持多选，保留原图，不限制像素尺寸；单张文件默认最大 20MB。
             </span>
           </button>
         ) : (

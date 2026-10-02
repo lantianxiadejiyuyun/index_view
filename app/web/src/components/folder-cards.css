@@ -35,7 +35,7 @@
 .folder-editor-emblem { display: flex; width: 52px; height: 52px; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 15px; color: var(--folder-accent); background: color-mix(in srgb, var(--folder-accent) 12%, transparent); }
 .folder-editor-intro > div { min-width: 0; }
 .folder-editor-intro strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: rgb(var(--fg-rgb)); }
-.folder-editor-intro p { margin-top: 5px; font-size: 11px; color: rgb(var(--fg-rgb) / .55); }
+.folder-editor-intro p { margin-top: 5px; font-size: 11px; color: rgb(var(--fg-rgb) / .55); overflow-wrap: anywhere; }
 .folder-size-visual { display: grid; gap: 3px; margin-left: auto; flex-shrink: 0; }
 .folder-size-visual i { width: 12px; height: 12px; border-radius: 3px; background: var(--folder-accent); opacity: .7; }
 .folder-size-presets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
@@ -45,7 +45,9 @@
 .folder-size-diagram i { width: 9px; height: 9px; background: currentColor; border-radius: 2px; opacity: .65; }
 .folder-custom-size { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
 .folder-custom-size label { font-size: 11px; color: rgb(var(--fg-rgb) / .65); }
-.folder-custom-size select { display: block; margin-top: 5px; }
+.folder-custom-size input { display: block; margin-top: 5px; }
+.folder-custom-size input[aria-invalid='true'] { border-color: var(--color-danger, #e11d48); }
+.folder-size-error { margin-top: 9px; font-size: 12px; line-height: 1.6; color: var(--color-danger, #e11d48); }
 .folder-field-note { margin-top: 9px; font-size: 11px; line-height: 1.65; color: rgb(var(--fg-rgb) / .5); }
 .folder-color-options { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
 .folder-color-auto { padding: 8px 10px; border-radius: 9px; border: 1px solid rgb(var(--line-rgb) / .2); font-size: 11px; color: rgb(var(--fg-rgb) / .7); }

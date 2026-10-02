@@ -421,6 +421,9 @@ export function SiteEditorModal({ open, site, defaultCategoryId, defaultFolderId
               上传
             </button>
           </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-fg/50">
+            保留原图，不限制像素尺寸；单张文件默认最大 20MB，图标按原比例显示。
+          </p>
 
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div>

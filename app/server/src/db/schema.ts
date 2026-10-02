@@ -14,7 +14,7 @@ import {
   ENV_JWT_SECRET,
 } from '../config.js'
 
-type Migration = { version: number; name: string; up: string }
+type Migration = { version: number; name: string; up: string; rebuildReferencedTable?: boolean }
 
 const MIGRATIONS: Migration[] = [
   {
@@ -376,6 +376,35 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX idx_sites_folder ON sites(folder_id, sort_order);
     `,
   },
+  {
+    version: 15,
+    name: 'unrestricted-folder-dimensions',
+    rebuildReferencedTable: true,
+    up: `
+      CREATE TABLE folders_next (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+        columns INTEGER NOT NULL DEFAULT 2 CHECK (typeof(columns) = 'integer' AND columns BETWEEN 1 AND 9007199254740991),
+        rows INTEGER NOT NULL DEFAULT 2 CHECK (typeof(rows) = 'integer' AND rows BETWEEN 1 AND 9007199254740991),
+        color TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      INSERT INTO folders_next (id, name, category_id, columns, rows, color, sort_order, created_at, updated_at)
+        SELECT id, name, category_id, columns, rows, color, sort_order, created_at, updated_at FROM folders;
+      -- Preserve the high-water mark even when the most recent folder was deleted.
+      UPDATE sqlite_sequence SET seq = MAX(seq, COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'folders'), 0))
+        WHERE name = 'folders_next';
+      INSERT INTO sqlite_sequence (name, seq)
+        SELECT 'folders_next', seq FROM sqlite_sequence WHERE name = 'folders'
+          AND NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'folders_next');
+      DROP TABLE folders;
+      ALTER TABLE folders_next RENAME TO folders;
+      CREATE INDEX idx_folders_category ON folders(category_id, sort_order);
+    `,
+  },
 ]
 export const DEFAULT_SETTINGS: Record<string, string> = {
   site_title: '我的导航',
@@ -436,10 +465,31 @@ function migrate(): void {
   if (pending.length === 0) return
 
   for (const m of pending) {
-    sql.tx(() => {
-      sql.exec(m.up)
-      setUserVersion(m.version)
-    })
+    // SQLite ignores foreign_keys changes inside a transaction. Rebuilding a
+    // referenced table with it enabled would detach every sites.folder_id.
+    const restoreForeignKeys = m.rebuildReferencedTable
+      ? Number(sql.get<{ foreign_keys: number }>('PRAGMA foreign_keys')?.foreign_keys ?? 0)
+      : null
+    if (m.rebuildReferencedTable) sql.exec('PRAGMA foreign_keys = OFF')
+    try {
+      if (m.rebuildReferencedTable && sql.get<{ foreign_keys: number }>('PRAGMA foreign_keys')?.foreign_keys !== 0) {
+        throw new Error(`Cannot disable foreign keys for migration v${m.version}`)
+      }
+      sql.tx(() => {
+        sql.exec(m.up)
+        if (m.rebuildReferencedTable && sql.all('PRAGMA foreign_key_check').length > 0) {
+          throw new Error(`Foreign key validation failed for migration v${m.version}`)
+        }
+        setUserVersion(m.version)
+      })
+    } finally {
+      if (restoreForeignKeys !== null) {
+        sql.exec(`PRAGMA foreign_keys = ${restoreForeignKeys ? 'ON' : 'OFF'}`)
+        if (Number(sql.get<{ foreign_keys: number }>('PRAGMA foreign_keys')?.foreign_keys) !== restoreForeignKeys) {
+          throw new Error(`Cannot restore foreign keys after migration v${m.version}`)
+        }
+      }
+    }
     console.log(`[db] 迁移完成 v${m.version} ${m.name}`)
   }
 }

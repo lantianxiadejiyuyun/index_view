@@ -380,7 +380,7 @@ export function AppearanceSection() {
       {type === 'image' && (
         <FieldBlock
           label="本地图片"
-          hint="支持 PNG / JPG / WebP / GIF / SVG / ICO，单张最大 5MB；上传后存在服务器上，换设备也能看到"
+          hint="支持 PNG / JPG / WebP / GIF / SVG / ICO；保留原图，不限制像素尺寸，单张文件默认最大 20MB。上传后可在其它设备使用。"
         >
           <div className="flex flex-wrap items-center gap-2">
             <input

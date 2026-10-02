@@ -12,6 +12,7 @@ type LoadingState = {
   count: number
   text: string
   begin: (text?: string) => void
+  update: (text: string) => void
   end: () => void
   reset: () => void
 }
@@ -22,6 +23,10 @@ export const useLoading = create<LoadingState>()((set) => ({
 
   begin(text) {
     set((s) => ({ count: s.count + 1, text: text ?? s.text }))
+  },
+
+  update(text) {
+    set({ text })
   },
 
   end() {
@@ -36,6 +41,11 @@ export const useLoading = create<LoadingState>()((set) => ({
 
 export function beginLoading(text?: string): void {
   useLoading.getState().begin(text)
+}
+
+/** 更新同一操作的进度文案，不新增遮罩计数。 */
+export function updateLoading(text: string): void {
+  useLoading.getState().update(text)
 }
 
 export function endLoading(): void {

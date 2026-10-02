@@ -12,6 +12,8 @@ type Props = {
   onOpen: () => void
   onEdit: () => void
   isOver?: boolean
+  /** Visible grid span; the saved width is retained when the viewport is narrower. */
+  displayColumns?: number
 }
 
 /** A small icon shared by folder previews and the folder membership picker. */
@@ -39,11 +41,14 @@ export function FolderSiteIcon({ site }: { site: Site }) {
   )
 }
 
-export function FolderCard({ folder, sites, editMode, onOpen, onEdit, isOver = false }: Props) {
-  const columns = Math.max(1, Math.min(4, folder.columns))
-  const rows = Math.max(1, Math.min(3, folder.rows))
+export function FolderCard({ folder, sites, editMode, onOpen, onEdit, isOver = false, displayColumns }: Props) {
+  const configuredColumns = Number.isSafeInteger(folder.columns) && folder.columns > 0 ? folder.columns : 1
+  const visibleColumns = displayColumns ?? configuredColumns
+  const columns = Number.isSafeInteger(visibleColumns) && visibleColumns > 0 ? Math.min(visibleColumns, configuredColumns) : configuredColumns
+  const rows = Number.isSafeInteger(folder.rows) && folder.rows > 0 ? folder.rows : 1
   const previewColumns = columns === 1 ? 2 : rows === 1 ? Math.min(columns * 2, 6) : Math.min(columns + 1, 6)
-  const limit = previewColumns * (rows === 1 && columns > 1 ? 1 : rows + 1)
+  // Size is unrestricted, but rendering the preview must stay constant-cost.
+  const limit = Math.min(24, previewColumns * (rows === 1 && columns > 1 ? 1 : Math.min(rows + 1, 4)))
   const overflow = sites.length > limit
   const visible = sites.slice(0, overflow ? limit - 1 : limit)
   const accent = folder.color || 'rgb(var(--accent-rgb))'
@@ -53,6 +58,7 @@ export function FolderCard({ folder, sites, editMode, onOpen, onEdit, isOver = f
       className={`folder-card${editMode ? ' folder-card-editing' : ''}${isOver ? ' folder-card-over' : ''}`}
       data-columns={columns}
       data-rows={rows}
+      data-configured-columns={configuredColumns}
       style={{ '--folder-accent': accent, '--folder-preview-columns': previewColumns } as CSSProperties}
     >
       <button

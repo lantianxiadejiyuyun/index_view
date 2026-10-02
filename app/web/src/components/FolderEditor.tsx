@@ -11,6 +11,17 @@ type Props = { open: boolean; folder: Folder | null; defaultCategoryId: number |
 const SIZES = [{ columns: 1, rows: 1 }, { columns: 2, rows: 1 }, { columns: 2, rows: 2 }, { columns: 3, rows: 2 }, { columns: 4, rows: 2 }]
 const COLORS = ['#0284c7', '#6366f1', '#8b5cf6', '#db2777', '#ea580c', '#ca8a04', '#16a34a', '#0d9488']
 
+function positiveSize(value: string): number | null {
+  const parsed = Number(value)
+  return value.trim() && Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function sizeErrorMessage(label: string, value: string): string {
+  if (!value.trim()) return `请填写${label}，输入大于 0 的整数。`
+  if (Number.isInteger(Number(value)) && Number(value) > 0) return `${label}数值过大，无法准确保存，请输入可精确表示的整数。`
+  return `${label}必须是大于 0 的整数，不能使用小数或负数。`
+}
+
 export function FolderEditorModal({ open, folder, defaultCategoryId, onClose }: Props) {
   const categories = useApp((state) => state.categories)
   const folders = useApp((state) => state.folders)
@@ -20,8 +31,9 @@ export function FolderEditorModal({ open, folder, defaultCategoryId, onClose }: 
   const deleteFolder = useApp((state) => state.deleteFolder)
   const [name, setName] = useState('')
   const [categoryId, setCategoryId] = useState('')
-  const [columns, setColumns] = useState(2)
-  const [rows, setRows] = useState(2)
+  const [columns, setColumns] = useState('2')
+  const [rows, setRows] = useState('2')
+  const [sizeError, setSizeError] = useState<{ field: 'columns' | 'rows'; message: string } | null>(null)
   const [color, setColor] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [query, setQuery] = useState('')
@@ -32,8 +44,9 @@ export function FolderEditorModal({ open, folder, defaultCategoryId, onClose }: 
     setName(folder?.name ?? '')
     const category = folder ? folder.category_id : defaultCategoryId
     setCategoryId(category === null ? '' : String(category))
-    setColumns(folder?.columns ?? 2)
-    setRows(folder?.rows ?? 2)
+    setColumns(String(folder?.columns ?? 2))
+    setRows(String(folder?.rows ?? 2))
+    setSizeError(null)
     setColor(folder?.color ?? '')
     setSelected(new Set(folder ? useApp.getState().sites.filter((site) => site.folder_id === folder.id).map((site) => site.id) : []))
     setQuery('')
@@ -44,6 +57,11 @@ export function FolderEditorModal({ open, folder, defaultCategoryId, onClose }: 
     return sites.filter((site) => !needle || `${site.title} ${site.description ?? ''} ${site.url_public ?? ''} ${site.url_lan ?? ''}`.toLocaleLowerCase().includes(needle))
       .sort((a, b) => Number(b.folder_id === folder?.id) - Number(a.folder_id === folder?.id) || a.sort_order - b.sort_order || a.id - b.id)
   }, [sites, query, folder?.id])
+
+  const parsedColumns = positiveSize(columns)
+  const parsedRows = positiveSize(rows)
+  const diagramColumns = Math.min(parsedColumns ?? 1, 6)
+  const diagramRows = Math.min(parsedRows ?? 1, 4)
 
   function toggle(id: number) {
     setSelected((previous) => {
@@ -57,7 +75,10 @@ export function FolderEditorModal({ open, folder, defaultCategoryId, onClose }: 
   async function submit() {
     if (saving) return
     if (!name.trim()) { toast.error('请填写文件夹名称'); return }
-    const payload = { name: name.trim(), category_id: categoryId ? Number(categoryId) : null, columns, rows, color: color || null, site_ids: [...selected] }
+    if (parsedColumns === null) { setSizeError({ field: 'columns', message: sizeErrorMessage('宽度', columns) }); return }
+    if (parsedRows === null) { setSizeError({ field: 'rows', message: sizeErrorMessage('高度', rows) }); return }
+    setSizeError(null)
+    const payload = { name: name.trim(), category_id: categoryId ? Number(categoryId) : null, columns: parsedColumns, rows: parsedRows, color: color || null, site_ids: [...selected] }
     setSaving(true)
     try {
       if (folder) await updateFolder(folder.id, payload)
@@ -87,23 +108,24 @@ export function FolderEditorModal({ open, folder, defaultCategoryId, onClose }: 
       <div className="folder-editor">
         <div className="folder-editor-intro" style={{ '--folder-accent': color || 'rgb(var(--accent-rgb))' } as CSSProperties}>
           <span className="folder-editor-emblem"><FolderIcon size={28} aria-hidden /></span>
-          <div><strong>{name.trim() || '把常用放在一起'}</strong><p>{columns} × {rows} 尺寸 · 已选 {selected.size} 个图标</p></div>
-          <span className="folder-size-visual" style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }} aria-hidden>{Array.from({ length: columns * rows }, (_, index) => <i key={index} />)}</span>
+          <div><strong>{name.trim() || '把常用放在一起'}</strong><p>{parsedColumns ?? '—'} × {parsedRows ?? '—'} 尺寸 · 已选 {selected.size} 个图标</p></div>
+          <span className="folder-size-visual" style={{ gridTemplateColumns: `repeat(${diagramColumns}, 1fr)` }} aria-hidden>{Array.from({ length: diagramColumns * diagramRows }, (_, index) => <i key={index} />)}</span>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div><label htmlFor="folder-name" className={labelClass}>文件夹名称</label><input id="folder-name" className={fieldClass} value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder="例如：每日工作、影音娱乐" autoFocus disabled={saving} /></div>
           <div><label htmlFor="folder-category" className={labelClass}>所属分组</label><select id="folder-category" className={fieldClass} value={categoryId} onChange={(event) => setCategoryId(event.target.value)} disabled={saving}><option value="">未分组</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></div>
         </div>
         <fieldset disabled={saving}>
-          <legend className={labelClass}>文件夹尺寸</legend>
+          <legend className={labelClass}>文件夹尺寸 <span className="text-fg/40">· 快捷预设</span></legend>
           <div className="folder-size-presets">
-            {SIZES.map((size) => <button key={`${size.columns}-${size.rows}`} type="button" className="folder-size-preset" aria-pressed={columns === size.columns && rows === size.rows} onClick={() => { setColumns(size.columns); setRows(size.rows) }}><span className="folder-size-diagram" style={{ gridTemplateColumns: `repeat(${size.columns}, 1fr)` }} aria-hidden>{Array.from({ length: size.columns * size.rows }, (_, index) => <i key={index} />)}</span><span>{size.columns} × {size.rows}</span></button>)}
+            {SIZES.map((size) => <button key={`${size.columns}-${size.rows}`} type="button" className="folder-size-preset" aria-pressed={parsedColumns === size.columns && parsedRows === size.rows} onClick={() => { setColumns(String(size.columns)); setRows(String(size.rows)); setSizeError(null) }}><span className="folder-size-diagram" style={{ gridTemplateColumns: `repeat(${size.columns}, 1fr)` }} aria-hidden>{Array.from({ length: size.columns * size.rows }, (_, index) => <i key={index} />)}</span><span>{size.columns} × {size.rows}</span></button>)}
           </div>
           <div className="folder-custom-size">
-            <label htmlFor="folder-columns">自定义宽度<select id="folder-columns" className={fieldClass} value={columns} onChange={(event) => setColumns(Number(event.target.value))}>{[1, 2, 3, 4].map((value) => <option value={value} key={value}>{value} 列</option>)}</select></label>
-            <label htmlFor="folder-rows">自定义高度<select id="folder-rows" className={fieldClass} value={rows} onChange={(event) => setRows(Number(event.target.value))}>{[1, 2, 3].map((value) => <option value={value} key={value}>{value} 行</option>)}</select></label>
+            <label htmlFor="folder-columns">自定义宽度（列）<input id="folder-columns" type="number" min={1} step={1} inputMode="numeric" className={fieldClass} value={columns} aria-invalid={sizeError?.field === 'columns'} aria-describedby={sizeError?.field === 'columns' ? 'folder-size-error folder-size-note' : 'folder-size-note'} onChange={(event) => { setColumns(event.target.value); setSizeError(null) }} placeholder="例如 10" /></label>
+            <label htmlFor="folder-rows">自定义高度（行）<input id="folder-rows" type="number" min={1} step={1} inputMode="numeric" className={fieldClass} value={rows} aria-invalid={sizeError?.field === 'rows'} aria-describedby={sizeError?.field === 'rows' ? 'folder-size-error folder-size-note' : 'folder-size-note'} onChange={(event) => { setRows(event.target.value); setSizeError(null) }} placeholder="例如 6" /></label>
           </div>
-          <p className="folder-field-note">以首页图标格子为单位，手机端保留 4 列布局；点击文件夹可查看全部内容。</p>
+          {sizeError && <p id="folder-size-error" className="folder-size-error" role="alert">{sizeError.message}</p>}
+          <p id="folder-size-note" className="folder-field-note">按图标格子自定义任意正整数尺寸，例如 10 × 6。较大宽度会适配当前可见区域，保存的尺寸不会改小；手机端仍为 4 列。预览显示部分图标，点击文件夹可查看全部内容。</p>
         </fieldset>
         <fieldset disabled={saving}>
           <legend className={labelClass}>点缀颜色</legend>
