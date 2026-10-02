@@ -1,116 +1,145 @@
-import { useState } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Loader2, LockKeyhole, User } from 'lucide-react'
+import {
+  ArrowLeft, ArrowRight, BookOpen, Compass, Eye, EyeOff, LayoutGrid,
+  Loader2, LockKeyhole, Monitor, Moon, Server, Sun, TriangleAlert, User,
+} from 'lucide-react'
 import { useApp } from '../store/app.ts'
 import { toast } from '../store/toast.ts'
-import { btnPrimary, fieldClass, labelClass } from '../components/Modal.tsx'
 import { errorMessage } from '../lib/api.ts'
+import './LoginPage.css'
 
 export function LoginPage() {
   const login = useApp((s) => s.login)
   const title = useApp((s) => s.settings.site_title)
-
+  const theme = useApp((s) => s.settings.theme)
+  const setTheme = useApp((s) => s.setTheme)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const submitting = useRef(false)
   const navigate = useNavigate()
   const location = useLocation()
-  // 被路由守卫拦下来时会带上来原目标，登录完直接回那儿，不用再点一次
+  // 保留路由守卫传来的目标，登录后继续原来的操作。
   const from = (location.state as { from?: string } | null)?.from
   const redirectTo = from && !from.startsWith('/login') ? from : '/'
 
-  async function submit() {
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (submitting.current) return
     if (!username.trim() || !password) {
-      toast.error('请输入用户名和密码')
+      setError('请输入用户名和密码')
       return
     }
+    submitting.current = true
     setBusy(true)
+    setError('')
     try {
       await login(username.trim(), password)
       toast.success('登录成功')
       navigate(redirectTo, { replace: true })
     } catch (err) {
-      toast.error(errorMessage(err, '登录失败'))
+      setError(errorMessage(err, '登录失败，请稍后重试'))
     } finally {
+      submitting.current = false
       setBusy(false)
     }
   }
 
+  const themes = [
+    { value: 'light', label: '浅色', Icon: Sun },
+    { value: 'auto', label: '跟随系统', Icon: Monitor },
+    { value: 'dark', label: '深色', Icon: Moon },
+  ] as const
+
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
-      <div className="glass glass-pop animate-rise w-full max-w-sm rounded-3xl p-7">
-        <h1 className="text-center text-xl font-semibold text-fg">{title}</h1>
-        <p className="mt-1.5 text-center text-xs text-fg/55">登录后可以编辑图标与分组</p>
-
-        <div className="mt-6 space-y-4">
-          <div>
-            <label className={labelClass} htmlFor="login-user">
-              用户名
-            </label>
-            <div className="relative">
-              <User
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fg/40"
-                aria-hidden
-              />
-              <input
-                id="login-user"
-                className={`${fieldClass} pl-9`}
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                autoFocus
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={labelClass} htmlFor="login-pass">
-              密码
-            </label>
-            <div className="relative">
-              <LockKeyhole
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fg/40"
-                aria-hidden
-              />
-              <input
-                id="login-pass"
-                type="password"
-                className={`${fieldClass} pl-9`}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete="current-password"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void submit()
-                }}
-              />
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={busy}
-            className={`${btnPrimary} w-full`}
-          >
-            {busy && <Loader2 className="mr-1.5 inline size-3.5 animate-spin" aria-hidden />}
-            登录
-          </button>
+    <main className="login-page">
+      <header className="login-header">
+        <Link to="/" className="login-brand" aria-label={`${title}，返回首页`}>
+          <span className="login-brand-icon"><Compass className="size-6" aria-hidden /></span>
+          <span className="min-w-0 break-words">{title}</span>
+        </Link>
+        <div className="login-theme" role="group" aria-label="外观（仅当前设备）">
+          {themes.map(({ value, label, Icon }) => (
+            <button key={value} type="button" aria-label={label} title={label}
+              aria-pressed={theme === value} onClick={() => setTheme(value)}>
+              <Icon className="size-4" aria-hidden />
+            </button>
+          ))}
         </div>
+      </header>
 
-        <p className="mt-5 text-center text-[11px] leading-relaxed text-fg/40">
-          首次部署的默认账号是 admin / admin123，
-          <br />
-          登录后请立刻在设置页修改密码。
-        </p>
+      <div className="login-content">
+        <div className="login-panel animate-rise">
+          <section className="login-intro" aria-label="你的个人工作台">
+            <div className="login-intro-copy">
+              <p className="login-eyebrow">YOUR PERSONAL SPACE</p>
+              <h2>常用的，<br />都在这里。</h2>
+              <p className="login-intro-description">收藏喜欢的网站，整理灵感与日常。<br />从这里，开始专注的一天。</p>
+            </div>
+            <div className="login-illustration" aria-hidden="true">
+              <div className="login-preview">
+                <div className="login-preview-top"><span /><span /><span /></div>
+                <div className="login-preview-search"><Compass className="size-4" /><span /><ArrowRight className="size-4" /></div>
+                <div className="login-preview-grid">
+                  <span><LayoutGrid /></span><span><BookOpen /></span><span><Server /></span><span><Compass /></span>
+                </div>
+                <div className="login-preview-lines"><span /><span /></div>
+              </div>
+              <div className="login-orbit-icon"><Compass className="size-7" /></div>
+            </div>
+            <div className="login-intro-features"><span>个性导航</span><i /><span>灵感笔记</span><i /><span>服务管理</span></div>
+          </section>
+
+          <section className="login-form-section" aria-labelledby="login-heading">
+            <div className="login-welcome-icon"><LockKeyhole className="size-6" aria-hidden /></div>
+            <p className="login-form-eyebrow">很高兴再次见到你</p>
+            <h1 id="login-heading">欢迎回来</h1>
+            <p className="login-form-description">登录账号，进入你的专属空间。</p>
+
+            <form className="login-form" onSubmit={(event) => void submit(event)} aria-busy={busy}>
+              <div>
+                <label htmlFor="login-user">用户名</label>
+                <div className="login-input-wrap">
+                  <User className="login-input-icon" aria-hidden />
+                  <input id="login-user" name="username" type="text" placeholder="请输入用户名"
+                    value={username} onChange={(event) => { setUsername(event.target.value); setError('') }}
+                    autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+                    required readOnly={busy} aria-describedby={error ? 'login-error' : undefined} />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="login-pass">密码</label>
+                <div className="login-input-wrap">
+                  <LockKeyhole className="login-input-icon" aria-hidden />
+                  <input id="login-pass" name="password" type={showPassword ? 'text' : 'password'}
+                    placeholder="请输入密码" className="login-password"
+                    value={password} onChange={(event) => { setPassword(event.target.value); setError('') }}
+                    autoComplete="current-password" required readOnly={busy}
+                    aria-describedby={error ? 'login-error' : undefined} />
+                  <button className="login-password-toggle" type="button"
+                    aria-label={showPassword ? '隐藏密码' : '显示密码'} aria-controls="login-pass"
+                    aria-pressed={showPassword} onClick={() => setShowPassword((shown) => !shown)}>
+                    {showPassword ? <EyeOff className="size-[18px]" aria-hidden /> : <Eye className="size-[18px]" aria-hidden />}
+                  </button>
+                </div>
+              </div>
+              {error && <p id="login-error" className="login-error" role="alert"><TriangleAlert className="size-4 shrink-0" aria-hidden />{error}</p>}
+              <button className="login-submit" type="submit" disabled={busy}>
+                {busy ? <><Loader2 className="size-[18px] animate-spin" aria-hidden />正在登录…</> : <>登 录<ArrowRight className="size-[18px]" aria-hidden /></>}
+              </button>
+            </form>
+
+            <div className="login-form-footer">
+              <Link to="/"><ArrowLeft className="size-4" aria-hidden />返回首页</Link>
+              <span>让每次出发，都更简单</span>
+            </div>
+          </section>
+        </div>
       </div>
-
-      <Link
-        to="/"
-        className="text-shadow-soft mt-5 flex items-center gap-1.5 text-xs text-wp/85 transition hover:text-wp"
-      >
-        <ArrowLeft className="size-3.5" aria-hidden />
-        返回首页
-      </Link>
-    </div>
+      <footer className="login-footer">一个入口，连接你的日常。</footer>
+    </main>
   )
 }
