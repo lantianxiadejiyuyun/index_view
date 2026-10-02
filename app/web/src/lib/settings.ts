@@ -5,6 +5,8 @@
  * 这里集中做类型转换，让组件里拿到的都是干净的类型。
  */
 
+import { normalizeAppearancePreset, type AppearancePresetId } from './appearance-presets'
+
 export type WallpaperType = 'gradient' | 'color' | 'image' | 'url' | 'video'
 export type ThemePref = 'auto' | 'light' | 'dark'
 export type CardSize = 'sm' | 'md' | 'lg'
@@ -45,6 +47,7 @@ export type AppSettings = {
   wallpaper_blur: number
   wallpaper_dim: number
   theme: ThemePref
+  appearance_preset: AppearancePresetId
   card_size: CardSize
   grid_gap: GapSize
   glass: GlassLevel
@@ -105,6 +108,7 @@ export function normalizeSettings(raw: Record<string, string> | undefined): AppS
     wallpaper_blur: toNum(s.wallpaper_blur, 0, 0, 40),
     wallpaper_dim: toNum(s.wallpaper_dim, 28, 0, 85),
     theme: pick(s.theme, ['auto', 'light', 'dark'] as const, 'auto'),
+    appearance_preset: normalizeAppearancePreset(s.appearance_preset),
     card_size: pick(s.card_size, ['sm', 'md', 'lg'] as const, 'md'),
     grid_gap: pick(s.grid_gap, ['sm', 'md', 'lg'] as const, 'md'),
     glass: pick(s.glass, ['none', 'sm', 'md', 'lg'] as const, 'md'),

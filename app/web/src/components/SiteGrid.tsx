@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DndContext,
   DragOverlay,
@@ -146,7 +147,7 @@ function CategorySection({
         <div
           ref={headingRef}
           style={readableToneStyle(headingTone)}
-          className="mb-3.5 flex items-center justify-center gap-2"
+          className="site-category-heading mb-3.5 flex items-center justify-center gap-2"
         >
           {/* 一道短强调条，给每个分组一个视觉锚点；纯文字标题在深色底上太安静了 */}
           <span
@@ -399,13 +400,13 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
         ))}
 
         {groups.length === 0 && !editMode && (
-          <p className="text-shadow-soft py-16 text-center text-sm text-wp/80">
+          <p className="site-grid-empty text-shadow-soft py-16 text-center text-sm text-wp/80">
             还没有任何图标。登录后点右上角「编辑」开始添加。
           </p>
         )}
       </div>
 
-      <DragOverlay dropAnimation={null}>
+      {createPortal(<DragOverlay dropAnimation={null}>
         {activeSite ? (
           <div className="rotate-3 opacity-90" style={{ width: dragWidth ?? CARD_PRESETS[cardSize].width }}>
             <SiteCard
@@ -419,7 +420,7 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
             />
           </div>
         ) : null}
-      </DragOverlay>
+      </DragOverlay>, document.body)}
     </DndContext>
   )
 }

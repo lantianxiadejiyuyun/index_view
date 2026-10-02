@@ -41,6 +41,7 @@ function applyVisualVars(
 ): void {
   const glass = GLASS_PRESETS[settings.glass]
   const root = document.documentElement
+  root.dataset.appearance = settings.appearance_preset
 
   if (settings.glass === 'none') {
     // 关掉模糊时卡片必须接近不透明，否则文字压在壁纸上根本读不清

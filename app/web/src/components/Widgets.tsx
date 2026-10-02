@@ -163,7 +163,7 @@ export function WidgetRow() {
   if (!showWeather && !showHitokoto && !showWorkbench) return null
 
   return (
-    <div className="mb-6 flex flex-wrap items-stretch justify-center gap-3">
+    <div className="home-widgets mb-6 flex flex-wrap items-stretch justify-center gap-3">
       {showWeather && <WeatherWidget />}
       {showHitokoto && <HitokotoWidget />}
       {showWorkbench && <WorkbenchWidget />}

@@ -19,6 +19,7 @@ import { toast } from '../../store/toast.ts'
 import { btnGhost } from '../Modal.tsx'
 import { VideoWallpaper } from '../VideoWallpaper.tsx'
 import { VideoWallpaperField } from './VideoWallpaperField.tsx'
+import { AppearancePresets } from './AppearancePresets.tsx'
 import {
   FieldBlock,
   Note,
@@ -203,6 +204,7 @@ export function AppearanceSection() {
 
   const [uploading, setUploading] = useState(false)
   const [videoUploading, setVideoUploading] = useState(false)
+  const [applyingPreset, setApplyingPreset] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   /**
@@ -265,6 +267,16 @@ export function AppearanceSection() {
 
   return (
     <SettingsSection id="appearance" description="主题、壁纸、卡片与毛玻璃强度">
+      <AppearancePresets
+        disabled={uploading || videoUploading}
+        onApplyingChange={setApplyingPreset}
+        beforeApply={() => {
+          commitBlur.cancel()
+          commitDim.cancel()
+          blur.setDraft(settings.wallpaper_blur)
+          dim.setDraft(settings.wallpaper_dim)
+        }}
+      />
       <AppearancePreview
         type={type}
         value={value}
@@ -275,6 +287,7 @@ export function AppearanceSection() {
         isDark={slot === 'dark'}
       />
 
+      <fieldset disabled={applyingPreset} className="min-w-0 space-y-4">
       <Segmented
         label="主题"
         value={settings.theme}
@@ -537,6 +550,7 @@ export function AppearanceSection() {
       <p className="text-[11px] leading-relaxed text-fg/40">
         上面这些改动保存后立刻生效，回首页即可看到效果。
       </p>
+      </fieldset>
     </SettingsSection>
   )
 }

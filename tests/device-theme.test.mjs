@@ -13,6 +13,7 @@ function bundle(relative) {
 let generation = 0
 const load = (code) => import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}#${++generation}`)
 const { createDeviceTheme, DEVICE_THEME_KEY } = await load(bundle('../app/web/src/lib/device-theme.ts'))
+const { appearancePresetPatch } = await load(bundle('../app/web/src/lib/appearance-presets.ts'))
 const appCode = bundle('../app/web/src/store/app.ts')
 
 function storage(initial) {
@@ -117,4 +118,68 @@ test('local choice survives failed shared saves and can update from another tab 
   useApp.getState().setTheme('auto', false)
   assert.equal(useApp.getState().settings.theme, 'auto')
   assert.equal(saved.getItem(DEVICE_THEME_KEY), 'dark', 'storage events must not write back in a loop')
+})
+
+test('applying and reloading a complete appearance preset keeps the browser theme and preserved video wallpaper', async () => {
+  const { useApp, saved } = await app('dark')
+  let remote = { theme: 'light', appearance_preset: 'classic', wallpaper_light_type: 'video', wallpaper_light_value: '/uploads/personal.mp4', wallpaper_dark_type: 'video', wallpaper_dark_value: '/uploads/night.webm', wallpaper_blur: '4', wallpaper_dim: '31' }
+  const writes = []
+  globalThis.fetch = async (url, init = {}) => {
+    if (url === '/api/bootstrap') return bootstrap(remote)
+    assert.equal(url, '/api/settings')
+    assert.equal(init.method, 'PUT')
+    const patch = JSON.parse(init.body)
+    writes.push(patch)
+    remote = { ...remote, ...patch }
+    return Response.json({ settings: remote })
+  }
+  await useApp.getState().bootstrap()
+  assert.equal(useApp.getState().settings.appearance_preset, 'classic')
+  const patch = appearancePresetPatch('desktop', { preserveWallpaper: true })
+  await useApp.getState().saveSettings(patch)
+  assert.deepEqual(writes, [patch])
+  assert.ok(!('theme' in writes[0]))
+  assert.equal(useApp.getState().rawSettings.appearance_preset, 'desktop')
+  assert.equal(useApp.getState().settings.appearance_preset, 'desktop')
+  await useApp.getState().reload()
+  const settings = useApp.getState().settings
+  assert.equal(settings.appearance_preset, 'desktop')
+  assert.equal(settings.theme, 'dark')
+  assert.equal(saved.getItem(DEVICE_THEME_KEY), 'dark')
+  assert.equal(remote.theme, 'light', 'preset saves must not replace another device or legacy preference')
+  assert.equal(settings.wallpaper_light_type, 'video')
+  assert.equal(settings.wallpaper_light_value, '/uploads/personal.mp4')
+  assert.equal(settings.wallpaper_dark_type, 'video')
+  assert.equal(settings.wallpaper_dark_value, '/uploads/night.webm')
+  assert.equal(settings.wallpaper_blur, 4)
+  assert.equal(settings.wallpaper_dim, 31)
+})
+
+test('offline and rejected appearance saves retain the previous preset and current browser theme', async () => {
+  for (const failure of ['offline', 'invalid']) {
+    const { useApp, saved } = await app('dark')
+    const remote = { theme: 'light', appearance_preset: 'paper', card_size: 'lg', glass: 'none', wallpaper_light_value: 'sakura', wallpaper_dark_value: 'sunset' }
+    globalThis.fetch = async () => bootstrap(remote)
+    await useApp.getState().bootstrap()
+    const oldSettings = useApp.getState().settings
+    const oldRawSettings = useApp.getState().rawSettings
+    let requests = 0
+    globalThis.fetch = async (url, init) => {
+      requests++
+      assert.equal(url, '/api/settings')
+      assert.ok(!('theme' in JSON.parse(init.body)))
+      if (failure === 'offline') throw new Error('Offline preset save')
+      return Response.json({ error: 'invalid_value', message: 'Unsupported appearance preset' }, { status: 400 })
+    }
+    await assert.rejects(
+      useApp.getState().saveSettings(appearancePresetPatch('terminal', { preserveWallpaper: false })),
+      failure === 'offline' ? /Offline preset save/ : /Unsupported appearance preset/,
+    )
+    assert.equal(requests, 1)
+    assert.deepEqual(useApp.getState().settings, oldSettings)
+    assert.deepEqual(useApp.getState().rawSettings, oldRawSettings)
+    assert.equal(useApp.getState().settings.appearance_preset, 'paper')
+    assert.equal(useApp.getState().settings.theme, 'dark')
+    assert.equal(saved.getItem(DEVICE_THEME_KEY), 'dark')
+  }
 })

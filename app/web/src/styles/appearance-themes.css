@@ -1,0 +1,201 @@
+/* Appearance packs compose with the existing per-device light/dark preference.
+   Wallpaper, icon sizes and glass strength continue to use the saved settings. */
+:root[data-appearance='desktop'] {
+  --accent-rgb: 3 105 161;
+  --color-brand-500: #0284c7;
+  --color-brand-400: #38bdf8;
+}
+:root[data-appearance='desktop'].dark { --accent-rgb: 125 211 252; }
+:root[data-appearance='minimal'] {
+  --accent-rgb: 30 64 175;
+  --color-brand-500: #334155;
+  --color-brand-400: #64748b;
+}
+:root[data-appearance='minimal'].dark { --accent-rgb: 191 219 254; }
+:root[data-appearance='paper'] {
+  --surface-rgb: 255 250 238;
+  --fg-rgb: 62 43 33;
+  --line-rgb: 110 79 56;
+  --accent-rgb: 157 73 43;
+  --color-brand-500: #a85b3e;
+  --color-brand-400: #c27a58;
+}
+:root[data-appearance='paper'].dark {
+  --surface-rgb: 37 30 27;
+  --fg-rgb: 249 235 209;
+  --line-rgb: 244 219 183;
+  --accent-rgb: 253 186 116;
+}
+:root[data-appearance='terminal'] {
+  --surface-rgb: 240 253 244;
+  --fg-rgb: 20 63 44;
+  --line-rgb: 22 101 52;
+  --accent-rgb: 21 128 61;
+  --color-brand-500: #15803d;
+  --color-brand-400: #22c55e;
+}
+:root[data-appearance='terminal'].dark {
+  --surface-rgb: 9 24 19;
+  --fg-rgb: 211 250 229;
+  --line-rgb: 134 239 172;
+  --accent-rgb: 134 239 172;
+}
+
+.desktop-brand { display: none; }
+:root[data-appearance]:not([data-appearance='classic']) .site-card,
+:root[data-appearance]:not([data-appearance='classic']) .site-card-button { height: 100%; }
+:root[data-appearance]:not([data-appearance='classic']) .site-card-label { height: 2lh; }
+:root[data-appearance]:not([data-appearance='classic']) .site-card-icon-letter { color: var(--site-icon-ink); }
+:root[data-appearance]:not([data-appearance='classic']) .site-card-button:focus-visible {
+  outline: 2px solid rgb(var(--accent-rgb));
+  outline-offset: 3px;
+}
+.desktop-window-bar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: -24px -24px 28px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgb(var(--line-rgb) / 0.1);
+  color: rgb(var(--fg-rgb));
+  font-size: 12px;
+}
+.desktop-window-bar > span { display: flex; align-items: center; gap: 8px; }
+.desktop-window-lights { gap: 6px !important; }
+.desktop-window-lights i { width: 10px; height: 10px; border-radius: 50%; background: #fb7185; }
+.desktop-window-lights i:nth-child(2) { background: #fbbf24; }
+.desktop-window-lights i:nth-child(3) { background: #34d399; }
+.desktop-window-caption { margin-left: auto; color: rgb(var(--fg-rgb) / 0.5); font-size: 11px; }
+
+/* Cloud desktop: an application window and a real navigation Dock. */
+:root[data-appearance='desktop'] .home-apps {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid rgb(var(--line-rgb) / 0.16);
+  border-radius: 22px;
+  background: rgb(var(--surface-rgb) / var(--glass-alpha));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 20px 70px -30px rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.22);
+}
+:root[data-appearance='desktop'] .site-card-button {
+  background: transparent;
+  backdrop-filter: none;
+  border-color: transparent;
+  box-shadow: none;
+  border-radius: 14px;
+}
+:root[data-appearance='desktop'] .site-card-button:hover,
+:root[data-appearance='desktop'] .site-card-button:focus-visible { background: rgb(var(--line-rgb) / 0.07); }
+:root[data-appearance='desktop'] .site-card-icon {
+  border-radius: 13px;
+  box-shadow: 0 5px 12px -4px rgb(0 0 0 / 0.22);
+}
+:root[data-appearance='desktop'] .site-card-icon-image {
+  background: white;
+  padding: 4px;
+  filter: none;
+}
+:root[data-appearance='desktop'] .site-category-heading { justify-content: flex-start; }
+:root[data-appearance='desktop'] .site-category-heading h2,
+:root[data-appearance='desktop'] .site-category-heading h2 span,
+:root[data-appearance='desktop'] .site-grid-empty { color: rgb(var(--fg-rgb) / 0.75); text-shadow: none; }
+:root[data-appearance='desktop'] .site-grid { justify-content: flex-start; }
+:root[data-appearance='desktop'] .site-card-button:focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 2px; }
+:root[data-appearance='desktop'] .site-card-editing .site-card-button { border-color: rgb(var(--line-rgb) / 0.22); }
+
+/* Quiet, structured surfaces with generous typography. */
+:root[data-appearance='minimal'] .home-clock-time { font-weight: 300; letter-spacing: -0.065em; }
+:root[data-appearance='minimal'] .home-search > .glass { border-radius: 12px; }
+:root[data-appearance='minimal'] .home-widgets > .glass { border-radius: 12px; box-shadow: none; }
+:root[data-appearance='minimal'] .site-card-button {
+  border-radius: 12px;
+  border-color: rgb(var(--line-rgb) / 0.12);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.025);
+}
+:root[data-appearance='minimal'] .site-category-heading > span:first-child { height: 1px; width: 24px; box-shadow: none; }
+:root[data-appearance='minimal'] .site-category-heading h2 { font-weight: 500; letter-spacing: 0.12em; }
+
+/* Cream notebook: warm ink, serif headings, subtle ruled grouping. */
+:root[data-appearance='paper'] .home-clock-time,
+:root[data-appearance='paper'] .site-category-heading h2 { font-family: Georgia, 'Noto Serif SC', 'Songti SC', SimSun, serif; }
+:root[data-appearance='paper'] .home-clock-time { font-weight: 500; }
+:root[data-appearance='paper'] .home-search > .glass,
+:root[data-appearance='paper'] .home-widgets > .glass { border-radius: 8px; }
+:root[data-appearance='paper'] .site-card-button {
+  border-radius: 8px;
+  border: 1px solid rgb(var(--line-rgb) / 0.22);
+  box-shadow: 3px 4px 0 rgb(var(--line-rgb) / 0.12);
+}
+:root[data-appearance='paper'] .site-category-heading { padding-bottom: 10px; border-bottom: 1px dashed rgb(var(--wp-rgb) / 0.25); }
+:root[data-appearance='paper'] .site-category-heading > span:first-child { width: 18px; height: 8px; border-radius: 2px; opacity: 0.65; box-shadow: none; }
+:root[data-appearance='paper'] .site-card-icon { border-radius: 9px; }
+
+/* Terminal: crisp corners, monospace labels and restrained green accents. */
+:root[data-appearance='terminal'] .home-shell { font-family: 'Cascadia Code', 'SFMono-Regular', Consolas, 'PingFang SC', monospace; }
+:root[data-appearance='terminal'] .home-clock-time { font-weight: 500; letter-spacing: -0.06em; }
+:root[data-appearance='terminal'] .home-search > .glass,
+:root[data-appearance='terminal'] .home-widgets > .glass,
+:root[data-appearance='terminal'] .home-toolbar > nav,
+:root[data-appearance='terminal'] .desktop-toolbar { border-radius: 6px; }
+:root[data-appearance='terminal'] .site-card-button {
+  border-radius: 5px;
+  border-color: rgb(var(--accent-rgb) / 0.4);
+  box-shadow: none;
+}
+:root[data-appearance='terminal'] .site-card-icon { border-radius: 5px; }
+:root[data-appearance='terminal'] .site-category-heading { justify-content: flex-start; }
+:root[data-appearance='terminal'] .site-category-heading > span:first-child { box-shadow: none; width: 8px; height: 8px; border-radius: 0; }
+:root[data-appearance='terminal'] .site-grid { justify-content: flex-start; }
+.terminal-ready {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 24px; padding: 10px 14px;
+  border: 1px solid rgb(var(--accent-rgb) / 0.3); border-radius: 5px;
+  background: rgb(var(--surface-rgb) / 0.9); color: rgb(var(--accent-rgb));
+  font-size: 11px; letter-spacing: 0.08em;
+}
+.terminal-ready span:last-child { margin-left: auto; opacity: 0.6; }
+
+@media (min-width: 900px) {
+  :root[data-appearance='desktop'] .desktop-brand { display: flex; align-items: center; gap: 10px; max-width: 60%; color: rgb(var(--wp-rgb)); font-size: 13px; }
+  .desktop-brand > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .desktop-brand-note { opacity: 0.65; font-size: 11px; flex-shrink: 0; }
+  :root[data-appearance='desktop'] .home-toolbar { justify-content: flex-start; padding-inline: 36px; }
+  :root[data-appearance='desktop'] .desktop-toolbar {
+    position: fixed; z-index: 35; bottom: max(18px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+    flex-wrap: nowrap; justify-content: center; padding: 10px; gap: 6px; border-radius: 22px;
+    box-shadow: 0 12px 36px -10px rgb(0 0 0 / 0.35);
+  }
+  :root[data-appearance='desktop'] .desktop-toolbar > a,
+  :root[data-appearance='desktop'] .desktop-toolbar > button { min-width: 40px; min-height: 40px; display: flex; align-items: center; justify-content: center; }
+  :root[data-appearance='desktop'] .home-main { max-width: 1320px; padding: 48px 40px 120px; }
+  :root[data-appearance='desktop'] .home-content { display: grid; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); align-items: start; gap: 40px; }
+  :root[data-appearance='desktop'] .home-overview { padding-top: 30px; }
+  :root[data-appearance='desktop'] .home-clock { text-align: left; }
+  :root[data-appearance='desktop'] .home-clock > div { justify-content: flex-start; }
+  :root[data-appearance='desktop'] .home-clock-time { font-size: 64px; font-weight: 400; }
+  :root[data-appearance='desktop'] .home-clock > p { font-size: 13px; }
+  :root[data-appearance='desktop'] .home-widgets { flex-direction: column; }
+  :root[data-appearance='desktop'] .home-widgets > * { width: 100%; }
+  :root[data-appearance='desktop'] .home-search input { font-size: 13px; }
+  :root[data-appearance='minimal'] .home-main { max-width: 1040px; }
+  :root[data-appearance='minimal'] .home-clock-time { font-size: 88px; }
+  :root[data-appearance='terminal'] .home-main { max-width: 1040px; }
+}
+
+@media (max-width: 639px) {
+  :root[data-appearance='desktop'] .home-apps { padding: 14px 8px; border-radius: 18px; }
+  .desktop-window-bar { margin: -14px -8px 16px; padding: 13px 12px; gap: 12px; }
+  .desktop-window-caption { display: none !important; }
+  :root[data-appearance='desktop'] .site-category-heading { padding-inline: 6px; }
+  :root[data-appearance='desktop'] .site-grid { column-gap: 6px; }
+  :root[data-appearance='desktop'] .site-card { --site-card-pad: 12px 2px 8px; }
+  :root[data-appearance='desktop'] .site-card-network { right: 0; }
+  :root[data-appearance='paper'] .site-card-button { box-shadow: 2px 3px 0 rgb(var(--line-rgb) / 0.12); }
+  :root[data-appearance='terminal'] .site-card-label { font-size: 11px; }
+  .terminal-ready { font-size: 10px; padding-inline: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-appearance] .site-card,
+  :root[data-appearance] .site-card-button { animation: none; transition: none; }
+}

@@ -15,6 +15,7 @@ const WRITABLE_KEYS = new Set([
   'site_subtitle',
   'search_engine',
   'custom_engines',
+  'appearance_preset',
   'wallpaper_light_type',
   'wallpaper_light_value',
   'wallpaper_dark_type',
@@ -46,6 +47,7 @@ const WRITABLE_KEYS = new Set([
  * 数据库里躺着非法值，排查问题时会被误导。这里直接拒掉，返回 400。
  */
 const ENUM_VALUES: Record<string, readonly string[]> = {
+  appearance_preset: ['classic', 'desktop', 'minimal', 'paper', 'terminal'],
   card_size: ['sm', 'md', 'lg'],
   grid_gap: ['sm', 'md', 'lg'],
   glass: ['none', 'sm', 'md', 'lg'],
@@ -70,6 +72,7 @@ settingsRoutes.put('/settings', requireAuth, async (c) => {
   // 先整体校验再落库，避免「改了一半才发现有个非法值」
   const invalid = Object.entries(body).filter(([key, value]) => {
     const allowed = ENUM_VALUES[key]
+    if (key === 'appearance_preset' && typeof value !== 'string') return true
     return allowed !== undefined && !allowed.includes(String(value))
   })
   if (invalid.length > 0) {
@@ -151,6 +154,14 @@ settingsRoutes.post('/import', requireAuth, async (c) => {
     categories?: Array<Record<string, unknown>>
     sites?: Array<Record<string, unknown>>
   }>(c)
+
+  // 导入绕过 PUT /settings；在替换内容前校验新外观键，避免非法备份先清空分组。
+  if (body.settings && typeof body.settings === 'object' && 'appearance_preset' in body.settings) {
+    const value = body.settings.appearance_preset
+    if (typeof value !== 'string' || !ENUM_VALUES.appearance_preset!.includes(value)) {
+      return c.json({ error: 'invalid_value', message: '备份中的外观主题无效，请选择内置主题。' }, 400)
+    }
+  }
 
   const mode = body.mode === 'merge' ? 'merge' : 'replace'
   const categories = Array.isArray(body.categories) ? body.categories : []

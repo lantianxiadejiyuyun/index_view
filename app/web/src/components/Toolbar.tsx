@@ -8,6 +8,7 @@ import {
   LogOut,
   Minimize2,
   Moon,
+  PanelsTopLeft,
   MoreHorizontal,
   NotebookPen,
   Pencil,
@@ -78,14 +79,15 @@ export function Toolbar({ onAddSite, onAddCategory }: { onAddSite: () => void; o
   }
 
   return (
-    <div className="flex items-center justify-end gap-2 px-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:gap-3 sm:px-5 sm:pt-[calc(1.25rem+env(safe-area-inset-top))]">
+    <div className="home-toolbar flex items-center justify-end gap-2 px-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:gap-3 sm:px-5 sm:pt-[calc(1.25rem+env(safe-area-inset-top))]">
+      {settings.appearance_preset === 'desktop' && <div className="desktop-brand"><PanelsTopLeft size={19} aria-hidden /><span>{settings.site_title || '我的桌面'}</span><span className="desktop-brand-note">个人空间</span></div>}
       <nav aria-label="手机快捷操作" className="glass grid w-full grid-flow-col auto-cols-fr gap-1 rounded-2xl p-1 sm:hidden">
         {canEdit && <button type="button" aria-label={editMode ? '完成编辑' : '编辑首页'} onClick={() => setEditMode(!editMode)} className={`flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium ${editMode ? 'bg-emerald-500/85 text-white' : 'text-fg/80 active:bg-line/15'}`}>{editMode ? <Check className="size-4" aria-hidden /> : <Pencil className="size-4" aria-hidden />}{editMode ? '完成' : '编辑'}</button>}
         <button type="button" aria-label={isDark ? '切换到浅色' : '切换到深色'} onClick={toggleTheme} className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-fg/80 active:bg-line/15">{isDark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}{isDark ? '浅色' : '深色'}</button>
         {user && <Link to="/subscriptions" aria-label="订阅中心" className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-fg/80 active:bg-line/15"><Rss className="size-4" aria-hidden />订阅</Link>}
         <button type="button" aria-haspopup="dialog" aria-expanded={moreOpen} onClick={() => setMoreOpen(true)} className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-fg/80 active:bg-line/15"><MoreHorizontal className="size-4" aria-hidden />更多</button>
       </nav>
-      <div className="glass hidden flex-wrap items-center justify-end gap-1 rounded-2xl p-1 sm:flex">
+      <div role="navigation" aria-label={settings.appearance_preset === 'desktop' ? '桌面 Dock' : '快捷操作'} className="desktop-toolbar glass hidden flex-wrap items-center justify-end gap-1 rounded-2xl p-1 sm:flex">
         {canEdit && (
           <>
             <button

@@ -10,6 +10,30 @@ export type WallpaperPreset = {
 
 export const GRADIENT_PRESETS: WallpaperPreset[] = [
   {
+    id: 'cloud-day', name: '晴空', tone: 'light',
+    css: 'radial-gradient(ellipse at 18% 8%, #ffffff 0%, transparent 45%), radial-gradient(ellipse at 82% 82%, #a5d8ed 0%, transparent 58%), linear-gradient(135deg, #e0edfa, #c0dce9 55%, #e5e9fd)',
+  },
+  {
+    id: 'cloud-night', name: '云海', tone: 'dark',
+    css: 'radial-gradient(ellipse at 12% 12%, #164e63 0%, transparent 52%), radial-gradient(ellipse at 88% 85%, #1e3a8a 0%, transparent 55%), linear-gradient(140deg, #071b2e, #0d162b)',
+  },
+  {
+    id: 'linen-day', name: '亚麻', tone: 'light',
+    css: 'radial-gradient(ellipse at 12% 0%, #fffbeb 0%, transparent 55%), radial-gradient(ellipse at 90% 100%, #e4d4b8 0%, transparent 60%), linear-gradient(120deg, #f7f0df, #eee4d2)',
+  },
+  {
+    id: 'linen-night', name: '暖夜', tone: 'dark',
+    css: 'radial-gradient(ellipse at 10% 5%, #4a342b 0%, transparent 60%), linear-gradient(135deg, #241d1a, #171513)',
+  },
+  {
+    id: 'terminal-day', name: '薄荷', tone: 'light',
+    css: 'linear-gradient(rgb(21 128 61 / 0.035) 1px, transparent 1px), linear-gradient(90deg, rgb(21 128 61 / 0.035) 1px, transparent 1px), linear-gradient(130deg, #ecfdf5, #dcece6)',
+  },
+  {
+    id: 'terminal-night', name: '深空', tone: 'dark',
+    css: 'radial-gradient(ellipse at 50% 0%, #12382e 0%, transparent 70%), linear-gradient(160deg, #06130f, #060b0a)',
+  },
+  {
     id: 'aurora',
     name: '极光',
     tone: 'dark',
@@ -60,7 +84,7 @@ export const GRADIENT_PRESETS: WallpaperPreset[] = [
 ]
 
 export function findPreset(id: string): WallpaperPreset {
-  return GRADIENT_PRESETS.find((p) => p.id === id) ?? GRADIENT_PRESETS[0]!
+  return GRADIENT_PRESETS.find((p) => p.id === id) ?? GRADIENT_PRESETS.find((p) => p.id === 'aurora')!
 }
 
 /**

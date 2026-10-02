@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Check, FolderPlus, Minimize2, Plus } from 'lucide-react'
+import { Check, FolderPlus, LayoutGrid, Minimize2, Plus } from 'lucide-react'
 import { Clock } from '../components/Clock.tsx'
 import { CategoryEditorModal } from '../components/CategoryEditor.tsx'
 import { SearchBar } from '../components/SearchBar.tsx'
@@ -70,6 +70,7 @@ function MobileEditBar({
 export function HomePage() {
   const needsLogin = useApp((s) => s.needsLogin)
   const editMode = useApp((s) => s.editMode)
+  const appearance = useApp((s) => s.settings.appearance_preset)
   const minimal = useMinimal((s) => s.minimal)
   const setMinimal = useMinimal((s) => s.setMinimal)
 
@@ -118,7 +119,7 @@ export function HomePage() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="home-shell flex min-h-dvh flex-col" data-editing={editMode || undefined}>
       <Toolbar
         onAddSite={() => openAddSite(null)}
         onAddCategory={() => setCategoryEditor({ open: true, category: null })}
@@ -126,7 +127,7 @@ export function HomePage() {
 
       <main
         className={[
-          'mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 pt-5 sm:px-6 sm:pt-8',
+          'home-main mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 pt-5 sm:px-6 sm:pt-8',
           // 编辑模式时手机上有一条悬浮操作条压在最底部，只有那时才需要额外的底部留白。
           // 平时也留这么多的话，内容因为做了垂直居中会被整体顶得偏上。
           editMode
@@ -136,11 +137,23 @@ export function HomePage() {
       >
         {/* my-auto：内容不多时整体垂直居中，构图不会顶着上方、底下空一大片；
             图标变多页面变长时 auto 外边距自然归零，照常滚动 */}
-        <div className="my-auto w-full">
-          <Clock />
-          <SearchBar />
-          <WidgetRow />
-          <SiteGrid onEditSite={openEditSite} onAddSite={openAddSite} />
+        <div className="home-content my-auto w-full">
+          <div className="home-overview">
+            <Clock />
+            <SearchBar />
+            <WidgetRow />
+          </div>
+          <div className="home-apps">
+            {appearance === 'desktop' && (
+              <div className="desktop-window-bar">
+                <span className="desktop-window-lights" aria-hidden="true"><i /><i /><i /></span>
+                <span><LayoutGrid size={15} aria-hidden />我的应用</span>
+                <span className="desktop-window-caption">{editMode ? '编辑桌面' : '工作与生活，随手可达'}</span>
+              </div>
+            )}
+            {appearance === 'terminal' && <p className="terminal-ready"><span aria-hidden="true">●</span> 导航已就绪 <span aria-hidden="true">/ READY</span></p>}
+            <SiteGrid onEditSite={openEditSite} onAddSite={openAddSite} />
+          </div>
         </div>
       </main>
 

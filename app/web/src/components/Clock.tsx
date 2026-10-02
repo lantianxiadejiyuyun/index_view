@@ -50,7 +50,7 @@ export function Clock() {
     <header
       ref={headerRef}
       style={readableToneStyle(tone)}
-      className="mb-6 text-center text-wp sm:mb-8"
+      className="home-clock mb-6 text-center text-wp sm:mb-8"
     >
       {showGreeting && (
         <p className="text-shadow-soft mb-2 text-base font-semibold tracking-wide text-wp/85 sm:text-lg">
@@ -62,7 +62,7 @@ export function Clock() {
       {showClock && (
         <>
           <div className="text-shadow-soft flex items-end justify-center gap-2 tabular-nums">
-            <span className="text-6xl font-bold leading-none tracking-tight sm:text-7xl">
+            <span className="home-clock-time text-6xl font-bold leading-none tracking-tight sm:text-7xl">
               {pad(hour)}:{pad(now.getMinutes())}
             </span>
           </div>

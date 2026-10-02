@@ -121,7 +121,7 @@ export function SearchBar() {
   const hint = matchKeywordEngine(value, engines)
 
   return (
-    <div ref={wrapRef} className="relative mx-auto mb-6 w-full max-w-xl sm:mb-8">
+    <div ref={wrapRef} className="home-search relative mx-auto mb-6 w-full max-w-xl sm:mb-8">
       <div
         className={[
           'glass flex items-center gap-2 rounded-2xl px-3 transition-all duration-300 sm:px-4',
