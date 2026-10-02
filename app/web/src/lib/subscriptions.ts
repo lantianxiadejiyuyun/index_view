@@ -94,6 +94,32 @@ export type RuleImportResult = {
   can_apply: boolean
 }
 
+export type SubscriptionAISettings = {
+  provider: 'deepseek' | 'openai-compatible'
+  base_url: string
+  model: string
+  has_api_key: boolean
+  configured: boolean
+}
+export type SubscriptionAISettingsInput = Pick<SubscriptionAISettings, 'provider' | 'base_url' | 'model'> & {
+  api_key?: string
+  clear_api_key?: boolean
+}
+export type SubscriptionAIInput = { prompt: string; current_rules?: string[] }
+export type SubscriptionAIResult = {
+  rules: string[]
+  summary: string
+  diagnostics: RuleImportResult['diagnostics']
+  can_apply: boolean
+  model: string
+}
+export const DEEPSEEK_PRESET = { provider: 'deepseek', base_url: 'https://api.deepseek.com', model: 'deepseek-flash' } as const
+export const AI_ROUTING_TEMPLATES = [
+  { label: '日常分流', prompt: '局域网和中国大陆 IP 直连，其他流量走代理。保留最后一条兜底规则。' },
+  { label: '开发办公', prompt: 'GitHub、Google 和 OpenAI 相关域名走代理，局域网和中国大陆 IP 直连，其他流量走代理。' },
+  { label: '指定域名', prompt: '请将 example.com 及其子域名设为代理，局域网直连，其他流量直连。' },
+] as const
+
 export const OUTPUT_FORMATS: { value: SubscriptionFormat; label: string; extension: string }[] = [
   { value: 'clash', label: 'Clash / Mihomo YAML', extension: 'yaml' },
   { value: 'links', label: '通用链接列表', extension: 'txt' },
@@ -115,6 +141,12 @@ export const subscriptions = {
   list: (signal?: AbortSignal) => api<SubscriptionSnapshot>(ROOT, {}, { signal }),
   importRules: (input: RuleImportInput, signal?: AbortSignal) =>
     api<RuleImportResult>(`${ROOT}/rules/import`, write('POST', input), { signal }),
+  aiSettings: (signal?: AbortSignal) => api<{ settings: SubscriptionAISettings }>(`${ROOT}/ai/settings`, {}, { signal }),
+  saveAISettings: (input: SubscriptionAISettingsInput, signal?: AbortSignal) =>
+    api<{ settings: SubscriptionAISettings }>(`${ROOT}/ai/settings`, write('PUT', input), { signal }),
+  testAI: (signal?: AbortSignal) => aiRequest<{ ok: boolean; model: string; message: string }>(`${ROOT}/ai/test`, {}, signal),
+  generateRules: (input: SubscriptionAIInput, signal?: AbortSignal) =>
+    aiRequest<SubscriptionAIResult>(`${ROOT}/ai/generate`, subscriptionAIPayload(input), signal),
   saveSource: (id: number | null, input: SourceInput, signal?: AbortSignal) =>
     api<{ source: SubscriptionSource }>(`${ROOT}/sources${id === null ? '' : `/${id}`}`, write(id === null ? 'POST' : 'PUT', input), { signal }),
   removeSource: (id: number, signal?: AbortSignal) =>
@@ -131,6 +163,37 @@ export const subscriptions = {
     api<{ profile: SubscriptionProfile }>(`${ROOT}/profiles/${id}/rotate-token`, write('POST'), { signal }),
   preview: (id: number, format: SubscriptionFormat, signal?: AbortSignal) =>
     api<SubscriptionOutput>(`${ROOT}/profiles/${id}/preview?format=${format}`, {}, { signal }),
+  previewDraft: (input: ProfileInput, format: SubscriptionFormat, signal?: AbortSignal) =>
+    api<SubscriptionOutput>(`${ROOT}/profiles/preview?format=${format}`, write('POST', input), { signal }),
+}
+
+async function aiRequest<T>(path: string, input: unknown, signal?: AbortSignal): Promise<T> {
+  const controller = new AbortController()
+  const abort = () => controller.abort(signal?.reason)
+  if (signal?.aborted) abort()
+  else signal?.addEventListener('abort', abort, { once: true })
+  const timer = setTimeout(() => controller.abort(new Error('AI 请求超时，请稍后重试')), 65_000)
+  try { return await api<T>(path, write('POST', input), { signal: controller.signal }) }
+  finally { clearTimeout(timer); signal?.removeEventListener('abort', abort) }
+}
+
+/** Only this explicit routing context may leave the browser for AI generation. */
+export function subscriptionAIPayload(input: SubscriptionAIInput): SubscriptionAIInput {
+  return { prompt: input.prompt.trim(), ...(input.current_rules ? { current_rules: [...input.current_rules] } : {}) }
+}
+
+export function canApplyAIRules(output: SubscriptionAIResult): boolean {
+  return output.can_apply && output.rules.length > 0 && !output.diagnostics.some((item) => item.level === 'error')
+}
+
+export function aiSettingsInputError(input: SubscriptionAISettingsInput, saved: SubscriptionAISettings | null): string | null {
+  if (!input.model.trim()) return '请输入模型名称'
+  let endpoint: URL
+  try { endpoint = new URL(input.base_url) } catch { return '请输入完整的接口地址' }
+  if (!['https:', 'http:'].includes(endpoint.protocol) || endpoint.username || endpoint.password || endpoint.search || endpoint.hash) return '接口地址须为 HTTP / HTTPS 地址，不能包含账号、密码、查询参数或片段'
+  const changed = saved && (input.provider !== saved.provider || input.base_url.replace(/\/+$/, '') !== saved.base_url.replace(/\/+$/, ''))
+  if (changed && saved.has_api_key && !input.api_key?.trim() && !input.clear_api_key) return '更换服务或地址时，请填写新的 API Key，或勾选清除已保存密钥'
+  return null
 }
 
 export function ruleImportFileError(file: { name: string; size: number }): string | null {

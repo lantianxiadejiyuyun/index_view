@@ -405,6 +405,20 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX idx_folders_category ON folders(category_id, sort_order);
     `,
   },
+  {
+    version: 16,
+    name: 'subscription-ai-settings',
+    up: `
+      CREATE TABLE subscription_ai_settings (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        provider TEXT NOT NULL CHECK (provider IN ('deepseek', 'openai-compatible')),
+        base_url TEXT NOT NULL,
+        model TEXT NOT NULL,
+        api_key_encrypted TEXT,
+        updated_at INTEGER NOT NULL
+      );
+    `,
+  },
 ]
 export const DEFAULT_SETTINGS: Record<string, string> = {
   site_title: '我的导航',

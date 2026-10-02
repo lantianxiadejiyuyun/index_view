@@ -342,6 +342,16 @@ function outputFor(row: ProfileRow, format: SubscriptionFormat): SubscriptionOut
 export function previewSubscriptionProfile(userId: number, id: number, format: SubscriptionFormat): SubscriptionOutput {
   return outputFor(profileRow(userId, id), format)
 }
+/** Build from cached nodes without writing a profile or allocating a share token. */
+export function previewSubscriptionDraft(userId: number, body: Body, format: SubscriptionFormat): SubscriptionOutput {
+  const name = text(body.name, '名称', 100)
+  const note = text(body.note, '备注', 2000, true)
+  const ids = selectedSources(userId, body.source_ids ?? [])
+  const normalized = rules(body.rules)
+  const active = enabled(body.enabled)
+  return outputFor({ id: 0, user_id: userId, name, note, source_ids_json: JSON.stringify(ids),
+    rules_json: JSON.stringify(normalized), token: '', enabled: Number(active), created_at: 0, updated_at: 0 }, format)
+}
 export function subscriptionFeed(token: string, format: SubscriptionFormat): SubscriptionOutput & { subscription_userinfo?: string } {
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new SubscriptionError('订阅链接不存在或已停用', 404)
   const row = sql.get<ProfileRow>('SELECT * FROM subscription_profiles WHERE token = ? AND enabled = 1', token)

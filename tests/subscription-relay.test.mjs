@@ -37,7 +37,7 @@ before(async () => {
         export const ENV_AGENT_TOKEN = 'shared-enrollment-only', ENV_JWT_SECRET = 'relay-fixture-test-jwt';
         export function ensureDirs() { mkdirSync(${JSON.stringify(workspace)}, { recursive: true }); }
       ` : `
-        export { validateSubscriptionUrl } from ${JSON.stringify(path.join(serverRoot, 'src/lib/subscription-fetch.ts'))};
+        export { validateSubscriptionUrl, isPublicSubscriptionAddress } from ${JSON.stringify(path.join(serverRoot, 'src/lib/subscription-fetch.ts'))};
         export async function fetchSubscription() { throw new Error('DIRECT_FETCH_MUST_NOT_RUN'); }
       ` }))
     } }],
@@ -114,7 +114,7 @@ async function cachedSource() {
 }
 
 test('current schema preserves direct fetching defaults and relay metadata without node secrets', async () => {
-  assert.equal(h.sql.get('PRAGMA user_version').user_version, 15)
+  assert.equal(h.sql.get('PRAGMA user_version').user_version, 16)
   const direct = await source({ fetch_agent_id: null })
   assert.equal(direct.fetch_agent_id, null)
   assert.equal(direct.fetch_agent_name, null)

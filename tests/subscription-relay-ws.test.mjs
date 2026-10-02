@@ -46,7 +46,7 @@ before(async () => {
         export const ENV_AGENT_TOKEN = 'fixture-shared-enrollment', ENV_JWT_SECRET = 'fixture-ws-jwt';
         export function ensureDirs() { mkdirSync(${JSON.stringify(workspace)}, { recursive: true }); }
       ` : `
-        export { validateSubscriptionUrl } from ${JSON.stringify(path.join(root, 'src/lib/subscription-fetch.ts'))};
+        export { validateSubscriptionUrl, isPublicSubscriptionAddress } from ${JSON.stringify(path.join(root, 'src/lib/subscription-fetch.ts'))};
         export async function fetchSubscription() { throw new Error('DIRECT_FETCH_MUST_NOT_RUN'); }
       ` }))
     } }],

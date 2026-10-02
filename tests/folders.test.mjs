@@ -102,7 +102,7 @@ async function fixture() {
 const site = id => h.sql.get('SELECT * FROM sites WHERE id = ?', id)
 
 test('v13 through v15 migration preserves every original bookmark and v14 folder membership', async () => {
-  assert.equal(h.sql.get('PRAGMA user_version').user_version, 15)
+  assert.equal(h.sql.get('PRAGMA user_version').user_version, 16)
   const current = h.sql.all('SELECT * FROM sites ORDER BY id')
   assert.deepEqual(current.map(({ folder_id, ...rest }) => rest), legacySites)
   assert.deepEqual(current, v14Sites)

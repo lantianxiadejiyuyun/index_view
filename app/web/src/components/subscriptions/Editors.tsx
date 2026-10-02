@@ -1,7 +1,9 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Modal, btnGhost, btnPrimary, fieldClass, labelClass } from '../Modal.tsx'
 import { errorMessage } from '../../lib/api.ts'
 import { RuleImport } from './RuleImport.tsx'
+import { AIRulesAssistant } from './AIRulesAssistant.tsx'
+import { DraftPreview } from './DraftPreview.tsx'
 import { SUBSCRIPTION_PROTOCOLS, relayNodeHint, relayNodeLabel, sourceNameExample, sourceNamePosition, sourceNameRuleFields, splitLines, splitRoutingRules, type ProfileInput, type SourceInput, type SourceNamePosition, type SubscriptionProfile, type SubscriptionRelayNode, type SubscriptionSource } from '../../lib/subscriptions.ts'
 
 const checkClass = 'flex items-center gap-2 text-sm text-fg/80'
@@ -82,7 +84,7 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
 }) {
   const [name, setName] = useState(profile?.name ?? '')
   const [note, setNote] = useState(profile?.note ?? '')
-  const [selected, setSelected] = useState<number[]>(profile?.source_ids ?? [])
+  const [selected, setSelected] = useState<number[]>(profile?.source_ids ?? (sources.length === 1 ? [sources[0]!.id] : []))
   const [enabled, setEnabled] = useState(profile?.enabled ?? true)
   const [include, setInclude] = useState(profile?.rules.include.join('\n') ?? '')
   const [exclude, setExclude] = useState(profile?.rules.exclude.join('\n') ?? '')
@@ -98,6 +100,15 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
   const missingIds = selected.filter((id) => !sources.some((source) => source.id === id))
   const exampleSource = selected.map((id) => sources.find((source) => source.id === id)).find(Boolean)?.name ?? '订阅源名称'
   const toggleSource = (id: number) => setSelected((value) => value.includes(id) ? value.filter((item) => item !== id) : [...value, id])
+  const input: ProfileInput = {
+    name: name.trim(), note: note.trim(), source_ids: selected, enabled,
+    rules: {
+      include: splitLines(include), exclude: splitLines(exclude),
+      protocols: [...new Set([...protocols, ...customProtocols.split(/[,\r\n]+/).map((p) => p.trim().toLowerCase()).filter(Boolean)])],
+      name_prefix: prefix, ...sourceNameRuleFields(sourcePosition), deduplicate,
+      rules: routing.trim() ? splitRoutingRules(routing) : ['MATCH,PROXY'],
+    },
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -108,15 +119,7 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
     setSaving(true)
     setError(null)
     try {
-      await onSave({
-        name: name.trim(), note: note.trim(), source_ids: selected, enabled,
-        rules: {
-          include: splitLines(include), exclude: splitLines(exclude),
-          protocols: [...new Set([...protocols, ...customProtocols.split(/[,\r\n]+/).map((p) => p.trim().toLowerCase()).filter(Boolean)])],
-          name_prefix: prefix, ...sourceNameRuleFields(sourcePosition), deduplicate,
-          rules: routing.trim() ? splitRoutingRules(routing) : ['MATCH,PROXY'],
-        },
-      })
+      await onSave(input)
     } catch (err) {
       if (!(err instanceof Error && err.name === 'AbortError')) setError(errorMessage(err, '保存封装配置失败'))
     } finally {
@@ -129,8 +132,10 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
     <Modal open size="wide" title={profile ? '编辑封装配置' : '新建封装配置'} onClose={() => { if (!saving) onClose() }} footer={
       <><button type="button" className={btnGhost} disabled={saving} onClick={onClose}>取消</button><button type="submit" form="subscription-profile-form" className={btnPrimary} disabled={saving}>{saving ? '保存中…' : '保存配置'}</button></>
     }>
-      <form id="subscription-profile-form" onSubmit={(event) => void submit(event)}>
-        <fieldset disabled={saving} className="space-y-5 disabled:opacity-60">
+      <form id="subscription-profile-form" className="min-w-0" onSubmit={(event) => void submit(event)}>
+        <p className="mb-4 text-xs leading-relaxed text-fg/55">选择订阅源，描述或导入分流规则，检查输出后保存。AI 助手已预置 DeepSeek，也支持其他兼容接口。</p>
+        <fieldset disabled={saving} className="min-w-0 space-y-4 disabled:opacity-60">
+          <ProfileStep number={1} title="选择订阅源" hint="给配置命名，并选择需要合并的节点来源">
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label htmlFor="subscription-profile-name" className={labelClass}>配置名称</label><input id="subscription-profile-name" className={fieldClass} value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} autoFocus placeholder="例如：日常网络" /></div>
             <div><label htmlFor="subscription-profile-note" className={labelClass}>备注</label><input id="subscription-profile-note" className={fieldClass} value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} placeholder="这份配置的用途" /></div>
@@ -143,6 +148,7 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
             </div>
             {sources.length === 0 && <p className="text-sm text-fg/55">还没有订阅源，请先添加。</p>}
           </fieldset>
+          <details className="rounded-xl border border-line/15 p-3"><summary className="cursor-pointer text-xs font-medium text-fg/75">高级节点设置 · 筛选、重命名与去重</summary><div className="mt-4 min-w-0 space-y-4">
           <div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div><label htmlFor="subscription-profile-include" className={labelClass}>包含关键词</label><textarea id="subscription-profile-include" className={fieldClass} rows={3} value={include} onChange={(e) => setInclude(e.target.value)} placeholder="香港&#10;日本" /></div>
@@ -166,12 +172,30 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
             <p id="subscription-profile-name-example" className={`${hintClass} break-words`} aria-live="polite">示例：{sourceNameExample(exampleSource, prefix, sourcePosition)}。每个节点使用其所属订阅源的名称。</p>
           </div>
           <label className={checkClass}><input type="checkbox" className="size-4 accent-brand-500" checked={deduplicate} onChange={(e) => setDeduplicate(e.target.checked)} />去除重复节点</label>
+          </div></details>
+          </ProfileStep>
+          <ProfileStep number={2} title="配置分流规则" hint="使用 AI 助手、导入 YAML，或直接编辑规则">
+          <AIRulesAssistant currentRules={input.rules.rules} onApply={(rules) => setRouting(rules.join('\n'))} />
           <div><label htmlFor="subscription-profile-rules" className={labelClass}>自定义路由规则</label><textarea id="subscription-profile-rules" className={`${fieldClass} font-mono text-xs`} value={routing} onChange={(e) => setRouting(e.target.value)} rows={5} spellCheck={false} placeholder="MATCH,PROXY" /><p className={hintClass}>每行一条 Clash 规则，仅用于 YAML。留空使用 MATCH,PROXY；可使用 PROXY、DIRECT、REJECT。</p><RuleImport existingRuleCount={splitRoutingRules(routing).length} onApply={(rules) => setRouting(rules.join('\n'))} /></div>
+          </ProfileStep>
+          <ProfileStep number={3} title="检查规则与输出" hint="预览当前草稿，确认节点和规则是否符合预期">
+          <DraftPreview input={input} missingSources={missingIds.length > 0} />
+          </ProfileStep>
+          <ProfileStep number={4} title="保存封装" hint="保存后即可在配置卡片中复制订阅链接">
+          <div className="flex flex-wrap gap-2 text-xs text-fg/65"><span className="rounded-lg bg-line/5 px-2.5 py-2">已选 {selected.length} 个订阅源</span><span className="rounded-lg bg-line/5 px-2.5 py-2">{input.rules.rules.length} 条分流规则</span><span className="rounded-lg bg-line/5 px-2.5 py-2">{deduplicate ? '节点自动去重' : '保留重复节点'}</span></div>
           <label className={checkClass}><input type="checkbox" className="size-4 accent-brand-500" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />启用分享链接</label>
           <p className={hintClass}>停用后分享链接不可访问，管理页面仍可预览。</p>
+          </ProfileStep>
         </fieldset>
         {error && <p role="alert" className="mt-4 break-words rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
       </form>
     </Modal>
   )
+}
+
+function ProfileStep({ number, title, hint, children }: { number: number; title: string; hint: string; children: ReactNode }) {
+  return <section className="min-w-0 rounded-2xl border border-line/15 p-3 sm:p-4" aria-label={`${number}. ${title}`}>
+    <div className="mb-4 flex items-start gap-2.5"><span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-xs font-semibold text-brand-500" aria-hidden>{number}</span><div className="min-w-0"><h3 className="text-sm font-semibold text-fg">{title}</h3><p className="mt-1 text-xs leading-relaxed text-fg/50">{hint}</p></div></div>
+    <div className="min-w-0 space-y-4">{children}</div>
+  </section>
 }

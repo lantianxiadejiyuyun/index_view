@@ -71,7 +71,7 @@ before(async () => {
             export const ENV_JWT_SECRET = 'test-only-jwt-secret-for-subscriptions';
             export function ensureDirs() { mkdirSync(${JSON.stringify(databaseDir)}, { recursive: true }); }
           ` : `
-            export { validateSubscriptionUrl } from ${JSON.stringify(path.join(serverRoot, 'src/lib/subscription-fetch.ts'))};
+            export { validateSubscriptionUrl, isPublicSubscriptionAddress } from ${JSON.stringify(path.join(serverRoot, 'src/lib/subscription-fetch.ts'))};
             export async function fetchSubscription(url) { return globalThis.__subscriptionTestFetch(url); }
           `,
           resolveDir: serverRoot, loader: 'js',
@@ -130,7 +130,7 @@ async function refresh(id, auth = token) {
 async function listing(auth = token) { return (await request('', { auth })).json() }
 
 test('current migration retains durable subscription tables, and creation does not fetch', async () => {
-  assert.equal(harness.sql.get('PRAGMA user_version').user_version, 15)
+  assert.equal(harness.sql.get('PRAGMA user_version').user_version, 16)
   const created = await source()
   assert.equal(created.refresh_interval_minutes, 60)
   assert.equal(created.proxy_count, 0)
