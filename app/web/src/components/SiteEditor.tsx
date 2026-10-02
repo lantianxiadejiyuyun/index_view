@@ -301,7 +301,7 @@ export function SiteEditorModal({ open, site, defaultCategoryId, onClose }: Prop
             >
               <option value="">未分组</option>
               {categories.map((c: Category) => (
-                <option key={c.id} value={c.id} className="bg-slate-800">
+                <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}

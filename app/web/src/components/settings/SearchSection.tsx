@@ -120,20 +120,21 @@ export function SearchSection() {
     <SettingsSection id="search" description="默认引擎与自定义引擎；搜索框里输入前缀可临时切换">
       <FieldBlock label="默认搜索引擎" hint="输入「前缀 + 空格 + 关键词」可以临时走别的引擎">
         <select
+          aria-label="默认搜索引擎"
           className={inputClass}
           value={settings.search_engine}
           disabled={readOnly}
           onChange={(e) => void save({ search_engine: e.target.value })}
         >
           {selectedMissing && (
-            <option value={settings.search_engine} className="bg-slate-800">
+            <option value={settings.search_engine}>
               {settings.search_engine}（已失效）
             </option>
           )}
           {custom.length > 0 && (
             <optgroup label="自定义">
               {custom.map((e) => (
-                <option key={e.id} value={e.id} className="bg-slate-800">
+                <option key={e.id} value={e.id}>
                   {e.name}
                 </option>
               ))}
@@ -141,7 +142,7 @@ export function SearchSection() {
           )}
           <optgroup label="内置">
             {BUILTIN_ENGINES.map((e) => (
-              <option key={e.id} value={e.id} className="bg-slate-800">
+              <option key={e.id} value={e.id}>
                 {e.name}
               </option>
             ))}
