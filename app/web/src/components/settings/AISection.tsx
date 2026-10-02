@@ -26,7 +26,7 @@ export function AISection() {
     return () => controller.abort()
   }, [reload])
 
-  return <SettingsSection id="ai" description="预置 DeepSeek，也可连接自定义 OpenAI 兼容接口，为订阅封装生成分流规则">
+  return <SettingsSection id="ai" description="预置 DeepSeek，也可连接自定义 OpenAI 兼容接口，用于首页图标整理与订阅路由配置">
     {loading && <p role="status" className="flex items-center gap-2 text-sm text-fg/60"><Loader2 className="size-4 animate-spin" aria-hidden />正在读取 AI 配置…</p>}
     {error && <div role="alert" className="space-y-3"><p className="break-words text-sm text-danger">{error}</p><button type="button" className={btnGhost} onClick={() => setReload((value) => value + 1)}>重新读取</button></div>}
     {!loading && !error && settings && <AISettingsForm settings={settings} onSaved={setSettings} />}
@@ -76,7 +76,7 @@ function AISettingsForm({ settings, onSaved }: { settings: SubscriptionAISetting
         setNotice('配置已保存，正在测试连接…')
         const result = await subscriptions.testAI(controller.signal)
         if (!controller.signal.aborted) setNotice(result.message || `连接成功 · ${result.model}`)
-      } else setNotice('接口配置已保存，可在订阅封装中使用 AI 路由助手。')
+      } else setNotice('接口配置已保存，可使用首页 AI 整理和订阅 AI 路由助手。')
     } catch (err) {
       if (!controller.signal.aborted) {
         setNotice(null)

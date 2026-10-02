@@ -218,7 +218,7 @@ test('WSS holds one queued job during work and never acknowledges an overflowing
   state.send(state.makeJob('overflow'))
   await eventually(() => !w.state().connection)
   assert.equal(state.frames.some(f => f.job_id === 'overflow'), false)
-  await eventually(() => state.results.length === 1)
+  await eventually(() => state.results.length === 1 && !w.state().busy)
   await w.subscriptionTick()
   await eventually(() => state.results.length === 2)
   assert.deepEqual(state.results.map(r => r.job_id), ['active', 'queued'])

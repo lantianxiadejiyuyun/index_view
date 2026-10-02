@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 
 type ModalProps = {
@@ -9,16 +9,40 @@ type ModalProps = {
   children: ReactNode
   footer?: ReactNode
   /** 宽一点的表单用 wide */
-  size?: 'sm' | 'md' | 'wide'
+  size?: 'sm' | 'md' | 'wide' | 'editor'
 }
 
 const SIZES = {
   sm: 'max-w-sm',
   md: 'max-w-lg',
   wide: 'max-w-3xl',
+  editor: 'max-w-6xl',
 } as const
 
 export function Modal({ open, title, onClose, children, footer, size = 'md' }: ModalProps) {
+  const dialog = useRef<HTMLDivElement | null>(null)
+  const returnFocus = useRef<HTMLElement | null>(typeof document !== 'undefined' && document.activeElement instanceof HTMLElement ? document.activeElement : null)
+
+  useEffect(() => {
+    if (!open || size !== 'editor') return
+    const focusable = () => Array.from(dialog.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])') ?? []).filter((element) => element.getClientRects().length > 0)
+    const onTab = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return
+      const elements = focusable()
+      const first = elements[0], last = elements.at(-1)
+      if (!first || !last) { event.preventDefault(); dialog.current?.focus(); return }
+      if (!dialog.current?.contains(document.activeElement) || (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+        event.preventDefault()
+        ;(event.shiftKey ? last : first).focus()
+      }
+    }
+    if (!dialog.current?.contains(document.activeElement)) (focusable()[0] ?? dialog.current)?.focus()
+    window.addEventListener('keydown', onTab)
+    return () => {
+      window.removeEventListener('keydown', onTab)
+      if (returnFocus.current?.isConnected) returnFocus.current.focus()
+    }
+  }, [open, size])
   // Esc 关闭 + 打开期间锁住背景滚动，否则移动端会「弹窗后面的页面在滚」
   useEffect(() => {
     if (!open) return
@@ -45,11 +69,14 @@ export function Modal({ open, title, onClose, children, footer, size = 'md' }: M
       />
 
       <div
+        ref={dialog}
+        tabIndex={size === 'editor' ? -1 : undefined}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         className={[
-          'glass glass-pop animate-rise relative z-10 flex max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] w-full flex-col overflow-hidden sm:max-h-[92dvh]',
+          'glass glass-pop animate-rise relative z-10 flex w-full flex-col overflow-hidden',
+          size === 'editor' ? 'h-[calc(100dvh-env(safe-area-inset-top))] max-h-[calc(100dvh-env(safe-area-inset-top))] sm:h-[94dvh] sm:max-h-[94dvh]' : 'max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] sm:max-h-[92dvh]',
           'rounded-t-3xl sm:rounded-3xl',
           SIZES[size],
         ].join(' ')}
@@ -66,7 +93,7 @@ export function Modal({ open, title, onClose, children, footer, size = 'md' }: M
           </button>
         </div>
 
-        <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 ${footer ? '' : 'pb-[calc(1rem+env(safe-area-inset-bottom))]'}`}>{children}</div>
+        <div className={`min-h-0 flex-1 overflow-y-auto overscroll-contain ${size === 'editor' ? '' : 'px-4 py-4 sm:px-5'} ${footer ? '' : 'pb-[calc(1rem+env(safe-area-inset-bottom))]'}`}>{children}</div>
 
         {footer && (
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-line/10 px-4 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-5 sm:pt-4">

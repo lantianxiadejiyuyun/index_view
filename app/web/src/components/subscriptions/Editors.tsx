@@ -1,4 +1,5 @@
-import { useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from 'react'
+import { ChevronRight, ListFilter } from 'lucide-react'
 import { Modal, btnGhost, btnPrimary, fieldClass, labelClass } from '../Modal.tsx'
 import { errorMessage } from '../../lib/api.ts'
 import { RuleImport } from './RuleImport.tsx'
@@ -96,7 +97,15 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
   const [routing, setRouting] = useState(profile?.rules.rules.join('\n') ?? 'MATCH,PROXY')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmClose, setConfirmClose] = useState(false)
+  const [activeStep, setActiveStep] = useState(1)
   const submitting = useRef(false)
+  const form = useRef<HTMLFormElement | null>(null)
+  const sourceSection = useRef<HTMLElement | null>(null)
+  const routingSection = useRef<HTMLElement | null>(null)
+  const previewSection = useRef<HTMLElement | null>(null)
+  const saveSection = useRef<HTMLElement | null>(null)
+  const continueButton = useRef<HTMLButtonElement | null>(null)
   const missingIds = selected.filter((id) => !sources.some((source) => source.id === id))
   const exampleSource = selected.map((id) => sources.find((source) => source.id === id)).find(Boolean)?.name ?? '订阅源名称'
   const toggleSource = (id: number) => setSelected((value) => value.includes(id) ? value.filter((item) => item !== id) : [...value, id])
@@ -108,6 +117,41 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
       name_prefix: prefix, ...sourceNameRuleFields(sourcePosition), deduplicate,
       rules: routing.trim() ? splitRoutingRules(routing) : ['MATCH,PROXY'],
     },
+  }
+  const initialInput = useRef(JSON.stringify(input))
+  const dirty = JSON.stringify(input) !== initialInput.current
+  const sections = [
+    { number: 1, label: '订阅来源', ref: sourceSection },
+    { number: 2, label: '分流规则', ref: routingSection },
+    { number: 3, label: '检查预览', ref: previewSection },
+    { number: 4, label: '保存分享', ref: saveSection },
+  ]
+
+  useEffect(() => {
+    if (confirmClose) continueButton.current?.focus()
+  }, [confirmClose])
+
+  useEffect(() => {
+    const scrollRoot = form.current?.parentElement
+    if (!scrollRoot) return
+    let frame = 0
+    const update = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        if (scrollRoot.scrollHeight > scrollRoot.clientHeight && scrollRoot.scrollTop + scrollRoot.clientHeight >= scrollRoot.scrollHeight - 2) { setActiveStep(4); return }
+        const top = scrollRoot.getBoundingClientRect().top + (window.matchMedia('(min-width: 1024px)').matches ? 48 : 104)
+        const current = sections.filter((section) => section.ref.current && section.ref.current.getBoundingClientRect().top <= top).at(-1)
+        setActiveStep(current?.number ?? 1)
+      })
+    }
+    scrollRoot.addEventListener('scroll', update, { passive: true })
+    return () => { scrollRoot.removeEventListener('scroll', update); cancelAnimationFrame(frame) }
+  }, [])
+
+  function requestClose() {
+    if (submitting.current) return
+    if (dirty) setConfirmClose(true)
+    else onClose()
   }
 
   async function submit(event: FormEvent) {
@@ -129,13 +173,17 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
   }
 
   return (
-    <Modal open size="wide" title={profile ? '编辑封装配置' : '新建封装配置'} onClose={() => { if (!saving) onClose() }} footer={
-      <><button type="button" className={btnGhost} disabled={saving} onClick={onClose}>取消</button><button type="submit" form="subscription-profile-form" className={btnPrimary} disabled={saving}>{saving ? '保存中…' : '保存配置'}</button></>
+    <Modal open size="editor" title={profile ? `编辑封装配置 · ${profile.name}` : '新建封装配置'} onClose={requestClose} footer={
+      <>{error && <p role="alert" className="w-full break-words rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}{confirmClose ? <div className="w-full rounded-2xl border border-warn/25 bg-warn/10 p-3"><p role="alert" className="text-sm font-medium text-fg">当前更改尚未保存，确定放弃并关闭？</p><div className="mt-3 flex flex-wrap justify-end gap-2"><button ref={continueButton} type="button" className={btnPrimary} disabled={saving} onClick={() => setConfirmClose(false)}>继续编辑</button><button type="button" className={btnGhost} disabled={saving} onClick={onClose}>放弃修改并关闭</button></div></div> : <><span className="mr-auto text-xs text-fg/50">{saving ? '正在保存当前配置…' : dirty ? '有未保存的更改' : profile ? '尚未修改' : '新建配置'}</span><button type="button" className={btnGhost} disabled={saving} onClick={requestClose}>取消</button><button type="submit" form="subscription-profile-form" className={btnPrimary} disabled={saving}>{saving ? '保存中…' : '保存配置'}</button></>}</>
     }>
-      <form id="subscription-profile-form" className="min-w-0" onSubmit={(event) => void submit(event)}>
-        <p className="mb-4 text-xs leading-relaxed text-fg/55">选择订阅源，描述或导入分流规则，检查输出后保存。AI 助手已预置 DeepSeek，也支持其他兼容接口。</p>
-        <fieldset disabled={saving} className="min-w-0 space-y-4 disabled:opacity-60">
-          <ProfileStep number={1} title="选择订阅源" hint="给配置命名，并选择需要合并的节点来源">
+      <form ref={form} id="subscription-profile-form" className="min-h-full min-w-0 lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:items-start" onSubmit={(event) => void submit(event)}>
+        <aside className="glass glass-pop sticky top-0 z-10 border-b border-line/10 p-2 lg:space-y-5 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-4">
+          <div className="hidden lg:block"><p className="flex items-center gap-2 text-sm font-semibold text-fg"><ListFilter className="size-4 text-brand-500" aria-hidden />封装工作区</p><p className="mt-2 text-xs leading-relaxed text-fg/50">选择来源、配置分流、检查输出，最后保存分享。</p></div>
+          <nav aria-label="封装编辑步骤" className="grid grid-cols-4 gap-1 lg:grid-cols-1 lg:gap-2">{sections.map((section) => <button key={section.number} type="button" disabled={saving} aria-current={activeStep === section.number ? 'step' : undefined} className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-xl px-1 py-2 text-[11px] transition lg:justify-start lg:gap-2 lg:px-3 lg:text-xs ${activeStep === section.number ? 'bg-brand-500 text-white shadow-sm' : 'text-fg/60 hover:bg-line/10 hover:text-fg'}`} onClick={() => { setActiveStep(section.number); section.ref.current?.scrollIntoView({ block: 'start', behavior: 'instant' }) }}><span className={`flex size-4 shrink-0 items-center justify-center rounded-md text-[10px] lg:size-5 ${activeStep === section.number ? 'bg-white/20' : 'bg-line/10'}`}>{section.number}</span><span className="truncate">{section.label}</span><ChevronRight className="ml-auto hidden size-3.5 lg:block" aria-hidden /></button>)}</nav>
+          <div className="hidden space-y-2 rounded-xl border border-line/10 p-3 text-xs text-fg/55 lg:block"><p>已选 <span className="font-medium text-fg">{selected.length}</span> 个订阅源</p><p><span className="font-medium text-fg">{input.rules.rules.length}</span> 条分流规则</p><p className="pt-1 text-[11px] leading-relaxed text-fg/40">更改仅在点击“保存配置”后生效。</p></div>
+        </aside>
+        <fieldset disabled={saving} className="min-w-0 space-y-4 p-3 disabled:opacity-60 sm:p-5 lg:border-l lg:border-line/10">
+          <ProfileStep sectionRef={sourceSection} number={1} title="选择订阅源" hint="给配置命名，并选择需要合并的节点来源">
           <div className="grid gap-4 sm:grid-cols-2">
             <div><label htmlFor="subscription-profile-name" className={labelClass}>配置名称</label><input id="subscription-profile-name" className={fieldClass} value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} autoFocus placeholder="例如：日常网络" /></div>
             <div><label htmlFor="subscription-profile-note" className={labelClass}>备注</label><input id="subscription-profile-note" className={fieldClass} value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} placeholder="这份配置的用途" /></div>
@@ -174,27 +222,26 @@ export function ProfileEditor({ profile, sources, onSave, onClose }: {
           <label className={checkClass}><input type="checkbox" className="size-4 accent-brand-500" checked={deduplicate} onChange={(e) => setDeduplicate(e.target.checked)} />去除重复节点</label>
           </div></details>
           </ProfileStep>
-          <ProfileStep number={2} title="配置分流规则" hint="使用 AI 助手、导入 YAML，或直接编辑规则">
+          <ProfileStep sectionRef={routingSection} number={2} title="配置分流规则" hint="使用 AI 助手、导入 YAML，或直接编辑规则">
           <AIRulesAssistant currentRules={input.rules.rules} onApply={(rules) => setRouting(rules.join('\n'))} />
           <div><label htmlFor="subscription-profile-rules" className={labelClass}>自定义路由规则</label><textarea id="subscription-profile-rules" className={`${fieldClass} font-mono text-xs`} value={routing} onChange={(e) => setRouting(e.target.value)} rows={5} spellCheck={false} placeholder="MATCH,PROXY" /><p className={hintClass}>每行一条 Clash 规则，仅用于 YAML。留空使用 MATCH,PROXY；可使用 PROXY、DIRECT、REJECT。</p><RuleImport existingRuleCount={splitRoutingRules(routing).length} onApply={(rules) => setRouting(rules.join('\n'))} /></div>
           </ProfileStep>
-          <ProfileStep number={3} title="检查规则与输出" hint="预览当前草稿，确认节点和规则是否符合预期">
+          <ProfileStep sectionRef={previewSection} number={3} title="检查规则与输出" hint="预览当前草稿，确认节点和规则是否符合预期">
           <DraftPreview input={input} missingSources={missingIds.length > 0} />
           </ProfileStep>
-          <ProfileStep number={4} title="保存封装" hint="保存后即可在配置卡片中复制订阅链接">
+          <ProfileStep sectionRef={saveSection} number={4} title="保存封装" hint="保存后即可在配置卡片中复制订阅链接">
           <div className="flex flex-wrap gap-2 text-xs text-fg/65"><span className="rounded-lg bg-line/5 px-2.5 py-2">已选 {selected.length} 个订阅源</span><span className="rounded-lg bg-line/5 px-2.5 py-2">{input.rules.rules.length} 条分流规则</span><span className="rounded-lg bg-line/5 px-2.5 py-2">{deduplicate ? '节点自动去重' : '保留重复节点'}</span></div>
           <label className={checkClass}><input type="checkbox" className="size-4 accent-brand-500" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />启用分享链接</label>
           <p className={hintClass}>停用后分享链接不可访问，管理页面仍可预览。</p>
           </ProfileStep>
         </fieldset>
-        {error && <p role="alert" className="mt-4 break-words rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
       </form>
     </Modal>
   )
 }
 
-function ProfileStep({ number, title, hint, children }: { number: number; title: string; hint: string; children: ReactNode }) {
-  return <section className="min-w-0 rounded-2xl border border-line/15 p-3 sm:p-4" aria-label={`${number}. ${title}`}>
+function ProfileStep({ sectionRef, number, title, hint, children }: { sectionRef: RefObject<HTMLElement | null>; number: number; title: string; hint: string; children: ReactNode }) {
+  return <section ref={sectionRef} className="min-w-0 scroll-mt-20 rounded-2xl border border-line/15 p-3 sm:p-4 lg:scroll-mt-5" aria-label={`${number}. ${title}`}>
     <div className="mb-4 flex items-start gap-2.5"><span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-xs font-semibold text-brand-500" aria-hidden>{number}</span><div className="min-w-0"><h3 className="text-sm font-semibold text-fg">{title}</h3><p className="mt-1 text-xs leading-relaxed text-fg/50">{hint}</p></div></div>
     <div className="min-w-0 space-y-4">{children}</div>
   </section>

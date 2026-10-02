@@ -325,7 +325,8 @@ export function SiteGrid({ onEditSite, onAddSite, onEditFolder }: Props) {
     if (ungrouped.length > 0 || ungroupedFolders.length > 0 || editMode) {
       result.push({ category: null, sites: ungrouped, folders: ungroupedFolders, totalSites: sorted.filter((s) => s.category_id === null).length })
     }
-    return result
+    // Keep empty groups editable without leaving blank headings on the desktop.
+    return editMode ? result : result.filter((group) => group.sites.length > 0 || group.folders.length > 0)
   }, [categories, sites, folders, editMode])
 
   const sensors = useSensors(

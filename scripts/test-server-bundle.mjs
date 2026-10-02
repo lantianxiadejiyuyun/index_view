@@ -42,6 +42,13 @@ try {
   const response = await fetch(`http://127.0.0.1:${port}/api/health`)
   assert.equal(response.status, 200)
   assert.equal((await response.json()).service, 'home-dashboard')
+  for (const action of ['preview', 'apply', 'undo']) {
+    const organizer = await fetch(`http://127.0.0.1:${port}/api/navigation/ai/${action}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    })
+    assert.equal(organizer.status, 401, `AI organization route ${action} must be registered and protected`)
+    assert.equal(organizer.headers.get('cache-control'), 'no-store')
+  }
   const login = await fetch(`http://127.0.0.1:${port}/api/auth/login`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ username: 'smoke-test', password: 'test-only-password' }),
@@ -96,6 +103,7 @@ try {
   console.log('PASS: standalone server starts without node_modules, migrates SQLite, and serves authenticated subscriptions')
   console.log('PASS: standalone rule import maps source groups and persists source-name prefix settings')
   console.log('PASS: independent device sessions and immediate single-device revocation')
+  console.log('PASS: AI organization routes are registered and require authentication')
 } finally {
   child.kill()
   await closed

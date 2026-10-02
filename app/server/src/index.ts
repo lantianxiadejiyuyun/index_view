@@ -18,6 +18,7 @@ import { faviconRoutes } from './routes/favicon.js'
 import { folderRoutes } from './routes/folders.js'
 import { importRoutes } from './routes/import.js'
 import { nodeRoutes } from './routes/nodes.js'
+import { navigationAiRoutes } from './routes/navigation-ai.js'
 import { noteRoutes } from './routes/notes.js'
 import { serverRoutes } from './routes/servers.js'
 import { settingsRoutes } from './routes/settings.js'
@@ -60,6 +61,7 @@ api.route('/', siteRoutes)
 api.route('/', folderRoutes)
 api.route('/', settingsRoutes)
 api.route('/', subscriptionRoutes)
+api.route('/', navigationAiRoutes)
 api.route('/', uploadRoutes)
 api.route('/', vaultRoutes)
 api.route('/', noteRoutes)

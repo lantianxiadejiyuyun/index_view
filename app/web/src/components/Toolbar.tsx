@@ -17,6 +17,7 @@ import {
   Rss,
   Server,
   Settings,
+  Sparkles,
   Sun,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -48,7 +49,7 @@ function IconButton({
   )
 }
 
-export function Toolbar({ onAddSite, onAddCategory, onAddFolder }: { onAddSite: () => void; onAddCategory: () => void; onAddFolder: () => void }) {
+export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: { onAddSite: () => void; onAddCategory: () => void; onAddFolder: () => void; onOrganize: () => void }) {
   const canEdit = useApp((s) => s.canEdit)
   const editMode = useApp((s) => s.editMode)
   const setEditMode = useApp((s) => s.setEditMode)
@@ -129,6 +130,8 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder }: { onAddSite: 
             )}
           </>
         )}
+
+        {canEdit && user && <button type="button" onClick={onOrganize} className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-medium text-brand-500 transition hover:bg-brand-500/10 sm:px-3"><Sparkles className="size-4" aria-hidden />AI 整理</button>}
 
         <IconButton label={isDark ? '切换到浅色' : '切换到深色'} onClick={() => void toggleTheme()}>
           {isDark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
