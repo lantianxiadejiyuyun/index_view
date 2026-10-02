@@ -100,7 +100,9 @@ MATCH,PROXY
 
 ## AI 路由助手与 DeepSeek 预设
 
-封装编辑器内置 DeepSeek 预设。首次使用时打开 AI 配置，填写 API Key 并保存，可测试连接后输入中文分流需求。默认地址为 `https://api.deepseek.com`，默认模型为 `deepseek-flash`，也可选择 `deepseek-v4-pro` 或手动填写模型。模型与地址来自 [DeepSeek 官方接口文档](https://api-docs.deepseek.com/)，实际可用模型及额度以所填密钥对应的服务为准。
+在「设置 → AI 配置」（`/settings/ai`）管理 DeepSeek 与其他兼容接口。首次使用时填写 API Key 并保存，可测试连接后回到封装编辑器输入中文分流需求。默认地址为 `https://api.deepseek.com`，默认模型为 `deepseek-flash`，也可选择 `deepseek-v4-pro` 或手动填写模型。模型与地址来自 [DeepSeek 官方接口文档](https://api-docs.deepseek.com/)，实际可用模型及额度以所填密钥对应的服务为准。
+
+封装编辑器只保留规则生成与应用入口。「AI 配置」链接在新标签页打开，当前未保存的封装草稿会保留；返回时自动重新读取配置，也可以手动点击刷新。设置首页 `/settings` 提供各功能入口，外观、搜索、小组件、交互、账号、备份和书签导入均有独立页面，旧 `/settings#分区` 地址仍可跳转。
 
 选择「OpenAI 兼容接口」可填写其他服务的 Base URL、模型和 API Key；服务端使用 Bearer 认证与非流式 `POST /chat/completions`。Base URL 可以包含服务所需的 `/v1` 前缀。这里只需要文本生成能力，无需部署额外模型或代理内核。
 

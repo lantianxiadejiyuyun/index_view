@@ -1,188 +1,63 @@
-/**
- * 设置分区的外壳与导航。
- *
- * 分区元数据集中在这里，是为了让「左侧导航」和「实际渲染的分区」永远同源 ——
- * 加一个分区只要往 SETTINGS_SECTIONS 里加一行，导航与锚点自动跟上。
- */
 import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
-import type { LucideIcon } from 'lucide-react'
-import {
-  Bookmark,
-  Database,
-  Info,
-  LayoutGrid,
-  MousePointerClick,
-  Palette,
-  Search,
-  ShieldCheck,
-} from 'lucide-react'
+import { Link, NavLink, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Bookmark, Database, Info, LayoutGrid, MousePointerClick, Palette, Search, Settings, ShieldCheck, Sparkles } from 'lucide-react'
 
-export type SettingsSectionMeta = {
-  id: string
-  title: string
-  icon: LucideIcon
-}
+/** One catalog powers the overview, navigation, and each settings page heading. */
+export const SETTINGS_SECTIONS = [
+  { id: 'site', title: '站点信息', icon: Info, group: '日常体验', description: '设置导航站名称与首页问候语' },
+  { id: 'appearance', title: '外观', icon: Palette, group: '日常体验', description: '内置主题、深浅色、动态壁纸与卡片样式' },
+  { id: 'search', title: '搜索', icon: Search, group: '日常体验', description: '默认搜索引擎、自定义引擎与快捷前缀' },
+  { id: 'widgets', title: '小组件', icon: LayoutGrid, group: '日常体验', description: '时钟、天气、一言与首页组件' },
+  { id: 'behavior', title: '交互与访问', icon: MousePointerClick, group: '日常体验', description: '链接打开方式、访客权限与探针端口' },
+  { id: 'ai', title: 'AI 配置', icon: Sparkles, group: '智能与安全', description: 'DeepSeek、OpenAI 兼容接口、密钥与连接测试' },
+  { id: 'account', title: '账号与安全', icon: ShieldCheck, group: '智能与安全', description: '登录设备、账号密码与探针令牌' },
+  { id: 'backup', title: '数据备份', icon: Database, group: '数据管理', description: '导出导航数据，或从备份文件恢复' },
+  { id: 'bookmarks', title: '书签导入', icon: Bookmark, group: '数据管理', description: '导入浏览器书签并整理到导航站' },
+] as const
 
-export const SETTINGS_SECTIONS: SettingsSectionMeta[] = [
-  { id: 'site', title: '站点信息', icon: Info },
-  { id: 'appearance', title: '外观', icon: Palette },
-  { id: 'search', title: '搜索', icon: Search },
-  { id: 'widgets', title: '小组件', icon: LayoutGrid },
-  { id: 'behavior', title: '行为', icon: MousePointerClick },
-  { id: 'account', title: '账号与安全', icon: ShieldCheck },
-  { id: 'backup', title: '数据备份', icon: Database },
-  { id: 'bookmarks', title: '书签导入', icon: Bookmark },
-]
+export type SettingsSectionId = typeof SETTINGS_SECTIONS[number]['id']
+export const settingsPath = (id: SettingsSectionId) => `/settings/${id}`
 
-/** 数组字面量是稳定的，滚动监听可以直接拿它当依赖，不必每次渲染新建 */
-const SECTION_IDS: string[] = SETTINGS_SECTIONS.map((s) => s.id)
-
-/** 标题与图标从 SETTINGS_SECTIONS 里取，导航和卡片不可能对不上 */
-export function SettingsSection({
-  id,
-  description,
-  children,
-}: {
-  id: string
-  description?: string
-  children: ReactNode
-}) {
-  const meta = SETTINGS_SECTIONS.find((s) => s.id === id)
+export function SettingsSection({ id, description, children }: { id: string; description?: string; children: ReactNode }) {
+  const meta = SETTINGS_SECTIONS.find(section => section.id === id)
   const Icon = meta?.icon ?? Info
-  const title = meta?.title ?? id
-
-  return (
-    <section
-      id={id}
-      // scroll-mt 给锚点跳转留出顶部呼吸位，否则标题会贴着视口顶端
-      className="glass animate-rise scroll-mt-6 rounded-2xl p-4 sm:p-5"
-    >
-      <header className="mb-4 flex items-start gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-line/10 text-accent">
-          <Icon className="size-4" aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-fg sm:text-base">{title}</h2>
-          {description && <p className="mt-0.5 text-xs leading-relaxed text-fg/50">{description}</p>}
-        </div>
-      </header>
-
-      <div className="space-y-4">{children}</div>
-    </section>
-  )
+  return <section id={id} aria-labelledby={`settings-${id}-heading`} className="glass min-w-0 animate-rise rounded-2xl p-4 sm:p-5">
+    <header className="mb-5 flex items-start gap-3">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-accent"><Icon className="size-4" aria-hidden /></span>
+      <div className="min-w-0"><h2 id={`settings-${id}-heading`} className="text-sm font-semibold text-fg sm:text-base">{meta?.title ?? id}</h2>{description && <p className="mt-1 text-xs leading-relaxed text-fg/55">{description}</p>}</div>
+    </header>
+    <div className="min-w-0 space-y-4">{children}</div>
+  </section>
 }
 
-/**
- * 高亮当前分区。
- * 取「可见比例最大」的那个而不是「第一个可见的」：长分区（外观）占满屏幕时
- * 短分区（站点信息）其实已经滚过去了，按第一个可见会一直卡在旧分区上。
- */
-function useActiveSection(): string {
-  const [active, setActive] = useState(SECTION_IDS[0] ?? '')
+const itemClass = ({ isActive }: { isActive: boolean }) => `flex min-h-11 items-center gap-2.5 rounded-xl px-3 text-xs font-medium transition ${isActive ? 'bg-brand-500 text-white shadow-sm' : 'text-fg/70 hover:bg-line/10 hover:text-fg'}`
 
-  useEffect(() => {
-    if (typeof IntersectionObserver === 'undefined') return
-
-    const nodes: HTMLElement[] = []
-    for (const id of SECTION_IDS) {
-      const el = document.getElementById(id)
-      if (el) nodes.push(el)
-    }
-    if (nodes.length === 0) return
-
-    const ratios = new Map<string, number>()
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          ratios.set(entry.target.id, entry.isIntersecting ? entry.intersectionRatio : 0)
-        }
-        let best = ''
-        let bestRatio = 0
-        for (const [id, ratio] of ratios) {
-          if (ratio > bestRatio) {
-            best = id
-            bestRatio = ratio
-          }
-        }
-        if (best) setActive(best)
-      },
-      { threshold: [0, 0.1, 0.3, 0.6], rootMargin: '-64px 0px -35% 0px' },
-    )
-
-    for (const node of nodes) observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-
-  return active
-}
-
-const ITEM_BASE =
-  'flex min-h-11 items-center gap-2.5 rounded-xl px-3 text-xs font-medium transition'
-
-/** 桌面端左侧竖排导航 */
 export function SettingsNavAside() {
-  const active = useActiveSection()
-
-  return (
-    <nav aria-label="设置分区" className="hidden lg:sticky lg:top-6 lg:block">
-      <ul className="glass rounded-2xl p-2">
-        {SETTINGS_SECTIONS.map((section) => {
+  return <nav aria-label="设置导航" className="hidden lg:sticky lg:top-6 lg:block">
+    <div className="glass rounded-2xl p-2">
+      <NavLink to="/settings" end className={itemClass}><Settings className="size-4 shrink-0" aria-hidden />设置总览</NavLink>
+      {[...new Set(SETTINGS_SECTIONS.map(section => section.group))].map(group => <div key={group} className="mt-3">
+        <p className="px-3 pb-1 text-[10px] font-medium tracking-wider text-fg/45">{group}</p>
+        <ul>{SETTINGS_SECTIONS.filter(section => section.group === group).map(section => {
           const Icon = section.icon
-          const on = section.id === active
-          return (
-            <li key={section.id}>
-              <a
-                href={`#${section.id}`}
-                aria-current={on ? 'true' : undefined}
-                className={`${ITEM_BASE} ${
-                  on ? 'bg-brand-500 text-white shadow-lg' : 'text-fg/70 hover:bg-line/10 hover:text-fg'
-                }`}
-              >
-                <Icon className="size-4 shrink-0" aria-hidden />
-                <span className="truncate">{section.title}</span>
-              </a>
-            </li>
-          )
-        })}
-      </ul>
-    </nav>
-  )
+          return <li key={section.id}><NavLink to={settingsPath(section.id)} className={itemClass}><Icon className="size-4 shrink-0" aria-hidden /><span>{section.title}</span></NavLink></li>
+        })}</ul>
+      </div>)}
+    </div>
+  </nav>
 }
 
-/**
- * 移动端分区导航。
- * 外面套一层 overflow-x-auto：横向滚动条落在容器内部，不会把整个文档撑宽。
- */
+/** A compact page selector keeps all settings reachable on narrow screens. */
 export function SettingsNavBar() {
-  const active = useActiveSection()
-
-  return (
-    <nav
-      aria-label="设置分区"
-      className="-mx-4 overflow-x-auto px-4 pb-0.5 sm:-mx-6 sm:px-6 lg:hidden"
-    >
-      <div className="flex w-max gap-2">
-        {SETTINGS_SECTIONS.map((section) => {
-          const Icon = section.icon
-          const on = section.id === active
-          return (
-            <a
-              key={section.id}
-              href={`#${section.id}`}
-              aria-current={on ? 'true' : undefined}
-              className={`${ITEM_BASE} border ${
-                on
-                  ? 'border-brand-400/40 bg-brand-500/90 text-white'
-                  : 'glass border-line/10 text-fg/75'
-              }`}
-            >
-              <Icon className="size-3.5 shrink-0" aria-hidden />
-              <span className="whitespace-nowrap">{section.title}</span>
-            </a>
-          )
-        })}
-      </div>
-    </nav>
-  )
+  const { sectionId } = useParams()
+  const navigate = useNavigate()
+  const current = SETTINGS_SECTIONS.some(section => section.id === sectionId) ? sectionId : ''
+  return <nav aria-label="手机设置导航" className="flex min-w-0 items-center gap-2 lg:hidden">
+    {current && <Link to="/settings" className="glass flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs text-fg/75"><ArrowLeft className="size-3.5" aria-hidden />总览</Link>}
+    <label htmlFor="settings-page-select" className="sr-only">选择设置页面</label>
+    <select id="settings-page-select" value={current} onChange={event => navigate(event.target.value ? `/settings/${event.target.value}` : '/settings')} className="glass min-h-11 min-w-0 flex-1 rounded-xl border border-line/15 px-3 text-sm text-fg">
+      <option value="">设置总览</option>
+      {SETTINGS_SECTIONS.map(section => <option key={section.id} value={section.id}>{section.title}</option>)}
+    </select>
+  </nav>
 }

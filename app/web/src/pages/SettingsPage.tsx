@@ -1,51 +1,59 @@
+import { lazy, Suspense, useEffect } from 'react'
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
+import { ArrowRight, ChevronRight, Loader2 } from 'lucide-react'
 import { PageShell } from '../components/PageShell.tsx'
-import { AccountSection } from '../components/settings/AccountSection.tsx'
-import { AppearanceSection } from '../components/settings/AppearanceSection.tsx'
-import { BackupSection } from '../components/settings/BackupSection.tsx'
-import { BehaviorSection } from '../components/settings/BehaviorSection.tsx'
-import { BookmarkSection } from '../components/settings/BookmarkSection.tsx'
-import { SearchSection } from '../components/settings/SearchSection.tsx'
-import { SettingsNavAside, SettingsNavBar } from '../components/settings/Section.tsx'
-import { SiteInfoSection } from '../components/settings/SiteInfoSection.tsx'
-import { WidgetSection } from '../components/settings/WidgetSection.tsx'
+import { SETTINGS_SECTIONS, SettingsNavAside, SettingsNavBar, settingsPath, type SettingsSectionId } from '../components/settings/Section.tsx'
 import { SaveStatusChip, SettingsSaveProvider } from '../components/settings/saver.tsx'
 
-/**
- * 设置页。
- *
- * 保存策略是「改完立刻存」：所有控件都通过 SettingsSaveProvider 落到 /api/settings，
- * 成功只让页头闪一下「已保存」，失败才 toast —— 二十多个设置项如果每次成功都弹提示，
- * 页面会变成 toast 垃圾场。高频改动（滑杆、标题）由各分区自己做 300–400ms 防抖。
- *
- * 未登录的人根本进不来（路由守卫挡在 RequireAuth 那一层），所以这里不再做只读降级。
- */
+// Loading a page only mounts that feature, including its requests and effects.
+const PAGES = {
+  site: lazy(() => import('../components/settings/SiteInfoSection.tsx').then(m => ({ default: m.SiteInfoSection }))),
+  appearance: lazy(() => import('../components/settings/AppearanceSection.tsx').then(m => ({ default: m.AppearanceSection }))),
+  search: lazy(() => import('../components/settings/SearchSection.tsx').then(m => ({ default: m.SearchSection }))),
+  widgets: lazy(() => import('../components/settings/WidgetSection.tsx').then(m => ({ default: m.WidgetSection }))),
+  behavior: lazy(() => import('../components/settings/BehaviorSection.tsx').then(m => ({ default: m.BehaviorSection }))),
+  ai: lazy(() => import('../components/settings/AISection.tsx').then(m => ({ default: m.AISection }))),
+  account: lazy(() => import('../components/settings/AccountSection.tsx').then(m => ({ default: m.AccountSection }))),
+  backup: lazy(() => import('../components/settings/BackupSection.tsx').then(m => ({ default: m.BackupSection }))),
+  bookmarks: lazy(() => import('../components/settings/BookmarkSection.tsx').then(m => ({ default: m.BookmarkSection }))),
+} satisfies Record<SettingsSectionId, unknown>
+
 export function SettingsPage() {
-  return (
-    <SettingsSaveProvider readOnly={false}>
-      <PageShell
-        title="设置"
-        description="外观、搜索、小组件、账号与数据"
-        wide
-        actions={<SaveStatusChip />}
-      >
-        {/* 桌面端左导航 sticky 跟随，移动端退化成可横向滑动的分区条 */}
-        <div className="grid gap-5 lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:items-start">
-          <SettingsNavAside />
+  const { sectionId } = useParams()
+  const location = useLocation()
+  const section = SETTINGS_SECTIONS.find(item => item.id === sectionId)
+  const legacy = !sectionId && SETTINGS_SECTIONS.find(item => `#${item.id}` === location.hash)
+  const Feature = section ? PAGES[section.id] : null
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }) }, [location.pathname])
+  if (legacy) return <Navigate to={settingsPath(legacy.id)} replace />
 
-          <div className="min-w-0 space-y-5">
-            <SettingsNavBar />
-
-            <SiteInfoSection />
-            <AppearanceSection />
-            <SearchSection />
-            <WidgetSection />
-            <BehaviorSection />
-            <AccountSection />
-            <BackupSection />
-            <BookmarkSection />
-          </div>
+  return <SettingsSaveProvider readOnly={false}>
+    <PageShell title={section ? `设置 · ${section.title}` : '设置'} description={section?.description ?? '按功能管理外观、AI 接口、账号与数据'} wide actions={section && ['site', 'appearance', 'search', 'widgets', 'behavior'].includes(section.id) ? <SaveStatusChip /> : undefined}>
+      <div className="grid gap-5 lg:grid-cols-[13.5rem_minmax(0,1fr)] lg:items-start">
+        <SettingsNavAside />
+        <div className="min-w-0 space-y-5">
+          <SettingsNavBar />
+          {section && <nav aria-label="当前位置" className="hidden items-center gap-2 text-xs text-fg/65 lg:flex"><Link to="/settings" className="rounded-lg px-2 py-1 hover:bg-line/10">设置总览</Link><ChevronRight className="size-3" aria-hidden /><span aria-current="page">{section.title}</span></nav>}
+          {Feature ? <Suspense fallback={<div role="status" className="glass flex items-center gap-2 rounded-2xl p-6 text-sm text-fg/65"><Loader2 className="size-4 animate-spin" aria-hidden />正在加载设置…</div>}><Feature /></Suspense> : sectionId ? <div className="glass rounded-2xl p-6 text-sm text-fg"><h2 className="font-semibold">没有找到这个设置页面</h2><Link to="/settings" className="mt-3 inline-flex min-h-11 items-center text-accent">返回设置总览</Link></div> : <SettingsOverview />}
         </div>
-      </PageShell>
-    </SettingsSaveProvider>
-  )
+      </div>
+    </PageShell>
+  </SettingsSaveProvider>
+}
+
+function SettingsOverview() {
+  return <div className="space-y-6">
+    <div className="glass rounded-2xl p-5 sm:p-6"><h2 className="text-lg font-semibold text-fg">让导航站更适合你</h2><p className="mt-2 text-sm leading-relaxed text-fg/60">选择要调整的功能，进入独立页面。每个页面只展示相关设置，手机上也能轻松找到。</p></div>
+    {[...new Set(SETTINGS_SECTIONS.map(section => section.group))].map(group => <section key={group} aria-label={group}>
+      <h2 className="mb-3 px-1 text-xs font-semibold tracking-wide text-fg/65">{group}</h2>
+      <div className="grid gap-3 sm:grid-cols-2">{SETTINGS_SECTIONS.filter(section => section.group === group).map(section => {
+        const Icon = section.icon
+        return <Link key={section.id} to={settingsPath(section.id)} className="glass group flex min-w-0 items-start gap-3 rounded-2xl border border-line/10 p-4 transition hover:border-brand-500/40 hover:bg-brand-500/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 sm:p-5">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-accent"><Icon className="size-5" aria-hidden /></span>
+          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-fg">{section.title}</span><span className="mt-1 block text-xs leading-relaxed text-fg/55">{section.description}</span></span>
+          <ArrowRight className="mt-3 size-4 shrink-0 text-fg/35 transition group-hover:translate-x-0.5 group-hover:text-accent" aria-hidden />
+        </Link>
+      })}</div>
+    </section>)}
+  </div>
 }

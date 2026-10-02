@@ -237,7 +237,7 @@ export default function App() {
                 }
               />
               <Route
-                path="/settings"
+                path="/settings/:sectionId?"
                 element={
                   <RequireAuth>
                     <SettingsPage />

@@ -350,7 +350,7 @@ export function NodesPage() {
             会在本机 <span className="font-mono text-fg/80">{currentServerHost()}</span> 的{' '}
             <span className="font-mono text-fg/80">{agentPorts}</span> 端口上寻找探针
             （候选端口可在
-            <Link to="/settings" className="mx-1 text-accent underline underline-offset-2">
+            <Link to="/settings/behavior" className="mx-1 text-accent underline underline-offset-2">
               设置
             </Link>
             里修改）。这也是「内网自动获取服务器和对应端口」的原理。
