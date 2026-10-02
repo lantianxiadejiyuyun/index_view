@@ -20,6 +20,7 @@ type BackupFile = {
   version?: number
   settings?: Record<string, string>
   categories?: unknown[]
+  folders?: unknown[]
   sites?: unknown[]
 }
 
@@ -75,9 +76,19 @@ export function BackupSection() {
     setError(null)
     setFile(null)
     try {
-      const parsed = JSON.parse(await selected.text()) as BackupFile
-      if (!Array.isArray(parsed.categories) && !Array.isArray(parsed.sites)) {
-        setError('文件里既没有 categories 也没有 sites，看起来不是本站导出的备份')
+      const value: unknown = JSON.parse(await selected.text())
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        setError('文件内容不是有效的导航备份')
+        return
+      }
+      const parsed = value as BackupFile
+      const collections = [parsed.categories, parsed.folders, parsed.sites]
+      if (!collections.some(Array.isArray)) {
+        setError('文件里没有 categories、folders 或 sites，看起来不是本站导出的备份')
+        return
+      }
+      if (collections.some((items) => items !== undefined && !Array.isArray(items))) {
+        setError('备份中的分组、文件夹和图标列表必须是数组')
         return
       }
       setFile({ name: selected.name, data: parsed })
@@ -87,11 +98,11 @@ export function BackupSection() {
   }
 
   async function runImport() {
-    if (!file) return
+    if (!file || importing) return
 
     if (mode === 'replace') {
       const ok = window.confirm(
-        '「替换」会先删除现有的全部分组和图标，再写入备份里的内容。\n\n这个操作不可撤销，确定继续吗？',
+        '「替换」会先删除现有的全部分组、文件夹和图标，再写入备份里的内容。\n\n这个操作不可撤销，确定继续吗？',
       )
       if (!ok) return
     }
@@ -104,6 +115,7 @@ export function BackupSection() {
           mode,
           settings: file.data.settings ?? {},
           categories: file.data.categories ?? [],
+          folders: file.data.folders ?? [],
           sites: file.data.sites ?? [],
         }),
       })
@@ -120,7 +132,7 @@ export function BackupSection() {
   }
 
   return (
-    <SettingsSection id="backup" description="导出或导入全部设置、分组与图标">
+    <SettingsSection id="backup" description="导出或导入全部设置、分组、文件夹与图标">
       {!canEdit ? (
         <LoginRequired>备份与恢复需要管理员登录后才能使用</LoginRequired>
       ) : (
@@ -132,7 +144,7 @@ export function BackupSection() {
                 导出备份
               </p>
               <p className="mt-0.5 text-[11px] leading-relaxed text-fg/45">
-                包含设置、分组与图标（不含密码和探针令牌），保存为 JSON 文件。
+                包含设置、分组、文件夹尺寸与图标收纳关系（不含密码和探针令牌），保存为 JSON 文件。
               </p>
             </div>
             <button
@@ -161,6 +173,7 @@ export function BackupSection() {
               type="file"
               accept="application/json,.json"
               className="hidden"
+              disabled={importing}
               onChange={(e) => {
                 const selected = e.target.files?.[0]
                 if (selected) void pickFile(selected)
@@ -169,6 +182,7 @@ export function BackupSection() {
             <button
               type="button"
               className={`${btnGhost} flex w-full items-center justify-center gap-1.5 sm:w-auto`}
+              disabled={importing}
               onClick={() => fileRef.current?.click()}
             >
               <FileJson className="size-3.5" aria-hidden />
@@ -185,25 +199,28 @@ export function BackupSection() {
                     {file.name}
                   </span>
                   <span>分组 {file.data.categories?.length ?? 0} 个</span>
+                  <span>文件夹 {file.data.folders?.length ?? 0} 个</span>
                   <span>图标 {file.data.sites?.length ?? 0} 个</span>
                   {file.data.exported_at && <span>导出于 {file.data.exported_at}</span>}
                 </div>
 
+                <fieldset disabled={importing}>
                 <Segmented
                   label="导入方式"
                   value={mode}
                   options={MODE_OPTIONS}
                   onChange={setMode}
                 />
+                </fieldset>
 
                 {mode === 'replace' ? (
                   <Note tone="danger" icon={TriangleAlert}>
-                    「替换」会<strong className="font-semibold">先清空现有全部分组与图标</strong>
+                    「替换」会<strong className="font-semibold">先清空现有全部分组、文件夹与图标</strong>
                     ，再写入这份备份，且无法撤销。导入前建议先导出一份当前数据。
                   </Note>
                 ) : (
                   <Note tone="info" icon={RefreshCw}>
-                    「合并」会把备份里的分组与图标追加到现有数据后面，已存在的内容不会被删除。
+                    「合并」会把备份里的分组、文件夹与图标追加到现有数据后面，保留收纳关系，已存在的内容不会被删除。
                   </Note>
                 )}
 
@@ -211,6 +228,7 @@ export function BackupSection() {
                   <button
                     type="button"
                     className={btnGhost}
+                    disabled={importing}
                     onClick={() => {
                       setFile(null)
                       if (fileRef.current) fileRef.current.value = ''

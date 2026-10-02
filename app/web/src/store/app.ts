@@ -10,7 +10,7 @@ import { clearLinkCache, prewarmLinks } from '../lib/link.ts'
 import { currentNetMode, type NetMode } from '../lib/net.ts'
 import { normalizeSettings, type AppSettings, type ThemePref } from '../lib/settings.ts'
 import { deviceTheme, isThemePref } from '../lib/device-theme.ts'
-import type { Bootstrap, Category, SessionUser, Site } from '../lib/types.ts'
+import type { Bootstrap, Category, Folder, SessionUser, Site } from '../lib/types.ts'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -24,6 +24,7 @@ let silentRestoreTried = false
 export type SiteInput = {
   title: string
   category_id: number | null
+  folder_id?: number | null
   description?: string | null
   url_public?: string | null
   url_lan?: string | null
@@ -32,6 +33,15 @@ export type SiteInput = {
   icon_url?: string | null
   icon_text?: string | null
   color?: string | null
+}
+
+export type FolderInput = {
+  name: string
+  category_id: number | null
+  columns?: number
+  rows?: number
+  color?: string | null
+  site_ids?: number[]
 }
 
 export type ReorderItem = {
@@ -51,6 +61,7 @@ type AppState = {
   settings: AppSettings
   rawSettings: Record<string, string>
   categories: Category[]
+  folders: Folder[]
   sites: Site[]
 
   editMode: boolean
@@ -67,6 +78,10 @@ type AppState = {
   updateCategory: (id: number, patch: { name?: string; icon?: string | null }) => Promise<void>
   deleteCategory: (id: number, mode: 'detach' | 'delete') => Promise<void>
   reorderCategories: (ids: number[]) => Promise<void>
+
+  createFolder: (input: FolderInput) => Promise<void>
+  updateFolder: (id: number, patch: Partial<FolderInput>) => Promise<void>
+  deleteFolder: (id: number) => Promise<void>
 
   createSite: (input: SiteInput) => Promise<Site>
   updateSite: (id: number, patch: Partial<SiteInput>) => Promise<void>
@@ -88,6 +103,7 @@ export const useApp = create<AppState>()((set, get) => ({
   settings: { ...normalizeSettings(undefined), theme: deviceTheme.current() ?? 'auto' },
   rawSettings: {},
   categories: [],
+  folders: [],
   sites: [],
 
   editMode: false,
@@ -119,6 +135,7 @@ export const useApp = create<AppState>()((set, get) => ({
         rawSettings: data.settings,
         settings,
         categories: data.categories,
+        folders: data.folders ?? [],
         sites: data.sites,
         editMode: false,
         netMode: currentNetMode(),
@@ -128,7 +145,7 @@ export const useApp = create<AppState>()((set, get) => ({
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         // 不允许匿名浏览，或者会话彻底过期
-        set({ status: 'ready', needsLogin: true, user: null, canEdit: false })
+        set({ status: 'ready', needsLogin: true, user: null, canEdit: false, categories: [], folders: [], sites: [], editMode: false })
         return
       }
       set({
@@ -163,6 +180,9 @@ export const useApp = create<AppState>()((set, get) => ({
       user: null,
       canEdit: false,
       editMode: false,
+      categories: [],
+      folders: [],
+      sites: [],
     })
     await get().bootstrap()
   },
@@ -218,6 +238,10 @@ export const useApp = create<AppState>()((set, get) => ({
     await api(`/api/categories/${id}?mode=${mode}`, { method: 'DELETE' })
     set((s) => ({
       categories: s.categories.filter((c) => c.id !== id),
+      folders:
+        mode === 'delete'
+          ? s.folders.filter((folder) => folder.category_id !== id)
+          : s.folders.map((folder) => (folder.category_id === id ? { ...folder, category_id: null } : folder)),
       // detach 模式下后端把图标置为「未分组」，本地也要跟着改
       sites:
         mode === 'delete'
@@ -247,6 +271,32 @@ export const useApp = create<AppState>()((set, get) => ({
       set({ categories: snapshot })
       throw err
     }
+  },
+
+  // ── 文件夹 ──────────────────────────────────────────────────
+
+  async createFolder(input) {
+    const res = await api<{ folder: Folder; sites: Site[] }>('/api/folders', jsonBody(input))
+    set((s) => ({ folders: [...s.folders, res.folder], sites: res.sites }))
+    prewarmLinks(res.sites, get().netMode)
+  },
+
+  async updateFolder(id, patch) {
+    const res = await api<{ folder: Folder; sites: Site[] }>(`/api/folders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    })
+    set((s) => ({
+      folders: s.folders.map((folder) => (folder.id === id ? res.folder : folder)),
+      sites: res.sites,
+    }))
+    prewarmLinks(res.sites, get().netMode)
+  },
+
+  async deleteFolder(id) {
+    const res = await api<{ sites: Site[] }>(`/api/folders/${id}`, { method: 'DELETE' })
+    set((s) => ({ folders: s.folders.filter((folder) => folder.id !== id), sites: res.sites }))
+    prewarmLinks(res.sites, get().netMode)
   },
 
   // ── 图标 ────────────────────────────────────────────────────

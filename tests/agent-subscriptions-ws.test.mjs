@@ -403,7 +403,9 @@ test('real agent subprocess uses WSS jobs and HTTPS results without any HTTP pol
       const state = await childFixture(t, { oldServer: true })
       await eventually(() => state.upgrades >= 2 && state.reports >= 2)
       assert.equal(state.polls, 0); assert.equal(state.results.length, 0)
-      assert.equal(state.logs.includes('404'), false)
+      // Startup URLs include random ports (for example 54040); those digits
+      // are not an upstream HTTP status leaking through the error logger.
+      assert.equal(/(?:^|\D)404(?:\D|$)/.test(state.logs), false)
       assert.equal(state.logs.includes('child-fixture-key'), false)
     }),
   ])

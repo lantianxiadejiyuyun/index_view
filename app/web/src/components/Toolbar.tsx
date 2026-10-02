@@ -3,6 +3,7 @@ import {
   Activity,
   Check,
   FolderPlus,
+  Group,
   Images,
   LogIn,
   LogOut,
@@ -47,7 +48,7 @@ function IconButton({
   )
 }
 
-export function Toolbar({ onAddSite, onAddCategory }: { onAddSite: () => void; onAddCategory: () => void }) {
+export function Toolbar({ onAddSite, onAddCategory, onAddFolder }: { onAddSite: () => void; onAddCategory: () => void; onAddFolder: () => void }) {
   const canEdit = useApp((s) => s.canEdit)
   const editMode = useApp((s) => s.editMode)
   const setEditMode = useApp((s) => s.setEditMode)
@@ -119,6 +120,9 @@ export function Toolbar({ onAddSite, onAddCategory }: { onAddSite: () => void; o
                   <Plus className="size-4" aria-hidden />
                 </IconButton>
                 <IconButton label="添加分组" onClick={onAddCategory}>
+                  <Group className="size-4" aria-hidden />
+                </IconButton>
+                <IconButton label="添加文件夹" onClick={onAddFolder}>
                   <FolderPlus className="size-4" aria-hidden />
                 </IconButton>
               </>

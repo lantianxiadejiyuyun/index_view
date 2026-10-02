@@ -1,21 +1,23 @@
 import { useCallback, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Check, FolderPlus, LayoutGrid, Minimize2, Plus } from 'lucide-react'
+import { Check, FolderPlus, Group, LayoutGrid, Minimize2, Plus } from 'lucide-react'
 import { Clock } from '../components/Clock.tsx'
 import { CategoryEditorModal } from '../components/CategoryEditor.tsx'
 import { SearchBar } from '../components/SearchBar.tsx'
 import { SiteEditorModal } from '../components/SiteEditor.tsx'
 import { SiteGrid } from '../components/SiteGrid.tsx'
+import { FolderEditorModal } from '../components/FolderEditor.tsx'
 import { Toolbar } from '../components/Toolbar.tsx'
 import { WidgetRow } from '../components/Widgets.tsx'
 import { useApp } from '../store/app.ts'
 import { useMinimal } from '../store/minimal.ts'
-import type { Category, Site } from '../lib/types.ts'
+import type { Category, Folder, Site } from '../lib/types.ts'
 
 type SiteEditorState = {
   open: boolean
   site: Site | null
   categoryId: number | null
+  folderId?: number | null
 }
 
 type CategoryEditorState = {
@@ -27,9 +29,11 @@ type CategoryEditorState = {
 function MobileEditBar({
   onAddSite,
   onAddCategory,
+  onAddFolder,
 }: {
   onAddSite: () => void
   onAddCategory: () => void
+  onAddFolder: () => void
 }) {
   const setEditMode = useApp((s) => s.setEditMode)
 
@@ -50,8 +54,12 @@ function MobileEditBar({
           onClick={onAddCategory}
           className="flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-fg/85 transition active:bg-line/15"
         >
-          <FolderPlus className="size-5" aria-hidden />
+          <Group className="size-5" aria-hidden />
           <span className="text-[11px]">加分组</span>
+        </button>
+
+        <button type="button" onClick={onAddFolder} className="flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-fg/85 transition active:bg-line/15">
+          <FolderPlus className="size-5" aria-hidden /><span className="text-[11px]">加文件夹</span>
         </button>
 
         <button
@@ -83,9 +91,10 @@ export function HomePage() {
     open: false,
     category: null,
   })
+  const [folderEditor, setFolderEditor] = useState<{ open: boolean; folder: Folder | null }>({ open: false, folder: null })
 
-  const openAddSite = useCallback((categoryId: number | null) => {
-    setSiteEditor({ open: true, site: null, categoryId })
+  const openAddSite = useCallback((categoryId: number | null, folderId?: number | null) => {
+    setSiteEditor({ open: true, site: null, categoryId, folderId })
   }, [])
 
   const openEditSite = useCallback((site: Site, categoryId: number | null) => {
@@ -123,6 +132,7 @@ export function HomePage() {
       <Toolbar
         onAddSite={() => openAddSite(null)}
         onAddCategory={() => setCategoryEditor({ open: true, category: null })}
+        onAddFolder={() => setFolderEditor({ open: true, folder: null })}
       />
 
       <main
@@ -152,7 +162,7 @@ export function HomePage() {
               </div>
             )}
             {appearance === 'terminal' && <p className="terminal-ready"><span aria-hidden="true">●</span> 导航已就绪 <span aria-hidden="true">/ READY</span></p>}
-            <SiteGrid onEditSite={openEditSite} onAddSite={openAddSite} />
+            <SiteGrid onEditSite={openEditSite} onAddSite={openAddSite} onEditFolder={(folder) => setFolderEditor({ open: true, folder })} />
           </div>
         </div>
       </main>
@@ -161,6 +171,7 @@ export function HomePage() {
         <MobileEditBar
           onAddSite={() => openAddSite(null)}
           onAddCategory={() => setCategoryEditor({ open: true, category: null })}
+          onAddFolder={() => setFolderEditor({ open: true, folder: null })}
         />
       )}
 
@@ -168,6 +179,7 @@ export function HomePage() {
         open={siteEditor.open}
         site={siteEditor.site}
         defaultCategoryId={siteEditor.categoryId}
+        defaultFolderId={siteEditor.folderId}
         onClose={() => setSiteEditor({ open: false, site: null, categoryId: null })}
       />
 
@@ -176,6 +188,7 @@ export function HomePage() {
         category={categoryEditor.category}
         onClose={() => setCategoryEditor({ open: false, category: null })}
       />
+      <FolderEditorModal open={folderEditor.open} folder={folderEditor.folder} defaultCategoryId={folderEditor.folder?.category_id ?? null} onClose={() => setFolderEditor({ open: false, folder: null })} />
     </div>
   )
 }

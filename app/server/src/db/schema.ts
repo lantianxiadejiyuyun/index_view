@@ -356,6 +356,26 @@ const MIGRATIONS: Migration[] = [
         );
     `,
   },
+  {
+    version: 14,
+    name: 'custom-sized-bookmark-folders',
+    up: `
+      CREATE TABLE folders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+        columns INTEGER NOT NULL DEFAULT 2 CHECK (columns BETWEEN 1 AND 4),
+        rows INTEGER NOT NULL DEFAULT 2 CHECK (rows BETWEEN 1 AND 3),
+        color TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX idx_folders_category ON folders(category_id, sort_order);
+      ALTER TABLE sites ADD COLUMN folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL;
+      CREATE INDEX idx_sites_folder ON sites(folder_id, sort_order);
+    `,
+  },
 ]
 export const DEFAULT_SETTINGS: Record<string, string> = {
   site_title: '我的导航',
@@ -478,6 +498,10 @@ function seedAdmin(): void {
 function seedDemoContent(): void {
   const count = sql.get<{ n: number }>('SELECT COUNT(*) AS n FROM sites')?.n ?? 0
   if (count > 0) return
+  // Empty folders/groups are intentional content too. Restarting must not add
+  // demo bookmarks into a freshly organized workspace with no sites yet.
+  const containers = sql.get<{ n: number }>('SELECT (SELECT COUNT(*) FROM categories) + (SELECT COUNT(*) FROM folders) AS n')?.n ?? 0
+  if (containers > 0) return
 
   const t = Date.now()
   const groups: Array<{ name: string; icon: string; sites: Array<[string, string, string]> }> = [

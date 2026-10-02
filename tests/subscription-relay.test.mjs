@@ -113,8 +113,8 @@ async function cachedSource() {
   return created
 }
 
-test('v13 preserves direct fetching defaults and relay metadata without node secrets', async () => {
-  assert.equal(h.sql.get('PRAGMA user_version').user_version, 13)
+test('current schema preserves direct fetching defaults and relay metadata without node secrets', async () => {
+  assert.equal(h.sql.get('PRAGMA user_version').user_version, 14)
   const direct = await source({ fetch_agent_id: null })
   assert.equal(direct.fetch_agent_id, null)
   assert.equal(direct.fetch_agent_name, null)

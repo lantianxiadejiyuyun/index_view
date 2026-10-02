@@ -12,11 +12,22 @@ export type Category = {
   sort_order: number
 }
 
+export type Folder = {
+  id: number
+  name: string
+  category_id: number | null
+  columns: number
+  rows: number
+  color: string | null
+  sort_order: number
+}
+
 export type LinkMode = 'auto' | 'public' | 'lan'
 
 export type Site = {
   id: number
   category_id: number | null
+  folder_id?: number | null
   title: string
   description: string | null
   url_public: string | null
@@ -36,6 +47,7 @@ export type Bootstrap = {
   can_edit: boolean
   settings: Record<string, string>
   categories: Category[]
+  folders?: Folder[]
   sites: Site[]
 }
 

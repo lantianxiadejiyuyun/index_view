@@ -4,8 +4,14 @@ import { sql } from '../lib/db.js'
 import { initialOf, num, str } from '../lib/parse.js'
 import { requireAuth } from '../middleware/auth.js'
 import type { AppEnv } from '../types.js'
+import { NavigationInputError, siteLocation } from '../lib/folders.js'
 
 export const siteRoutes = new Hono<AppEnv>()
+
+siteRoutes.onError((err, c) => {
+  if (err instanceof NavigationInputError) return c.json({ error: 'bad_request', message: err.message }, 400)
+  throw err
+})
 
 // ── 工具 ──────────────────────────────────────────────────────
 
@@ -110,6 +116,7 @@ siteRoutes.delete('/categories/:id', requireAuth, (c) => {
     if (mode === 'delete') {
       // 连同分组下的图标一起删掉
       sql.run('DELETE FROM sites WHERE category_id = ?', id)
+      sql.run('DELETE FROM folders WHERE category_id = ?', id)
     }
     // 默认只解绑：外键是 ON DELETE SET NULL，图标会落到「未分组」
     sql.run('DELETE FROM categories WHERE id = ?', id)
@@ -145,20 +152,22 @@ siteRoutes.post('/sites', requireAuth, async (c) => {
     return c.json({ error: 'bad_request', message: '至少填写一个有效地址（http/https）' }, 400)
   }
 
-  const categoryId = num(body.category_id)
+  const { categoryId, folderId } = siteLocation(body)
   const maxOrder =
     sql.get<{ m: number | null }>(
-      'SELECT MAX(sort_order) AS m FROM sites WHERE category_id IS ?',
+      'SELECT MAX(sort_order) AS m FROM sites WHERE category_id IS ? AND folder_id IS ?',
       categoryId,
+      folderId,
     )?.m ?? -1
 
   const t = Date.now()
   const { lastInsertRowid } = sql.run(
-    `INSERT INTO sites (category_id, title, description, url_public, url_lan, lan_port,
+    `INSERT INTO sites (category_id, folder_id, title, description, url_public, url_lan, lan_port,
                         link_mode, icon_url, icon_text, color, source, sort_order,
                         created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?)`,
     categoryId,
+    folderId,
     title,
     str(body.description, 200),
     urlPublic,
@@ -200,14 +209,15 @@ siteRoutes.put('/sites/:id', requireAuth, async (c) => {
     return c.json({ error: 'bad_request', message: '至少填写一个有效地址（http/https）' }, 400)
   }
 
-  const categoryId = body.category_id === undefined ? num(existing.category_id) : num(body.category_id)
+  const { categoryId, folderId } = siteLocation(body, { category_id: existing.category_id, folder_id: existing.folder_id })
 
   sql.run(
-    `UPDATE sites SET category_id = ?, title = ?, description = ?, url_public = ?, url_lan = ?,
+    `UPDATE sites SET category_id = ?, folder_id = ?, title = ?, description = ?, url_public = ?, url_lan = ?,
                       lan_port = ?, link_mode = ?, icon_url = ?, icon_text = ?, color = ?,
                       updated_at = ?
      WHERE id = ?`,
     categoryId,
+    folderId,
     title,
     body.description === undefined ? (existing.description as string | null) : str(body.description, 200),
     urlPublic,
@@ -233,21 +243,27 @@ siteRoutes.delete('/sites/:id', requireAuth, (c) => {
 
 siteRoutes.patch('/sites/reorder', requireAuth, async (c) => {
   const body = await c.req
-    .json<{ items?: Array<{ id?: unknown; category_id?: unknown; sort_order?: unknown }> }>()
+    .json<{ items?: Array<{ id?: unknown; category_id?: unknown; folder_id?: unknown; sort_order?: unknown }> }>()
     .catch(() => ({ items: [] }))
   const items = Array.isArray(body.items) ? body.items : []
   if (items.length === 0) return c.json({ ok: true, updated: 0 })
 
+  // Resolve every target before updating any row so a stale folder/group is atomic.
+  const changes = items.flatMap((item, index) => {
+    if (!item || typeof item !== 'object') throw new NavigationInputError('排序内容无效')
+    const id = Number(item.id)
+    if (!Number.isSafeInteger(id)) throw new NavigationInputError('站点 ID 无效')
+    const existing = sql.get<{ category_id: number | null; folder_id: number | null }>('SELECT category_id, folder_id FROM sites WHERE id = ?', id)
+    if (!existing) throw new NavigationInputError('站点不存在，请刷新后重试')
+    return [{ id, ...siteLocation(item, existing), order: num(item.sort_order) ?? index }]
+  })
   let updated = 0
   sql.tx(() => {
-    items.forEach((item, index) => {
-      const id = Number(item.id)
-      if (!Number.isFinite(id)) return
-      const categoryId = num(item.category_id)
-      const order = num(item.sort_order) ?? index
+    changes.forEach(({ id, categoryId, folderId, order }) => {
       const res = sql.run(
-        'UPDATE sites SET category_id = ?, sort_order = ?, updated_at = ? WHERE id = ?',
+        'UPDATE sites SET category_id = ?, folder_id = ?, sort_order = ?, updated_at = ? WHERE id = ?',
         categoryId,
+        folderId,
         order,
         Date.now(),
         id,

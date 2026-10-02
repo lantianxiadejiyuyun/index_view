@@ -15,6 +15,7 @@ import { attachSubscriptionRelayWebSocket } from './lib/subscription-relay-ws.js
 import { authRoutes } from './routes/auth.js'
 import { bootstrapRoutes } from './routes/bootstrap.js'
 import { faviconRoutes } from './routes/favicon.js'
+import { folderRoutes } from './routes/folders.js'
 import { importRoutes } from './routes/import.js'
 import { nodeRoutes } from './routes/nodes.js'
 import { noteRoutes } from './routes/notes.js'
@@ -56,6 +57,7 @@ api.get('/health', (c) =>
 api.route('/auth', authRoutes)
 api.route('/', bootstrapRoutes)
 api.route('/', siteRoutes)
+api.route('/', folderRoutes)
 api.route('/', settingsRoutes)
 api.route('/', subscriptionRoutes)
 api.route('/', uploadRoutes)

@@ -1,0 +1,291 @@
+import assert from 'node:assert/strict'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { after, before, test } from 'node:test'
+import { build } from 'esbuild'
+import { SERVER_ESM_BANNER } from '../scripts/server-bundle-options.mjs'
+
+const serverRoot = fileURLToPath(new URL('../app/server/', import.meta.url))
+const workspace = mkdtempSync(path.join(tmpdir(), 'hd-folders-'))
+const dbFile = path.join(workspace, 'app.db')
+let h, token, legacySites
+
+async function bundle(name, legacy = false) {
+  const output = path.join(workspace, name + '.mjs')
+  await build({
+    stdin: { contents: `
+      import { Hono } from 'hono';
+      import { siteRoutes } from './src/routes/sites.ts';
+      import { folderRoutes } from './src/routes/folders.ts';
+      import { settingsRoutes } from './src/routes/settings.ts';
+      import { bootstrapRoutes } from './src/routes/bootstrap.ts';
+      import { importRoutes } from './src/routes/import.ts';
+      export const app = new Hono().route('/api', siteRoutes).route('/api', folderRoutes).route('/api', settingsRoutes).route('/api', bootstrapRoutes).route('/api', importRoutes);
+      export { sql, closeDb } from './src/lib/db.ts';
+      export { initDatabase } from './src/db/schema.ts';
+      export { createAccessOnlySession, issueAccessToken } from './src/lib/tokens.ts';
+    `, resolveDir: serverRoot, loader: 'ts' },
+    bundle: true, platform: 'node', format: 'esm', target: 'node22', outfile: output,
+    banner: { js: SERVER_ESM_BANNER },
+    plugins: [{ name: 'isolated-folders', setup(builder) {
+      builder.onResolve({ filter: /\/config\.js$/ }, () => ({ path: 'config', namespace: 'folders-fixture' }))
+      builder.onLoad({ filter: /.*/, namespace: 'folders-fixture' }, () => ({ contents: `
+        export const DB_FILE = ${JSON.stringify(dbFile)};
+        export const REFRESH_DAYS = 30;
+        export const ADMIN_USERNAME = 'folder-fixture';
+        export const ADMIN_PASSWORD = 'fixture-only-password';
+        export const ENV_AGENT_TOKEN = 'fixture-agent';
+        export const ENV_JWT_SECRET = 'fixture-only-jwt-secret';
+        export const PUBLIC_VIEW = true;
+        export function ensureDirs() {}
+      `, loader: 'js' }))
+      if (legacy) builder.onLoad({ filter: /[\\/]db[\\/]schema\.ts$/ }, ({ path: source }) => ({
+        contents: readFileSync(source, 'utf8').replace('m.version > current', 'm.version > current && m.version <= 13')
+          .replace('(SELECT COUNT(*) FROM categories) + (SELECT COUNT(*) FROM folders)', '(SELECT COUNT(*) FROM categories)'), loader: 'ts',
+      }))
+    } }],
+  })
+  return import(pathToFileURL(output).href)
+}
+
+before(async () => {
+  const old = await bundle('legacy', true)
+  old.initDatabase()
+  assert.equal(old.sql.get('PRAGMA user_version').user_version, 13)
+  legacySites = old.sql.all('SELECT * FROM sites ORDER BY id').map(row => ({ ...row }))
+  old.closeDb()
+  h = await bundle('current')
+  h.initDatabase()
+  const user = h.sql.get('SELECT id, username FROM users ORDER BY id LIMIT 1')
+  token = await h.issueAccessToken(user, h.createAccessOnlySession(user.id, 'Test browser', '192.0.2.1'))
+})
+after(() => {
+  h?.closeDb()
+  assert.equal(path.dirname(workspace), path.resolve(tmpdir()))
+  assert.ok(path.basename(workspace).startsWith('hd-folders-'))
+  rmSync(workspace, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 })
+})
+function request(route, body, method = body === undefined ? 'GET' : 'POST', authorized = true) {
+  return h.app.request('/api' + route, { method, headers: {
+    ...(authorized ? { Authorization: 'Bearer ' + token } : {}),
+    ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+  }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
+}
+async function json(route, body, method, status = 200) {
+  const response = await request(route, body, method)
+  const result = await response.json()
+  assert.equal(response.status, status, JSON.stringify(result))
+  return result
+}
+function state() {
+  return { categories: h.sql.all('SELECT * FROM categories ORDER BY id'), folders: h.sql.all('SELECT * FROM folders ORDER BY id'), sites: h.sql.all('SELECT * FROM sites ORDER BY id') }
+}
+async function fixture() {
+  h.sql.exec('DELETE FROM sites; DELETE FROM folders; DELETE FROM categories;')
+  const a = (await json('/categories', { name: 'Work' }, 'POST', 201)).category.id
+  const b = (await json('/categories', { name: 'Personal' }, 'POST', 201)).category.id
+  const sites = []
+  for (let i = 0; i < 4; i++) sites.push((await json('/sites', { title: 'Site ' + i, url_public: 'https://example.com/' + i, category_id: i < 2 ? a : b }, 'POST', 201)).site.id)
+  return { a, b, sites }
+}
+const site = id => h.sql.get('SELECT * FROM sites WHERE id = ?', id)
+
+test('v13 migration keeps every original bookmark and adds nullable folder membership', async () => {
+  assert.equal(h.sql.get('PRAGMA user_version').user_version, 14)
+  const current = h.sql.all('SELECT * FROM sites ORDER BY id')
+  assert.deepEqual(current.map(({ folder_id, ...rest }) => { assert.equal(folder_id, null); return rest }), legacySites)
+  assert.deepEqual(h.sql.all('PRAGMA foreign_key_check'), [])
+  assert.deepEqual((await json('/bootstrap')).folders, [])
+})
+
+test('folder writes require a live authenticated session', async () => {
+  for (const [route, method, body] of [['/folders', 'POST', { name: 'Blocked' }], ['/folders/1', 'PUT', { name: 'Blocked' }], ['/folders/1', 'DELETE', undefined]]) {
+    assert.equal((await request(route, body, method, false)).status, 401)
+  }
+})
+
+test('creating a folder moves its selected sites together and bootstrap returns their membership', async () => {
+  const { a, sites } = await fixture()
+  const result = await json('/folders', { name: 'Resources', category_id: a, columns: 3, rows: 2, color: '#aabbcc', site_ids: [sites[0], sites[2]] }, 'POST', 201)
+  assert.equal(result.folder.columns, 3)
+  assert.equal(result.folder.rows, 2)
+  assert.equal(result.sites.length, 4)
+  for (const id of [sites[0], sites[2]]) { assert.equal(site(id).folder_id, result.folder.id); assert.equal(site(id).category_id, a) }
+  assert.equal(site(sites[1]).folder_id, null)
+  const bootstrap = await json('/bootstrap')
+  assert.equal(bootstrap.folders[0].name, 'Resources')
+  assert.equal(bootstrap.sites.find(item => item.id === sites[2]).folder_id, result.folder.id)
+})
+
+test('all supported folder dimensions including custom sizes survive update', async () => {
+  await fixture()
+  const { folder } = await json('/folders', { name: 'Sizes' }, 'POST', 201)
+  for (let columns = 1; columns <= 4; columns++) for (let rows = 1; rows <= 3; rows++) {
+    const result = await json('/folders/' + folder.id, { columns, rows }, 'PUT')
+    assert.equal(result.folder.columns, columns)
+    assert.equal(result.folder.rows, rows)
+    assert.equal(result.folder.name, 'Sizes')
+  }
+})
+
+test('invalid dimensions, references and membership reject the entire folder write', async () => {
+  const { a, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Keep', category_id: a, site_ids: [sites[0]] }, 'POST', 201)
+  for (const patch of [{ columns: 0 }, { columns: 5 }, { columns: 1.5 }, { rows: 0 }, { rows: 4 }, { rows: null }, { color: 'red' }, { name: ' ' }, { category_id: 999999 }, { site_ids: [sites[1], 999999] }, { site_ids: [sites[1], sites[1]] }, { site_ids: [null] }, { site_ids: 'bad' }]) {
+    const before = state()
+    assert.equal((await request('/folders/' + folder.id, { name: 'Changed', ...patch }, 'PUT')).status, 400, JSON.stringify(patch))
+    assert.deepEqual(state(), before)
+  }
+  const before = state()
+  assert.equal((await request('/folders', { name: 'Invalid new', site_ids: [sites[1], 999999] })).status, 400)
+  assert.deepEqual(state(), before)
+})
+
+test('exact membership selection unwraps deselected sites and moves members between folders', async () => {
+  const { a, b, sites } = await fixture()
+  const first = (await json('/folders', { name: 'First', category_id: a, site_ids: [sites[0], sites[1]] }, 'POST', 201)).folder
+  const second = (await json('/folders', { name: 'Second', category_id: b, site_ids: [sites[0], sites[2]] }, 'POST', 201)).folder
+  assert.equal(site(sites[0]).folder_id, second.id)
+  await json('/folders/' + first.id, { category_id: b, site_ids: [sites[3]] }, 'PUT')
+  assert.equal(site(sites[1]).folder_id, null)
+  assert.equal(site(sites[1]).category_id, b)
+  assert.equal(site(sites[3]).folder_id, first.id)
+  await json('/folders/' + second.id, { category_id: null }, 'PUT')
+  for (const id of [sites[0], sites[2]]) { assert.equal(site(id).category_id, null); assert.equal(site(id).folder_id, second.id) }
+})
+
+test('deleting a folder unwraps all its bookmarks without deleting any', async () => {
+  const { a, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Unwrap', category_id: a, site_ids: sites }, 'POST', 201)
+  const result = await json('/folders/' + folder.id, undefined, 'DELETE')
+  assert.equal(result.sites.length, sites.length)
+  assert.ok(result.sites.every(item => item.folder_id === null && item.category_id === a))
+  assert.equal(h.sql.all('SELECT * FROM folders').length, 0)
+})
+
+test('site creation, moves and editing respect the selected folder group', async () => {
+  const { a, b, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Destination', category_id: a }, 'POST', 201)
+  const created = (await json('/sites', { title: 'Inside', url_public: 'https://example.com/new', category_id: b, folder_id: folder.id }, 'POST', 201)).site
+  assert.equal(created.category_id, a)
+  await json('/sites/' + sites[2], { folder_id: folder.id }, 'PUT')
+  assert.equal(site(sites[2]).category_id, a)
+  await json('/sites/' + sites[2], { title: 'Renamed' }, 'PUT')
+  assert.equal(site(sites[2]).folder_id, folder.id)
+  await json('/sites/' + sites[2], { category_id: b }, 'PUT')
+  assert.equal(site(sites[2]).folder_id, null)
+  await json('/sites/' + created.id, { folder_id: null }, 'PUT')
+  assert.equal(site(created.id).category_id, a)
+  assert.equal(site(created.id).folder_id, null)
+  const before = state()
+  assert.equal((await request('/sites/' + sites[0], { folder_id: 999999 }, 'PUT')).status, 400)
+  assert.equal((await request('/sites', { title: 'Invalid', url_public: 'https://example.com', folder_id: 999999 })).status, 400)
+  assert.deepEqual(state(), before)
+})
+
+test('reorder preserves membership, detaches direct group moves and rejects partial invalid batches', async () => {
+  const { a, b, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Sort', category_id: a, site_ids: [sites[0], sites[1]] }, 'POST', 201)
+  await json('/sites/reorder', { items: [{ id: sites[0], category_id: a, sort_order: 12 }] }, 'PATCH')
+  assert.equal(site(sites[0]).folder_id, folder.id)
+  await json('/sites/reorder', { items: [{ id: sites[0], category_id: b, sort_order: 1 }] }, 'PATCH')
+  assert.equal(site(sites[0]).folder_id, null)
+  await json('/sites/reorder', { items: [{ id: sites[2], folder_id: folder.id, sort_order: 0 }] }, 'PATCH')
+  assert.equal(site(sites[2]).folder_id, folder.id)
+  assert.equal(site(sites[2]).category_id, a)
+  const before = state()
+  assert.equal((await request('/sites/reorder', { items: [{ id: sites[0], sort_order: 98 }, { id: sites[1], folder_id: 999999 }] }, 'PATCH')).status, 400)
+  assert.deepEqual(state(), before)
+})
+
+test('category detach retains folders and membership while category delete removes its contents', async () => {
+  let f = await fixture()
+  let folder = (await json('/folders', { name: 'Detach', category_id: f.a, site_ids: [f.sites[0]] }, 'POST', 201)).folder
+  await json('/categories/' + f.a + '?mode=detach', undefined, 'DELETE')
+  assert.equal(h.sql.get('SELECT category_id FROM folders WHERE id = ?', folder.id).category_id, null)
+  assert.equal(site(f.sites[0]).category_id, null)
+  assert.equal(site(f.sites[0]).folder_id, folder.id)
+  f = await fixture()
+  folder = (await json('/folders', { name: 'Delete', category_id: f.a, site_ids: [f.sites[0]] }, 'POST', 201)).folder
+  await json('/categories/' + f.a + '?mode=delete', undefined, 'DELETE')
+  assert.equal(h.sql.get('SELECT id FROM folders WHERE id = ?', folder.id), undefined)
+  assert.equal(site(f.sites[0]), undefined)
+  assert.ok(site(f.sites[2]))
+  assert.deepEqual(h.sql.all('PRAGMA foreign_key_check'), [])
+})
+
+test('backup v2 roundtrip restores folder sizes, membership, dual links and empty folders', async () => {
+  const { a, sites } = await fixture()
+  await json('/folders', { name: 'Wide', category_id: a, columns: 4, rows: 3, color: '#123abc', site_ids: [sites[0], sites[2]] }, 'POST', 201)
+  await json('/folders', { name: 'Empty', columns: 1, rows: 1 }, 'POST', 201)
+  await json('/sites/' + sites[0], { url_lan: 'http://192.168.1.20/app', lan_port: 8080, link_mode: 'lan' }, 'PUT')
+  const backup = await json('/export')
+  assert.equal(backup.version, 2)
+  assert.equal(backup.settings.jwt_secret, undefined)
+  const counts = await json('/import', { ...backup, mode: 'replace' })
+  assert.deepEqual([counts.categories, counts.folders, counts.sites], [2, 2, 4])
+  const restored = await json('/export')
+  const wide = restored.folders.find(item => item.name === 'Wide')
+  assert.deepEqual([wide.columns, wide.rows, wide.color], [4, 3, '#123abc'])
+  assert.equal(restored.sites.filter(item => item.folder_id === wide.id).length, 2)
+  const dual = restored.sites.find(item => item.title === 'Site 0')
+  assert.deepEqual([dual.url_lan, dual.lan_port, dual.link_mode], ['http://192.168.1.20/app', 8080, 'lan'])
+  assert.equal(dual.category_id, wide.category_id)
+  assert.equal(restored.folders.length, 2)
+  const merged = await json('/import', { ...backup, mode: 'merge' })
+  assert.equal(merged.folders, 2)
+  assert.equal((await json('/export')).folders.length, 4)
+  assert.deepEqual(h.sql.all('PRAGMA foreign_key_check'), [])
+})
+
+test('invalid folder backup is rejected atomically before replace or settings changes', async () => {
+  await fixture()
+  const valid = { categories: [{ id: 7, name: 'Backup group' }], folders: [{ id: 5, name: 'Backup folder', category_id: 7, columns: 2, rows: 2 }], sites: [{ title: 'Backup site', url: 'https://example.com', category_id: 7, folder_id: 5 }] }
+  const variants = [
+    { ...valid, folders: [{ ...valid.folders[0], columns: 5 }] },
+    { ...valid, folders: [{ ...valid.folders[0], category_id: 99 }] },
+    { ...valid, folders: [...valid.folders, ...valid.folders] },
+    { ...valid, sites: [{ ...valid.sites[0], folder_id: 99 }] },
+    { ...valid, folders: 'invalid' },
+    { categories: [], folders: [], sites: [{ title: 'No address' }] },
+  ]
+  for (const backup of variants) {
+    const before = state()
+    const setting = h.sql.get("SELECT value FROM settings WHERE key = 'site_title'").value
+    assert.equal((await request('/import', { ...backup, settings: { site_title: 'Must not change' } })).status, 400)
+    assert.deepEqual(state(), before)
+    assert.equal(h.sql.get("SELECT value FROM settings WHERE key = 'site_title'").value, setting)
+  }
+})
+
+test('legacy backup without folders remains importable and folders-only backup is supported', async () => {
+  await fixture()
+  await json('/folders', { name: 'Old folder' }, 'POST', 201)
+  await json('/import', { version: 1, categories: [{ id: 8, name: 'Legacy' }], sites: [{ title: 'Legacy site', category_id: 8, url: 'example.com' }] })
+  let data = await json('/bootstrap')
+  assert.deepEqual(data.folders, [])
+  assert.equal(data.sites[0].folder_id, null)
+  assert.equal(data.categories[0].name, 'Legacy')
+  await json('/import', { folders: [{ id: 100, name: 'Empty workspace', columns: 3, rows: 1 }] })
+  data = await json('/bootstrap')
+  assert.equal(data.folders[0].name, 'Empty workspace')
+  assert.equal(data.sites.length, 0)
+  h.initDatabase()
+  assert.equal(h.sql.get('SELECT COUNT(*) AS n FROM sites').n, 0)
+  assert.deepEqual(h.sql.all('PRAGMA foreign_key_check'), [])
+})
+
+test('HTML bookmark replacement removes old folders and merge preserves them', async () => {
+  const { a, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Keep on merge', category_id: a, site_ids: [sites[0]] }, 'POST', 201)
+  const categories = [{ name: 'Browser imports', sites: [{ title: 'Imported', url: 'https://example.org' }] }]
+  await json('/import/bookmarks/commit', { mode: 'merge', categories })
+  assert.equal(site(sites[0]).folder_id, folder.id)
+  await json('/import/bookmarks/commit', { mode: 'replace', categories })
+  const data = await json('/bootstrap')
+  assert.equal(data.folders.length, 0)
+  assert.equal(data.sites.length, 1)
+  assert.equal(data.sites[0].folder_id, null)
+})

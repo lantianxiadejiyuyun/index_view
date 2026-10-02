@@ -204,6 +204,7 @@ importRoutes.post('/import/bookmarks/commit', requireAuth, async (c) => {
     if (mode === 'replace') {
       // 先删 sites：外键是 ON DELETE SET NULL，反过来删会白跑一遍级联更新
       sql.run('DELETE FROM sites')
+      sql.run('DELETE FROM folders')
       sql.run('DELETE FROM categories')
     }
 

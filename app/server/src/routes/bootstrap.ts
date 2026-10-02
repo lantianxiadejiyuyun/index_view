@@ -4,6 +4,7 @@ import { getSetting } from '../db/schema.js'
 import { PUBLIC_VIEW } from '../config.js'
 import { optionalAuth } from '../middleware/auth.js'
 import type { AppEnv } from '../types.js'
+import { allFolders, allSites } from '../lib/folders.js'
 
 export const bootstrapRoutes = new Hono<AppEnv>()
 
@@ -37,17 +38,14 @@ bootstrapRoutes.get('/bootstrap', optionalAuth, (c) => {
      FROM categories ORDER BY sort_order ASC, id ASC`,
   )
 
-  const sites = sql.all(
-    `SELECT id, category_id, title, description, url_public, url_lan, lan_port,
-            link_mode, icon_url, icon_text, color, source, sort_order, clicks
-     FROM sites ORDER BY sort_order ASC, id ASC`,
-  )
+  const sites = allSites()
 
   return c.json({
     user,
     can_edit: Boolean(user),
     settings: readAllSettings(false),
     categories,
+    folders: allFolders(),
     sites,
   })
 })

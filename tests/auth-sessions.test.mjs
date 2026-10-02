@@ -42,7 +42,8 @@ async function bundle(name, legacy = false) {
         export function ensureDirs() {}
       `, loader: 'js' }))
       if (legacy) builder.onLoad({ filter: /[\\/]db[\\/]schema\.ts$/ }, ({ path: source }) => ({
-        contents: readFileSync(source, 'utf8').replace('m.version > current', 'm.version > current && m.version <= 12'), loader: 'ts',
+        contents: readFileSync(source, 'utf8').replace('m.version > current', 'm.version > current && m.version <= 12')
+          .replace('(SELECT COUNT(*) FROM categories) + (SELECT COUNT(*) FROM folders)', '(SELECT COUNT(*) FROM categories)'), loader: 'ts',
       }))
     } }],
   })
@@ -97,7 +98,7 @@ function ageToken(cookie, age = 61_000) { h.sql.run('UPDATE refresh_tokens SET c
 
 
 test('v12 migration preserves live cookies, upgrades to sid, and rejects legacy access and revoked cookies', async () => {
-  assert.equal(h.sql.get('PRAGMA user_version').user_version, 13)
+  assert.equal(h.sql.get('PRAGMA user_version').user_version, 14)
   const token = await h.sign({ sub: 1, username: 'legacy-fixture', exp: Math.floor(Date.now() / 1000) + 3600 }, secret, 'HS256')
   assert.equal((await request('/me', { token })).status, 401)
   const response = await refresh(legacyRaw)

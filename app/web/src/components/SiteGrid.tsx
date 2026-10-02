@@ -6,6 +6,7 @@ import {
   KeyboardSensor,
   PointerSensor,
   closestCenter,
+  pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
@@ -24,10 +25,12 @@ import { errorMessage } from '../lib/api.ts'
 import { resolveLink, openResolved } from '../lib/link.ts'
 import { readableToneStyle, useReadableTone } from '../lib/useWallpaperTone.ts'
 import { CARD_PRESETS, GAP_PRESETS, type CardSize } from '../lib/settings.ts'
-import type { Category, Site } from '../lib/types.ts'
+import type { Category, Folder, Site } from '../lib/types.ts'
 import { useApp, type ReorderItem } from '../store/app.ts'
 import { toast } from '../store/toast.ts'
 import { SiteCard } from './SiteCard.tsx'
+import { FolderCard } from './FolderCard.tsx'
+import { FolderContentsModal } from './FolderContents.tsx'
 
 const UNGROUPED = 'ungrouped'
 
@@ -44,11 +47,25 @@ function parseContainerId(id: string): number | null {
 type Group = {
   category: Category | null
   sites: Site[]
+  folders: Folder[]
+  totalSites: number
 }
 
 type Props = {
   onEditSite: (site: Site, categoryId: number | null) => void
-  onAddSite: (categoryId: number | null) => void
+  onAddSite: (categoryId: number | null, folderId?: number | null) => void
+  onEditFolder: (folder: Folder) => void
+}
+
+function FolderDropCard({ folder, sites, editMode, onOpen, onEdit }: {
+  folder: Folder; sites: Site[]; editMode: boolean; onOpen: () => void; onEdit: () => void
+}) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `folder-${folder.id}`, data: { type: 'folder', folderId: folder.id, categoryId: folder.category_id }, disabled: !editMode,
+  })
+  return <div ref={setNodeRef} className="folder-grid-item" style={{ gridColumn: `span ${folder.columns}`, gridRow: `span ${folder.rows}` }}>
+    <FolderCard folder={folder} sites={sites} editMode={editMode} onOpen={onOpen} onEdit={onEdit} isOver={isOver} />
+  </div>
 }
 
 function SortableCard({
@@ -115,6 +132,9 @@ function CategorySection({
   onRenameCategory,
   onDeleteCategory,
   onOpenSite,
+  onOpenFolder,
+  onEditFolder,
+  allSites,
 }: {
   group: Group
   editMode: boolean
@@ -126,6 +146,9 @@ function CategorySection({
   onRenameCategory: (category: Category) => void
   onDeleteCategory: (category: Category) => void
   onOpenSite: (site: Site) => void
+  onOpenFolder: (folder: Folder) => void
+  onEditFolder: (folder: Folder) => void
+  allSites: Site[]
 }) {
   const categoryId = group.category?.id ?? null
   const { setNodeRef, isOver } = useDroppable({
@@ -157,7 +180,7 @@ function CategorySection({
           <h2 className="text-shadow-soft text-sm font-semibold tracking-wide text-wp/90 sm:text-base">
             {group.category?.name ?? '未分组'}
             <span className="ml-2 text-xs font-normal text-wp/70">
-              {group.sites.length || ''}
+              {group.totalSites || ''}
             </span>
           </h2>
 
@@ -190,13 +213,14 @@ function CategorySection({
           'site-grid-dropzone rounded-2xl transition-colors',
           // 拖动悬停时给个明确的落点提示
           isOver && editMode ? 'bg-line/10 ring-2 ring-dashed ring-line/35' : '',
-          editMode && group.sites.length === 0 ? 'ring-1 ring-dashed ring-line/20' : '',
+          editMode && group.sites.length === 0 && group.folders.length === 0 ? 'ring-1 ring-dashed ring-line/20' : '',
         ].join(' ')}
         style={editMode ? { padding: '0.5rem var(--site-grid-edit-inset, 0.5rem)' } : undefined}
       >
         <SortableContext items={ids} strategy={rectSortingStrategy}>
           {/* 手机固定四列；桌面仍按卡片大小居中换行。 */}
-          <div className="site-grid" style={{ '--site-grid-gap': gap } as CSSProperties}>
+          <div className={`site-grid ${group.folders.length ? 'site-grid-with-folders' : ''}`} style={{ '--site-grid-gap': gap, '--folder-cell-width': `${CARD_PRESETS[cardSize].width}px` } as CSSProperties}>
+            {group.folders.map((folder) => <FolderDropCard key={`folder-${folder.id}`} folder={folder} sites={allSites.filter((site) => site.folder_id === folder.id)} editMode={editMode} onOpen={() => onOpenFolder(folder)} onEdit={() => onEditFolder(folder)} />)}
             {group.sites.map((site) => (
               <SortableCard
                 key={site.id}
@@ -225,7 +249,7 @@ function CategorySection({
           </div>
         </SortableContext>
 
-        {editMode && group.sites.length === 0 && !group.category && (
+        {editMode && group.sites.length === 0 && group.folders.length === 0 && !group.category && (
           <p className="py-3 text-center text-xs text-fg/45">把图标拖到这里可以移出分组</p>
         )}
       </div>
@@ -243,9 +267,10 @@ async function handleDelete(site: Site): Promise<void> {
   }
 }
 
-export function SiteGrid({ onEditSite, onAddSite }: Props) {
+export function SiteGrid({ onEditSite, onAddSite, onEditFolder }: Props) {
   const categories = useApp((s) => s.categories)
   const sites = useApp((s) => s.sites)
+  const folders = useApp((s) => s.folders)
   const editMode = useApp((s) => s.editMode)
   const cardSize = useApp((s) => s.settings.card_size)
   const gridGap = useApp((s) => s.settings.grid_gap)
@@ -256,24 +281,31 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
 
   const [activeSite, setActiveSite] = useState<Site | null>(null)
   const [dragWidth, setDragWidth] = useState<number | null>(null)
+  const [openFolderId, setOpenFolderId] = useState<number | null>(null)
+  const openFolder = folders.find((folder) => folder.id === openFolderId) ?? null
 
   const groups = useMemo<Group[]>(() => {
     const sorted = [...sites].sort((a, b) => a.sort_order - b.sort_order)
+    const folderIds = new Set(folders.map((folder) => folder.id))
+    const atRoot = (site: Site) => !site.folder_id || !folderIds.has(site.folder_id)
     const result: Group[] = categories
       .slice()
       .sort((a, b) => a.sort_order - b.sort_order)
       .map((category) => ({
         category,
-        sites: sorted.filter((s) => s.category_id === category.id),
+        sites: sorted.filter((s) => s.category_id === category.id && atRoot(s)),
+        folders: folders.filter((f) => f.category_id === category.id).sort((a, b) => a.sort_order - b.sort_order),
+        totalSites: sorted.filter((s) => s.category_id === category.id).length,
       }))
 
-    const ungrouped = sorted.filter((s) => s.category_id === null)
+    const ungrouped = sorted.filter((s) => s.category_id === null && atRoot(s))
+    const ungroupedFolders = folders.filter((f) => f.category_id === null).sort((a, b) => a.sort_order - b.sort_order)
     // 编辑模式下即使没有未分组图标也要显示，不然没法把图标拖出去
-    if (ungrouped.length > 0 || editMode) {
-      result.push({ category: null, sites: ungrouped })
+    if (ungrouped.length > 0 || ungroupedFolders.length > 0 || editMode) {
+      result.push({ category: null, sites: ungrouped, folders: ungroupedFolders, totalSites: sorted.filter((s) => s.category_id === null).length })
     }
     return result
-  }, [categories, sites, editMode])
+  }, [categories, sites, folders, editMode])
 
   const sensors = useSensors(
     // 8px 容差：让「点击打开」和「拖拽排序」能共存
@@ -306,6 +338,11 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
     const activeSiteId = Number(String(active.id).replace('site-', ''))
     const moved = sites.find((s) => s.id === activeSiteId)
     if (!moved) return
+    if (over.data.current?.type === 'folder') {
+      const folderId = Number(over.data.current.folderId)
+      void useApp.getState().updateSite(moved.id, { folder_id: folderId }).then(() => toast.success('已移入文件夹')).catch((err) => toast.error(errorMessage(err, '移动失败')))
+      return
+    }
 
     // 先按「原顺序」把当前分组结构复制一份，再在上面做移动计算
     const sorted = [...sites].sort((a, b) => a.sort_order - b.sort_order)
@@ -351,10 +388,8 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
     if (!removed) return
 
     const toList = buckets.get(toKey) ?? []
-    // 同容器内往前挪时，移除元素会让目标下标左移一位
-    const adjusted =
-      fromKey === toKey && fromIndex < insertAt ? Math.max(0, insertAt - 1) : insertAt
-    toList.splice(adjusted, 0, removed)
+    // 同容器中使用目标原下标，向后移动一格也能实际换位。
+    toList.splice(insertAt, 0, removed)
     buckets.set(toKey, toList)
 
     // 拍平成全量顺序提交：低负载下这比增量 diff 简单可靠得多
@@ -375,7 +410,10 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={(args) => {
+        const foldersUnderPointer = pointerWithin(args).filter((hit) => String(hit.id).startsWith('folder-'))
+        return foldersUnderPointer.length ? foldersUnderPointer : closestCenter(args)
+      }}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragCancel={() => { setActiveSite(null); setDragWidth(null) }}
@@ -394,6 +432,9 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
             onEditSite={onEditSite}
             onAddSite={onAddSite}
             onOpenSite={openSite}
+            onOpenFolder={(folder) => setOpenFolderId(folder.id)}
+            onEditFolder={onEditFolder}
+            allSites={sites}
             onRenameCategory={(category) => void renameCategory(category)}
             onDeleteCategory={(category) => void deleteCategory(category)}
           />
@@ -405,6 +446,17 @@ export function SiteGrid({ onEditSite, onAddSite }: Props) {
           </p>
         )}
       </div>
+
+      {createPortal(<FolderContentsModal
+        open={!!openFolder}
+        folder={openFolder}
+        sites={sites.filter((site) => site.folder_id === openFolderId).sort((a, b) => a.sort_order - b.sort_order)}
+        onClose={() => setOpenFolderId(null)}
+        onOpenSite={openSite}
+        onEditSite={(site, categoryId) => { setOpenFolderId(null); onEditSite(site, categoryId) }}
+        onAddSite={(categoryId, folderId) => { setOpenFolderId(null); onAddSite(categoryId, folderId) }}
+        onEditFolder={() => { if (openFolder) { setOpenFolderId(null); onEditFolder(openFolder) } }}
+      />, document.body)}
 
       {createPortal(<DragOverlay dropAnimation={null}>
         {activeSite ? (

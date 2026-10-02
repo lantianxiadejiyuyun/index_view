@@ -11,6 +11,7 @@ type Props = {
   /** null 表示新建 */
   site: Site | null
   defaultCategoryId: number | null
+  defaultFolderId?: number | null
   onClose: () => void
 }
 
@@ -21,6 +22,7 @@ type FormState = {
   lan_port: string
   link_mode: string
   category_id: string
+  folder_id: string
   description: string
   icon_url: string
   icon_text: string
@@ -34,6 +36,7 @@ const EMPTY: FormState = {
   lan_port: '',
   link_mode: 'auto',
   category_id: '',
+  folder_id: '',
   description: '',
   icon_url: '',
   icon_text: '',
@@ -53,8 +56,9 @@ const COLOR_SWATCHES = [
   '#ef4444',
 ]
 
-export function SiteEditorModal({ open, site, defaultCategoryId, onClose }: Props) {
+export function SiteEditorModal({ open, site, defaultCategoryId, defaultFolderId = null, onClose }: Props) {
   const categories = useApp((s) => s.categories)
+  const folders = useApp((s) => s.folders)
   const createSite = useApp((s) => s.createSite)
   const updateSite = useApp((s) => s.updateSite)
   const deleteSite = useApp((s) => s.deleteSite)
@@ -63,6 +67,9 @@ export function SiteEditorModal({ open, site, defaultCategoryId, onClose }: Prop
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const defaultFolder = folders.find((folder) => folder.id === defaultFolderId)
+  const initialCategoryId = defaultFolder ? defaultFolder.category_id : defaultCategoryId
+  const initialFolderId = defaultFolder?.id ?? null
 
   // 每次打开都用最新的 site 重置表单，避免残留上一次的输入
   useEffect(() => {
@@ -75,6 +82,7 @@ export function SiteEditorModal({ open, site, defaultCategoryId, onClose }: Prop
         lan_port: site.lan_port === null ? '' : String(site.lan_port),
         link_mode: site.link_mode,
         category_id: site.category_id === null ? '' : String(site.category_id),
+        folder_id: site.folder_id == null ? '' : String(site.folder_id),
         description: site.description ?? '',
         icon_url: site.icon_url ?? '',
         icon_text: site.icon_text ?? '',
@@ -83,10 +91,11 @@ export function SiteEditorModal({ open, site, defaultCategoryId, onClose }: Prop
     } else {
       setForm({
         ...EMPTY,
-        category_id: defaultCategoryId === null ? '' : String(defaultCategoryId),
+        category_id: initialCategoryId === null ? '' : String(initialCategoryId),
+        folder_id: initialFolderId === null ? '' : String(initialFolderId),
       })
     }
-  }, [open, site, defaultCategoryId])
+  }, [open, site, initialCategoryId, initialFolderId])
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -109,6 +118,7 @@ export function SiteEditorModal({ open, site, defaultCategoryId, onClose }: Prop
   }
 
   async function submit() {
+    if (saving || uploading) return
     const title = form.title.trim()
     if (!title) {
       toast.error('请填写名称')
@@ -119,13 +129,24 @@ export function SiteEditorModal({ open, site, defaultCategoryId, onClose }: Prop
       return
     }
 
+    const categoryId = form.category_id === '' ? null : Number(form.category_id)
+    const folderId = form.folder_id === '' ? null : Number(form.folder_id)
+    if (folderId !== null) {
+      const folder = folders.find((entry) => entry.id === folderId)
+      if (!folder || folder.category_id !== categoryId) {
+        toast.error('文件夹已变更，请重新选择所属分组和文件夹')
+        return
+      }
+    }
+
     const payload = {
       title,
       url_public: form.url_public.trim() || null,
       url_lan: form.url_lan.trim() || null,
       lan_port: form.lan_port.trim() ? Number(form.lan_port.trim()) : null,
       link_mode: form.link_mode,
-      category_id: form.category_id === '' ? null : Number(form.category_id),
+      category_id: categoryId,
+      folder_id: folderId,
       description: form.description.trim() || null,
       icon_url: form.icon_url.trim() || null,
       icon_text: form.icon_text.trim() || null,
@@ -165,6 +186,8 @@ export function SiteEditorModal({ open, site, defaultCategoryId, onClose }: Prop
   }
 
   const bothUrls = Boolean(form.url_public.trim() && form.url_lan.trim())
+  const selectedCategoryId = form.category_id === '' ? null : Number(form.category_id)
+  const availableFolders = folders.filter((folder) => folder.category_id === selectedCategoryId)
   const previewSrc = form.icon_url.trim() || faviconUrl({ url_public: form.url_public, url_lan: form.url_lan })
 
   return (
@@ -184,7 +207,7 @@ export function SiteEditorModal({ open, site, defaultCategoryId, onClose }: Prop
           <button type="button" onClick={onClose} className={btnGhost}>
             取消
           </button>
-          <button type="button" onClick={() => void submit()} disabled={saving} className={btnPrimary}>
+          <button type="button" onClick={() => void submit()} disabled={saving || uploading} className={btnPrimary}>
             {saving && <Loader2 className="mr-1.5 inline size-3.5 animate-spin" aria-hidden />}
             保存
           </button>
@@ -297,7 +320,7 @@ export function SiteEditorModal({ open, site, defaultCategoryId, onClose }: Prop
               id="se-cat"
               className={fieldClass}
               value={form.category_id}
-              onChange={(e) => set('category_id', e.target.value)}
+              onChange={(e) => setForm((current) => ({ ...current, category_id: e.target.value, folder_id: '' }))}
             >
               <option value="">未分组</option>
               {categories.map((c: Category) => (
@@ -306,6 +329,31 @@ export function SiteEditorModal({ open, site, defaultCategoryId, onClose }: Prop
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className={labelClass} htmlFor="se-folder">
+              所属文件夹
+            </label>
+            <select
+              id="se-folder"
+              className={fieldClass}
+              value={form.folder_id}
+              onChange={(event) => {
+                const folder = availableFolders.find((entry) => String(entry.id) === event.target.value)
+                setForm((current) => ({
+                  ...current,
+                  folder_id: folder ? String(folder.id) : '',
+                  category_id: folder ? (folder.category_id === null ? '' : String(folder.category_id)) : current.category_id,
+                }))
+              }}
+            >
+              <option value="">不放入文件夹</option>
+              {availableFolders.map((folder) => (
+                <option key={folder.id} value={folder.id}>{folder.name}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-fg/50">只显示当前分组的文件夹；更换分组后会移出原文件夹。</p>
           </div>
 
           <div>
