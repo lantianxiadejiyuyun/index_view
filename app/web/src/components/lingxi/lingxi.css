@@ -1,44 +1,190 @@
-.lingxi-widget{display:flex;flex-direction:column;height:100%;min-height:180px;min-width:0;overflow:hidden;border-radius:22px;color:var(--color-fg)}
-.lingxi-widget-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:16px 16px 10px;flex-shrink:0}
-.lingxi-widget-heading{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;font-weight:650}
-.lingxi-widget-heading>svg{color:var(--color-brand-500);flex-shrink:0}
-.lingxi-widget-actions{display:flex;align-items:center;gap:3px}
-.lingxi-widget-actions button,.lingxi-icon-button{display:inline-flex;align-items:center;justify-content:center;min-width:32px;min-height:32px;border-radius:9px;transition:background .15s}
-.lingxi-widget-actions button:hover,.lingxi-icon-button:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
-.lingxi-widget-actions button:disabled,.lingxi-icon-button:disabled{opacity:.35;cursor:not-allowed}
-.lingxi-widget-body{min-height:0;min-width:0;flex:1;overflow:auto;padding:0 16px 16px;scrollbar-width:thin}
-.lingxi-empty{display:flex;min-height:125px;height:100%;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;font-size:12px;line-height:1.7;color:color-mix(in srgb,currentColor 60%,transparent);padding:12px}
-.lingxi-link{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:32px;font-size:12px;color:var(--color-brand-500)}
-.lingxi-error{padding:12px 0;font-size:12px;line-height:1.6;overflow-wrap:anywhere;color:var(--color-danger)}
-.lingxi-month-heading{display:flex;justify-content:space-between;align-items:center;gap:5px;margin-bottom:6px;font-size:13px}
-.lingxi-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}
-.lingxi-weekday{font-size:10px;opacity:.45;text-align:center;padding:7px 0}
-.lingxi-day{position:relative;min-height:31px;border-radius:9px;font-size:12px;transition:background .15s;display:flex;align-items:center;justify-content:center;padding-bottom:3px}
-.lingxi-day:hover{background:color-mix(in srgb,currentColor 7%,transparent)}
-.lingxi-day[data-outside=true]{opacity:.3}.lingxi-day[data-today=true]{font-weight:750;color:var(--color-brand-500)}
-.lingxi-day[data-selected=true]{background:var(--color-brand-500);color:white;opacity:1}
-.lingxi-day[data-events=true]:after{content:'';position:absolute;bottom:4px;left:calc(50% - 2px);width:4px;height:4px;border-radius:100%;background:currentColor}
-.lingxi-day-agenda{border-top:1px solid color-mix(in srgb,currentColor 9%,transparent);margin-top:10px;padding-top:10px}
-.lingxi-day-agenda>h3{font-size:11px;opacity:.55;margin-bottom:7px}
-.lingxi-event{display:flex;width:100%;min-width:0;text-align:left;align-items:flex-start;gap:9px;padding:8px;border-radius:10px;font-size:12px}
-.lingxi-event:hover{background:color-mix(in srgb,currentColor 5%,transparent)}
-.lingxi-event-time{color:var(--color-brand-500);font-size:10px;min-width:34px;padding-top:2px}
-.lingxi-event-title{display:block;overflow-wrap:anywhere;font-weight:550}.lingxi-event-meta{display:block;font-size:10px;opacity:.5;margin-top:3px;overflow-wrap:anywhere}
-.lingxi-list{display:flex;flex-direction:column;gap:5px}.lingxi-task{display:flex;align-items:flex-start;gap:8px;min-width:0;border-radius:12px;padding:8px;background:color-mix(in srgb,currentColor 3%,transparent)}
-.lingxi-task-check{flex-shrink:0;padding:5px;min-height:30px;min-width:28px;color:var(--color-brand-500)}
-.lingxi-task-content{flex:1;min-width:0;text-align:left;padding:4px 0}.lingxi-task[data-done=true] .lingxi-event-title{text-decoration:line-through;opacity:.5}
-.lingxi-priority{display:inline-block;width:5px;height:5px;border-radius:99px;margin:0 5px 1px 0;background:var(--color-brand-500)}
-.lingxi-priority[data-priority='3']{background:#f97316}.lingxi-priority[data-priority='1']{background:#94a3b8}
-.lingxi-filter{display:flex;gap:4px;margin-bottom:12px;font-size:11px}.lingxi-filter button{min-height:30px;padding:3px 10px;border-radius:8px;opacity:.55}.lingxi-filter button[aria-pressed=true]{background:color-mix(in srgb,var(--color-brand-500) 12%,transparent);color:var(--color-brand-500);opacity:1}
-.lingxi-countdown{font-size:16px;font-weight:600;letter-spacing:-.5px;margin:5px 0;color:var(--color-brand-500)}.lingxi-countdown[data-overdue=true]{color:var(--color-danger)}
-.lingxi-deadline{width:100%;text-align:left;padding:12px;border-radius:14px;background:color-mix(in srgb,var(--color-brand-500) 6%,transparent)}
-.lingxi-chat{display:flex;flex-direction:column;min-height:250px;height:100%;gap:9px}.lingxi-chat-toolbar{display:flex;gap:4px;align-items:center}.lingxi-chat-toolbar select{min-height:32px;min-width:0;flex:1;border:1px solid color-mix(in srgb,currentColor 12%,transparent);border-radius:9px;background:transparent;padding:4px 8px;font-size:11px}
-.lingxi-messages{flex:1;min-height:80px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin;padding:3px 0}.lingxi-message{max-width:95%;font-size:12px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;padding:9px 11px;border-radius:13px;background:color-mix(in srgb,currentColor 5%,transparent)}
-.lingxi-message[data-role=user]{align-self:flex-end;background:var(--color-brand-500);color:white}.lingxi-message[data-role=assistant]{align-self:flex-start}.lingxi-message-label{font-size:9px;opacity:.55;margin-bottom:4px;display:block}
-.lingxi-composer{display:flex;align-items:flex-end;gap:7px;border:1px solid color-mix(in srgb,currentColor 13%,transparent);border-radius:14px;padding:7px;background:color-mix(in srgb,currentColor 3%,transparent)}
-.lingxi-composer textarea{min-width:0;flex:1;resize:none;background:transparent;outline:none;padding:4px;font-size:12px;line-height:1.6;max-height:130px}.lingxi-send{height:32px;width:32px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--color-brand-500);color:white;flex-shrink:0}.lingxi-send:disabled{opacity:.35}
-.lingxi-chat-status{font-size:10px;opacity:.55;min-height:15px}.lingxi-compact .lingxi-widget-header{padding:12px 12px 8px}.lingxi-compact .lingxi-widget-body{padding:0 12px 12px}.lingxi-compact .lingxi-day{min-height:28px}
-.lingxi-workspace{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}.lingxi-workspace-calendar,.lingxi-workspace-schedule{height:470px}.lingxi-workspace-deadline{height:285px}.lingxi-workspace-chat{height:590px}
-@media(min-width:768px){.lingxi-workspace{grid-template-columns:repeat(2,minmax(0,1fr))}.lingxi-workspace-chat{grid-column:2;grid-row:1 / span 2;height:771px}.lingxi-workspace-schedule{height:400px}.lingxi-workspace-calendar{height:470px}.lingxi-workspace-deadline{height:285px}}
-@media(min-width:1200px){.lingxi-workspace{grid-template-columns:repeat(3,minmax(0,1fr))}.lingxi-workspace-chat{grid-column:3;grid-row:1 / span 2;height:771px}.lingxi-workspace-schedule{grid-column:2;grid-row:1 / span 2;height:771px}}
-@media(max-width:420px){.lingxi-widget-header{padding:12px 12px 8px}.lingxi-widget-body{padding:0 12px 12px}.lingxi-day{min-height:30px}}
+.lingxi-widget {
+  display:flex; flex-direction:column; height:100%; min-height:180px; min-width:0;
+  overflow:hidden; border-radius:22px; color:var(--color-fg); container-type:inline-size;
+}
+.lingxi-widget-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 18px 12px; flex-shrink:0; }
+.lingxi-widget-heading { display:flex; align-items:center; gap:9px; min-width:0; font-size:14px; font-weight:650; line-height:1.5; }
+.lingxi-widget-heading > svg { color:var(--color-accent); flex-shrink:0; }
+.lingxi-widget-actions { display:flex; align-items:center; gap:4px; }
+.lingxi-widget-actions:empty { display:none; }
+.lingxi-widget-actions button, .lingxi-icon-button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:40px; min-height:40px; padding:8px; border-radius:11px; flex-shrink:0; font-size:12px; transition:background .15s; }
+.lingxi-widget-actions button:hover, .lingxi-icon-button:hover { background:color-mix(in srgb,currentColor 8%,transparent); }
+.lingxi-widget-actions button:disabled, .lingxi-icon-button:disabled { opacity:.38; cursor:not-allowed; }
+.lingxi-widget :where(button,a,input,select,textarea):focus-visible, .lingxi-settings :where(button,a,input):focus-visible { outline:2px solid var(--color-accent); outline-offset:2px; }
+.lingxi-widget-body { min-height:0; min-width:0; flex:1; overflow:auto; padding:0 18px 18px; scrollbar-width:thin; }
+.lingxi-empty { display:flex; min-height:140px; height:100%; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; font-size:13px; line-height:1.8; color:color-mix(in srgb,currentColor 70%,transparent); padding:16px 8px; }
+.lingxi-empty > svg { color:var(--color-accent); opacity:.75; }
+.lingxi-link { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:40px; font-size:13px; font-weight:500; color:var(--color-accent); border-radius:8px; }
+.lingxi-error { padding:10px 12px; margin:8px 0; font-size:13px; line-height:1.7; overflow-wrap:anywhere; color:var(--color-danger); background:color-mix(in srgb,var(--color-danger) 7%,transparent); border-radius:12px; }
+.lingxi-month-heading { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 8px; margin-bottom:10px; font-size:14px; }
+.lingxi-month-heading > strong { white-space:nowrap; }
+.lingxi-month-actions { display:flex; align-items:center; gap:2px; margin-left:auto; }
+.lingxi-month-actions .lingxi-link { padding-inline:5px; }
+.lingxi-calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; }
+.lingxi-weekday { font-size:12px; opacity:.65; text-align:center; padding:8px 0; }
+.lingxi-day { position:relative; min-width:0; min-height:36px; border-radius:10px; font-size:13px; transition:background .15s; display:flex; align-items:center; justify-content:center; padding-bottom:3px; }
+.lingxi-day:hover { background:color-mix(in srgb,currentColor 7%,transparent); }
+.lingxi-day[data-outside=true] { opacity:.38; }
+.lingxi-day[data-today=true] { font-weight:750; color:var(--color-accent); }
+.lingxi-day[data-selected=true] { background:var(--color-brand-500); color:white; opacity:1; }
+.lingxi-day[data-events=true]::after { content:''; position:absolute; bottom:4px; left:calc(50% - 2px); width:4px; height:4px; border-radius:100%; background:currentColor; }
+.lingxi-day-agenda { border-top:1px solid color-mix(in srgb,currentColor 10%,transparent); margin-top:14px; padding-top:12px; }
+.lingxi-day-agenda > h3 { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:4px 8px; font-size:12px; line-height:1.7; color:color-mix(in srgb,currentColor 70%,transparent); margin-bottom:8px; }
+.lingxi-calendar-zone { font-size:12px; opacity:.8; }
+.lingxi-event { display:flex; width:100%; min-width:0; min-height:48px; text-align:left; align-items:flex-start; gap:10px; padding:10px; border-radius:12px; font-size:14px; line-height:1.65; }
+.lingxi-event:hover { background:color-mix(in srgb,currentColor 5%,transparent); }
+.lingxi-event-time { color:var(--color-accent); font-size:12px; min-width:38px; padding-top:1px; font-variant-numeric:tabular-nums; }
+.lingxi-event-title { display:block; overflow-wrap:anywhere; font-size:14px; font-weight:550; line-height:1.6; }
+.lingxi-event-meta { display:block; font-size:12px; color:color-mix(in srgb,currentColor 64%,transparent); margin-top:4px; overflow-wrap:anywhere; line-height:1.65; }
+.lingxi-list { display:flex; flex-direction:column; gap:8px; }
+.lingxi-task { display:flex; align-items:flex-start; gap:6px; min-width:0; border:1px solid color-mix(in srgb,currentColor 6%,transparent); border-radius:13px; padding:9px; background:color-mix(in srgb,currentColor 3%,transparent); }
+.lingxi-task-check { display:flex; align-items:center; justify-content:center; flex-shrink:0; padding:8px; min-height:40px; min-width:40px; border-radius:10px; color:var(--color-accent); }
+.lingxi-task-check:hover { background:color-mix(in srgb,var(--color-brand-500) 9%,transparent); }
+.lingxi-task-content { flex:1; min-width:0; min-height:40px; text-align:left; padding:6px 0; }
+.lingxi-task[data-done=true] .lingxi-event-title { text-decoration:line-through; opacity:.6; }
+.lingxi-priority { display:inline-block; width:6px; height:6px; border-radius:99px; margin:0 6px 1px 0; background:var(--color-brand-500); }
+.lingxi-priority[data-priority='3'] { background:#f97316; }
+.lingxi-priority[data-priority='1'] { background:#94a3b8; }
+.lingxi-schedule-toolbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:6px; margin-bottom:12px; }
+.lingxi-filter { display:flex; min-width:0; gap:3px; padding:3px; border-radius:12px; background:color-mix(in srgb,currentColor 4%,transparent); font-size:12px; }
+.lingxi-filter button { min-height:38px; padding:6px 12px; border-radius:9px; color:color-mix(in srgb,currentColor 70%,transparent); white-space:nowrap; }
+.lingxi-filter button[aria-pressed=true] { background:color-mix(in srgb,var(--color-brand-500) 14%,transparent); color:var(--color-accent); font-weight:600; }
+.lingxi-countdown { font-size:20px; font-weight:650; letter-spacing:-.4px; line-height:1.5; margin:8px 0; color:var(--color-accent); font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.lingxi-countdown[data-overdue=true] { color:var(--color-danger); }
+.lingxi-deadline { width:100%; min-width:0; text-align:left; padding:15px; border:1px solid color-mix(in srgb,var(--color-brand-500) 12%,transparent); border-radius:15px; background:color-mix(in srgb,var(--color-brand-500) 6%,transparent); }
+.lingxi-chat { display:flex; flex-direction:column; min-height:300px; height:100%; gap:10px; }
+.lingxi-chat-toolbar { display:flex; flex-wrap:wrap; gap:5px; align-items:center; padding-bottom:10px; border-bottom:1px solid color-mix(in srgb,currentColor 9%,transparent); }
+.lingxi-chat-toolbar select { width:100%; min-height:44px; min-width:0; flex:1 0 100%; border:1px solid color-mix(in srgb,currentColor 14%,transparent); border-radius:11px; background:color-mix(in srgb,currentColor 4%,transparent); padding:8px 10px; font-size:13px; text-overflow:ellipsis; }
+.lingxi-chat-toolbar > button:first-of-type { margin-right:auto; color:var(--color-accent); padding-inline:10px; }
+.lingxi-messages { flex:1; min-height:80px; overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:14px; scrollbar-width:thin; padding:4px 0; }
+.lingxi-message { flex-shrink:0; min-width:0; max-width:94%; overflow:hidden; font-size:14px; line-height:1.8; white-space:pre-wrap; overflow-wrap:anywhere; padding:11px 13px; border-radius:15px; background:color-mix(in srgb,currentColor 5%,transparent); }
+.lingxi-message[data-role=user] { align-self:flex-end; background:var(--color-brand-500); color:white; border-bottom-right-radius:5px; }
+.lingxi-message[data-role=assistant] { align-self:flex-start; border-bottom-left-radius:5px; }
+.lingxi-message-label { font-size:12px; opacity:.72; margin-bottom:5px; display:block; }
+.lingxi-markdown { min-width:0; white-space:normal; }
+.lingxi-markdown > :first-child { margin-top:0; }
+.lingxi-markdown > :last-child { margin-bottom:0; }
+.lingxi-markdown :where(p,ul,ol,blockquote,pre,table) { margin-block:10px; }
+.lingxi-markdown :where(h1,h2,h3,h4,h5,h6) { margin:15px 0 7px; font-size:1em; font-weight:700; line-height:1.55; }
+.lingxi-markdown :where(h1,h2) { font-size:1.08em; }
+.lingxi-markdown :where(ul,ol) { padding-inline-start:21px; }
+.lingxi-markdown ul { list-style:disc; }
+.lingxi-markdown ol { list-style:decimal; }
+.lingxi-markdown li + li { margin-top:5px; }
+.lingxi-markdown a { color:var(--color-accent); text-decoration:underline; text-underline-offset:3px; }
+.lingxi-markdown blockquote { border-left:3px solid color-mix(in srgb,var(--color-accent) 45%,transparent); padding-left:11px; color:color-mix(in srgb,currentColor 80%,transparent); }
+.lingxi-markdown code { padding:2px 4px; border-radius:5px; font-family:var(--font-mono); font-size:.86em; background:color-mix(in srgb,currentColor 8%,transparent); }
+.lingxi-markdown pre { display:block; max-width:100%; overflow-x:auto; padding:11px; border-radius:10px; background:color-mix(in srgb,currentColor 7%,transparent); white-space:pre; }
+.lingxi-markdown pre code { padding:0; background:none; }
+.lingxi-markdown table { display:block; max-width:100%; overflow-x:auto; border-collapse:collapse; font-size:12px; }
+.lingxi-markdown :where(th,td) { border:1px solid color-mix(in srgb,currentColor 15%,transparent); padding:6px 9px; text-align:left; min-width:80px; }
+.lingxi-markdown th { background:color-mix(in srgb,currentColor 5%,transparent); }
+.lingxi-markdown hr { border-color:color-mix(in srgb,currentColor 15%,transparent); margin-block:14px; }
+.lingxi-composer { display:flex; align-items:flex-end; gap:8px; border:1px solid color-mix(in srgb,currentColor 17%,transparent); border-radius:15px; padding:9px; background:color-mix(in srgb,currentColor 3%,transparent); }
+.lingxi-composer:focus-within { border-color:var(--color-accent); }
+.lingxi-composer textarea { min-width:0; flex:1; resize:none; background:transparent; outline:none; padding:5px; font-size:14px; line-height:1.65; max-height:130px; }
+.lingxi-send { height:40px; width:40px; display:flex; align-items:center; justify-content:center; border-radius:11px; background:var(--color-brand-500); color:white; flex-shrink:0; }
+.lingxi-send:disabled { opacity:.38; }
+.lingxi-chat-status { font-size:12px; color:color-mix(in srgb,currentColor 65%,transparent); line-height:1.5; min-height:18px; overflow-wrap:anywhere; }
+.lingxi-chat-confirm { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; border-radius:11px; padding:8px 10px; font-size:12px; color:var(--color-danger); background:color-mix(in srgb,var(--color-danger) 7%,transparent); }
+.lingxi-chat-confirm > span { flex:1 0 100%; }
+.lingxi-chat-rename { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.lingxi-chat-rename input { min-height:42px; min-width:0; flex:1; border-radius:10px; border:1px solid color-mix(in srgb,currentColor 15%,transparent); padding:8px 10px; font-size:13px; background:transparent; }
+.lingxi-compact .lingxi-widget-header { padding:14px 12px 10px; }
+.lingxi-compact .lingxi-widget-body { padding:0 12px 12px; }
+.lingxi-compact .lingxi-day { min-height:32px; }
+.lingxi-compact .lingxi-countdown { font-size:18px; }
+
+.lingxi-workspace { display:grid; grid-template-columns:minmax(0,1fr); grid-template-areas:'calendar' 'schedule' 'deadline' 'chat'; gap:18px; align-items:stretch; }
+.lingxi-workspace > div { min-width:0; }
+.lingxi-workspace-calendar { grid-area:calendar; height:520px; }
+.lingxi-workspace-schedule { grid-area:schedule; height:460px; }
+.lingxi-workspace-deadline { grid-area:deadline; height:300px; }
+.lingxi-workspace-chat { grid-area:chat; height:640px; }
+.lingxi-home-widgets { display:grid; grid-template-columns:minmax(0,1fr); gap:18px; width:100%; max-width:1800px; margin:24px auto 0; }
+.lingxi-home-widgets > div { min-width:0; height:520px; }
+
+.lingxi-editor [role='dialog'] { height:auto; max-height:92dvh; max-width:680px; }
+.lingxi-editor-form { min-width:0; padding:20px; }
+.lingxi-editor-form > fieldset { min-width:0; display:grid; gap:18px; }
+.lingxi-editor-form label { font-size:13px; line-height:1.65; }
+.lingxi-editor-form :where(input,select,textarea) { font-size:14px; }
+.lingxi-editor-form textarea { min-height:105px; }
+.lingxi-editor-form .lingxi-editor-all-day { display:flex; align-items:center; gap:10px; min-height:46px; border-radius:12px; padding:10px 12px; background:color-mix(in srgb,var(--color-line) 4%,transparent); font-size:14px; }
+.lingxi-editor-all-day input { width:18px; height:18px; accent-color:var(--color-brand-500); }
+.lingxi-editor-actions { display:flex; align-items:center; flex-wrap:wrap; gap:8px; width:100%; }
+.lingxi-editor-delete { margin-right:auto; }
+.lingxi-editor-cancel { margin-left:auto; }
+.lingxi-editor-delete + .lingxi-editor-cancel { margin-left:0; }
+.lingxi-editor-hint { font-size:12px; line-height:1.8; color:color-mix(in srgb,var(--color-fg) 65%,transparent); }
+.lingxi-editor-error { margin-top:16px; padding:10px 12px; border-radius:11px; font-size:13px; line-height:1.65; color:var(--color-danger); background:color-mix(in srgb,var(--color-danger) 7%,transparent); overflow-wrap:anywhere; }
+
+.lingxi-settings { display:grid; min-width:0; gap:24px; }
+.lingxi-setting-panel { min-width:0; border:1px solid color-mix(in srgb,var(--color-line) 10%,transparent); border-radius:17px; padding:18px; background:color-mix(in srgb,var(--color-line) 2%,transparent); }
+.lingxi-setting-heading { display:flex; align-items:center; gap:8px; margin-bottom:14px; font-size:14px; font-weight:650; color:var(--color-fg); }
+.lingxi-setting-heading > svg { flex-shrink:0; color:var(--color-accent); }
+.lingxi-connection-status { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:14px; border:1px solid color-mix(in srgb,var(--color-brand-500) 18%,transparent); border-radius:16px; padding:16px; background:color-mix(in srgb,var(--color-brand-500) 6%,transparent); }
+.lingxi-connection-copy { display:flex; flex:1 1 230px; min-width:0; align-items:flex-start; gap:10px; }
+.lingxi-connection-copy > svg { flex-shrink:0; margin-top:2px; }
+.lingxi-connection-copy > div { min-width:0; }
+.lingxi-connection-name { font-size:14px; font-weight:650; line-height:1.7; overflow-wrap:anywhere; }
+.lingxi-setting-hint { font-size:13px; line-height:1.8; color:color-mix(in srgb,var(--color-fg) 65%,transparent); overflow-wrap:anywhere; }
+.lingxi-connection-copy .lingxi-setting-hint { margin-top:4px; }
+.lingxi-settings-form { margin-top:18px; }
+.lingxi-settings-form fieldset { min-width:0; display:grid; gap:18px; }
+.lingxi-settings-form label { font-size:13px; }
+.lingxi-settings-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+.lingxi-grant-toggle { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; min-height:48px; cursor:pointer; }
+.lingxi-grant-toggle > span:first-child { min-width:0; }
+.lingxi-grant-toggle .lingxi-setting-hint { display:block; margin-top:6px; }
+.lingxi-switch { position:relative; width:44px; height:24px; flex-shrink:0; margin-top:6px; }
+.lingxi-switch input { position:absolute; width:100%; height:100%; opacity:0; margin:0; cursor:pointer; z-index:1; }
+.lingxi-switch-track { display:block; width:44px; height:24px; border-radius:99px; background:color-mix(in srgb,var(--color-line) 20%,transparent); transition:background .15s; }
+.lingxi-switch-track::after { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%; background:white; box-shadow:0 1px 3px #0002; transition:transform .15s; }
+.lingxi-switch input:checked + .lingxi-switch-track { background:var(--color-brand-500); }
+.lingxi-switch input:checked + .lingxi-switch-track::after { transform:translateX(20px); }
+.lingxi-switch input:focus-visible + .lingxi-switch-track { outline:2px solid var(--color-accent); outline-offset:3px; }
+.lingxi-switch input:disabled { cursor:not-allowed; }
+.lingxi-switch input:disabled + .lingxi-switch-track { opacity:.45; }
+.lingxi-grant-description { display:flex; align-items:flex-start; gap:9px; margin-top:16px; padding-top:16px; border-top:1px solid color-mix(in srgb,var(--color-line) 9%,transparent); }
+.lingxi-grant-description > svg { flex-shrink:0; margin-top:4px; color:var(--color-accent); }
+.lingxi-grant-status { margin-top:16px; border-radius:12px; padding:13px; background:color-mix(in srgb,var(--color-line) 5%,transparent); }
+.lingxi-grant-status > strong { display:block; margin-bottom:5px; font-size:13px; }
+.lingxi-grant-status[data-state='ready'] > strong { color:var(--color-success); }
+.lingxi-grant-status[data-state='awaiting_extension'] > strong { color:var(--color-warn); }
+.lingxi-settings-notice { font-size:13px; line-height:1.75; padding:12px 14px; border-radius:12px; color:var(--color-success); background:color-mix(in srgb,var(--color-success) 7%,transparent); }
+.lingxi-settings [role='switch'] span.text-\[11px\] { font-size:12px; line-height:1.7; color:color-mix(in srgb,var(--color-fg) 65%,transparent); }
+
+@media (min-width:640px) { .lingxi-home-widgets { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:640px) {
+  .lingxi-widget :where(input,select,textarea), .lingxi-editor-form :where(input,select,textarea), .lingxi-settings :where(input,select,textarea), .lingxi-vault-dialog :where(input,select,textarea) { font-size:16px; }
+}
+@media (min-width:768px) {
+  .lingxi-workspace { grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-areas:'calendar schedule' 'deadline chat'; grid-template-rows:520px 580px; }
+  .lingxi-workspace > div { height:auto; min-height:0; }
+}
+@media (min-width:1200px) {
+  .lingxi-workspace { grid-template-columns:repeat(3,minmax(0,1fr)); grid-template-areas:'calendar schedule chat' 'deadline schedule chat'; grid-template-rows:520px 290px; }
+}
+@media (min-width:1280px) { .lingxi-home-widgets { grid-template-columns:repeat(4,minmax(0,1fr)); } }
+@media (pointer:coarse) {
+  .lingxi-icon-button,.lingxi-link,.lingxi-task-check { min-height:44px; }
+  .lingxi-icon-button,.lingxi-task-check { min-width:44px; }
+  .lingxi-send { width:44px; height:44px; }
+  .lingxi-day,.lingxi-compact .lingxi-day { min-height:40px; }
+  .lingxi-filter button { min-height:40px; }
+}
+@media (max-width:420px) {
+  .lingxi-widget-header { padding:16px 14px 10px; }
+  .lingxi-widget-body { padding:0 14px 14px; }
+  .lingxi-day { min-height:38px; }
+  .lingxi-editor [role='dialog'] { max-height:calc(100dvh - env(safe-area-inset-top) - .75rem); }
+  .lingxi-editor-form { padding:18px 16px; }
+  .lingxi-setting-panel,.lingxi-connection-status { padding:14px; }
+  .lingxi-settings-actions > button { flex:1 1 auto; }
+}
+@container (max-width:280px) {
+  .lingxi-month-actions { margin-left:0; width:100%; justify-content:space-between; }
+  .lingxi-calendar-zone { display:block; width:100%; }
+  .lingxi-chat-toolbar > button:first-of-type { padding-inline:6px; }
+}

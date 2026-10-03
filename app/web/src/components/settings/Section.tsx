@@ -25,17 +25,17 @@ export function SettingsSection({ id, description, children }: { id: string; des
   return <section id={id} aria-labelledby={`settings-${id}-heading`} className="glass min-w-0 animate-rise rounded-2xl p-4 sm:p-5">
     <header className="mb-5 flex items-start gap-3">
       <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-accent"><Icon className="size-4" aria-hidden /></span>
-      <div className="min-w-0"><h2 id={`settings-${id}-heading`} className="text-sm font-semibold text-fg sm:text-base">{meta?.title ?? id}</h2>{description && <p className="mt-1 text-xs leading-relaxed text-fg/55">{description}</p>}</div>
+      <div className="min-w-0"><h2 id={`settings-${id}-heading`} className="break-words text-sm font-semibold text-fg sm:text-base">{meta?.title ?? id}</h2>{description && <p className="mt-1 text-xs leading-relaxed text-fg/60 [overflow-wrap:anywhere]">{description}</p>}</div>
     </header>
     <div className="min-w-0 space-y-4">{children}</div>
   </section>
 }
 
-const itemClass = ({ isActive }: { isActive: boolean }) => `flex min-h-11 items-center gap-2.5 rounded-xl px-3 text-xs font-medium transition ${isActive ? 'bg-brand-500 text-white shadow-sm' : 'text-fg/70 hover:bg-line/10 hover:text-fg'}`
+const itemClass = ({ isActive }: { isActive: boolean }) => `flex min-h-11 items-center gap-2.5 rounded-xl px-3 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${isActive ? 'bg-brand-500 text-white shadow-sm' : 'text-fg/70 hover:bg-line/10 hover:text-fg'}`
 
 export function SettingsNavAside() {
   return <nav aria-label="设置导航" className="hidden lg:sticky lg:top-6 lg:block">
-    <div className="glass rounded-2xl p-2">
+    <div className="glass max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain rounded-2xl p-2">
       <NavLink to="/settings" end className={itemClass}><Settings className="size-4 shrink-0" aria-hidden />设置总览</NavLink>
       {[...new Set(SETTINGS_SECTIONS.map(section => section.group))].map(group => <div key={group} className="mt-3">
         <p className="px-3 pb-1 text-[10px] font-medium tracking-wider text-fg/45">{group}</p>
@@ -54,9 +54,9 @@ export function SettingsNavBar() {
   const navigate = useNavigate()
   const current = SETTINGS_SECTIONS.some(section => section.id === sectionId) ? sectionId : ''
   return <nav aria-label="手机设置导航" className="flex min-w-0 items-center gap-2 lg:hidden">
-    {current && <Link to="/settings" className="glass flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs text-fg/75"><ArrowLeft className="size-3.5" aria-hidden />总览</Link>}
+    {current && <Link to="/settings" className="glass flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs text-fg/75 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"><ArrowLeft className="size-3.5" aria-hidden />总览</Link>}
     <label htmlFor="settings-page-select" className="sr-only">选择设置页面</label>
-    <select id="settings-page-select" value={current} onChange={event => navigate(event.target.value ? `/settings/${event.target.value}` : '/settings')} className="glass min-h-11 min-w-0 flex-1 rounded-xl border border-line/15 px-3 text-sm text-fg">
+    <select id="settings-page-select" value={current} onChange={event => navigate(event.target.value ? `/settings/${event.target.value}` : '/settings')} className="glass min-h-11 min-w-0 flex-1 rounded-xl border border-line/15 px-3 text-sm text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
       <option value="">设置总览</option>
       {SETTINGS_SECTIONS.map(section => <option key={section.id} value={section.id}>{section.title}</option>)}
     </select>

@@ -595,8 +595,9 @@ export function NotesPage() {
   return (
     <PageShell
       title="笔记"
-      description={root ? `Markdown 文件夹 · ${root}` : 'Markdown 文件，独立文件夹存储'}
+      description={<><span className="sm:hidden">本地 Markdown 文件夹</span><span className="hidden sm:inline" title={root}>{root ? `Markdown 文件夹 · ${root}` : 'Markdown 文件，独立文件夹存储'}</span></>}
       wide
+      fillViewport
       actions={
         <div className="glass flex items-center gap-0.5 rounded-2xl p-1">
           <button
@@ -629,9 +630,8 @@ export function NotesPage() {
         </div>
       }
     >
-      {/* 固定高度的工具型布局：左树右编辑器各自内部滚动，整页不出现滚动条。
-          预留的 7rem 是 PageShell 头部 + main 上下内边距的合计，改 PageShell 时要同步调 */}
-      <div className="flex h-[calc(100dvh-7rem)] min-h-[20rem] gap-3">
+      {/* 使用页头实际占用后的剩余高度，左右面板分别滚动；窄屏按钮换行也不会挤出视口。 */}
+      <div className="flex min-h-0 flex-1 gap-3">
         {/* 桌面端固定侧栏 */}
         <aside className="glass hidden w-64 shrink-0 flex-col overflow-hidden rounded-2xl md:flex">
           {sidebarHeader}
@@ -803,9 +803,10 @@ export function NotesPage() {
             {sidebarHeader}
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-1.5 py-1.5">{treeBody}</div>
             <div className="shrink-0 border-t border-line/10 px-3 py-2">
-              <p className="truncate text-[10px] text-fg/30" title={root}>
-                {root || '（未配置目录）'}
-              </p>
+              <details className="text-xs text-fg/65">
+                <summary className="min-h-9 cursor-pointer content-center rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">查看存储目录</summary>
+                <p className="max-h-[25dvh] overflow-y-auto py-2 text-[11px] leading-relaxed select-text [overflow-wrap:anywhere]">{root || '（未配置目录）'}</p>
+              </details>
             </div>
           </div>
         </div>

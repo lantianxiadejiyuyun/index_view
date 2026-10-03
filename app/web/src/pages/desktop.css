@@ -337,12 +337,16 @@
 .desktop-dock-more { color: rgb(var(--wp-rgb)); background: rgb(var(--surface-rgb) / .2); }
 .desktop-dock-more > svg { width: 23px; height: 23px; }
 .desktop-folder-window {
+  --desktop-folder-top: clamp(75px, 16vh, 170px);
   position: fixed;
   z-index: 48;
   left: 50%;
-  top: clamp(75px, 16vh, 170px);
+  top: var(--desktop-folder-top);
   transform: translateX(-50%);
   width: min(650px, calc(100vw - 30px));
+  max-height: calc(100dvh - var(--desktop-folder-top) - 16px - env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   border: 1px solid rgb(var(--line-rgb) / .08);
   border-radius: 23px;
@@ -351,17 +355,18 @@
   backdrop-filter: blur(36px) saturate(1.2);
   box-shadow: 0 22px 90px #0004;
 }
-.desktop-folder-window header { display: flex; align-items: center; gap: 10px; padding: 20px 22px 12px; }
+.desktop-folder-window header { display: flex; flex-shrink: 0; align-items: center; gap: 10px; padding: 20px 22px 12px; }
+.desktop-folder-window header > svg { flex-shrink: 0; }
 .desktop-folder-window header strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 17px; font-weight: 500; }
-.desktop-folder-window header > span { color: rgb(var(--fg-rgb) / .42); font-size: 11px; }
-.desktop-window-close { order: 3; display: grid; place-items: center; width: 29px; height: 29px; border-radius: 50%; color: rgb(var(--fg-rgb) / .55); background: rgb(var(--line-rgb) / .06); }
+.desktop-folder-window header > span { flex-shrink: 0; white-space: nowrap; color: rgb(var(--fg-rgb) / .42); font-size: 11px; }
+.desktop-window-close { order: 3; display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; color: rgb(var(--fg-rgb) / .55); background: rgb(var(--line-rgb) / .06); }
 .desktop-window-close:hover { background: rgb(var(--line-rgb) / .12); }
 .desktop-window-close svg { width: 15px; height: 15px; }
 .desktop-window-dots { display: none; }
-.desktop-folder-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 0 22px 14px; font-size: 11px; border-bottom: 1px solid rgb(var(--line-rgb) / .06); }
+.desktop-folder-toolbar { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; gap: 7px; padding: 0 22px 14px; font-size: 11px; border-bottom: 1px solid rgb(var(--line-rgb) / .06); }
 .desktop-folder-toolbar > span { flex: 1; min-width: 180px; color: rgb(var(--fg-rgb) / .45); }
 .desktop-folder-toolbar button { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 32px; padding: 6px 9px; border-radius: 8px; background: rgb(var(--line-rgb) / .05); }
-.desktop-folder-members { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-content: start; gap: 19px 9px; min-height: 180px; max-height: 53dvh; overflow-y: auto; overscroll-behavior: contain; padding: 24px 20px; }
+.desktop-folder-members { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-content: start; gap: 19px 9px; min-height: 0; max-height: 53dvh; overflow-y: auto; overscroll-behavior: contain; padding: 24px 20px; }
 .desktop-member { min-width: 0; }
 .desktop-member .desktop-app { height: 98px; }
 .desktop-member .desktop-app > span:last-child:not(.folder-site-icon) { color: rgb(var(--fg-rgb)); text-shadow: none; }
@@ -379,6 +384,7 @@
 .desktop-collect p { margin: 8px 0 12px; }
 .desktop-drag-preview { --folder-icon-size: 48px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; width: 100px; min-height: 100px; padding: 12px; border-radius: 18px; color: rgb(var(--fg-rgb)); background: rgb(var(--surface-rgb) / .95); box-shadow: 0 18px 45px #0005; opacity: .95; font-size: 11px; text-align: center; }
 .desktop-drag-preview .folder-site-icon { width: 48px; height: 48px; border-radius: 13px; }
+.desktop-drag-preview > span:last-child:not(.folder-site-icon) { display: -webkit-box; max-width: 100%; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .free-desktop :is(button, a):focus-visible,
 .desktop-folder-window :is(button, a):focus-visible { outline: 2px solid rgb(var(--accent-rgb)); outline-offset: 4px; }
 
@@ -399,7 +405,9 @@
   .desktop-hero .home-clock > div + p { font-size: 11px; }
   .desktop-hero .home-search { width: 100%; }
   .desktop-hero .home-search > .glass { min-height: 46px; padding-left: 13px; }
-  .desktop-hero .home-search input { font-size: 13px; }
+  .desktop-hero .home-search input,
+  .desktop-widget-search .home-search input,
+  .desktop-options select { font-size: 16px; }
   .desktop-edit-hint { max-width: 290px; margin: -10px auto 20px; font-size: 10px; }
   .desktop-sidebar {
     inset: auto 10px calc(10px + env(safe-area-inset-bottom));
@@ -442,13 +450,18 @@
   .desktop-dock-more { --folder-icon-size: 38px; width: 38px; height: 38px; flex-basis: 38px; border-radius: 10px; }
   .desktop-dock-site > .folder-site-icon { width: 38px; height: 38px; border-radius: 10px; }
   .desktop-dock-more > svg { width: 20px; height: 20px; }
-  .desktop-folder-window { top: 95px; width: calc(100vw - 24px); border-radius: 20px; }
+  .desktop-folder-window { --desktop-folder-top: 95px; width: calc(100vw - 24px); border-radius: 20px; }
   .desktop-folder-window header { padding: 16px 16px 10px; gap: 8px; }
   .desktop-folder-window header strong { font-size: 15px; }
+  .desktop-window-close { width: 40px; height: 40px; }
   .desktop-folder-toolbar { padding: 0 16px 11px; font-size: 10px; }
   .desktop-folder-toolbar > span { min-width: 150px; }
   .desktop-folder-members { grid-template-columns: repeat(4, minmax(0, 1fr)); max-height: 48dvh; gap: 15px 5px; padding: 19px 12px; }
   .desktop-member .desktop-app { height: 88px; }
+}
+@media (max-height: 500px) {
+  .desktop-folder-window { --desktop-folder-top: 16px; }
+  .desktop-folder-members { max-height: none; }
 }
 @media (max-width: 370px) {
   .desktop-workspace { padding-inline: 12px; }

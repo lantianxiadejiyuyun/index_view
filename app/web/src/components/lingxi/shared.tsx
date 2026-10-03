@@ -1,4 +1,5 @@
 import { createContext, Fragment, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, Loader2, RefreshCw } from 'lucide-react'
 import { useApp } from '../../store/app.ts'
@@ -9,6 +10,7 @@ import './lingxi.css'
 export type LingxiWidgetProps = { className?: string; compact?: boolean }
 export const LINGXI_CHANGED = 'navigation:lingxi-changed'
 const TimezoneContext = createContext('UTC')
+const WidgetActionsContext = createContext<HTMLDivElement | null>(null)
 export const useLingxiTimezone = () => useContext(TimezoneContext)
 export function notifyLingxiChanged() { window.dispatchEvent(new Event(LINGXI_CHANGED)) }
 
@@ -59,11 +61,16 @@ export function LingxiAccess({ children }: { children: ReactNode }) {
 
 export function WidgetLoading() { return <div className="lingxi-empty" role="status"><Loader2 className="animate-spin" size={18} /><span>正在读取灵犀…</span></div> }
 export function WidgetError({ message, onRetry }: { message: string; onRetry: () => void }) { return <div className="lingxi-error" role="alert"><p>{message}</p><button className="lingxi-link" type="button" onClick={onRetry}><RefreshCw size={13} />重新读取</button></div> }
+export function WidgetHeaderActions({ children }: { children: ReactNode }) {
+  const target = useContext(WidgetActionsContext)
+  return target ? createPortal(children, target) : null
+}
 export function WidgetFrame({ title, icon, actions, children, className = '', compact }: LingxiWidgetProps & { title: string; icon: ReactNode; actions?: ReactNode; children: ReactNode }) {
-  return <section className={`lingxi-widget glass ${compact ? 'lingxi-compact' : ''} ${className}`} aria-label={title} onPointerDown={event => event.stopPropagation()}>
-    <header className="lingxi-widget-header"><span className="lingxi-widget-heading">{icon}<span>{title}</span></span><div className="lingxi-widget-actions">{actions}</div></header>
+  const [actionsHost, setActionsHost] = useState<HTMLDivElement | null>(null)
+  return <WidgetActionsContext.Provider value={actionsHost}><section className={`lingxi-widget glass ${compact ? 'lingxi-compact' : ''} ${className}`} aria-label={title} onPointerDown={event => event.stopPropagation()}>
+    <header className="lingxi-widget-header"><span className="lingxi-widget-heading">{icon}<span>{title}</span></span><div ref={setActionsHost} className="lingxi-widget-actions">{actions}</div></header>
     <div className="lingxi-widget-body">{children}</div>
-  </section>
+  </section></WidgetActionsContext.Provider>
 }
 
 export function formatLingxiDate(value: string | null, options?: Intl.DateTimeFormatOptions, timezone?: string) {

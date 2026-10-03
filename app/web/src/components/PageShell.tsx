@@ -11,12 +11,15 @@ export function PageShell({
   actions,
   children,
   wide = false,
+  fillViewport = false,
 }: {
   title: string
-  description?: string
+  description?: ReactNode
   actions?: ReactNode
   children: ReactNode
   wide?: boolean
+  /** Tool pages can use the remaining viewport for their own scrolling panes. */
+  fillViewport?: boolean
 }) {
   // 页头标题也压在壁纸上，同样按自己所在的区域判断明暗（可被设置项强制覆盖）
   const titleTonePref = useApp((s) => s.settings.tone_page_title)
@@ -24,31 +27,31 @@ export function PageShell({
   const titleTone = useReadableTone(titleRef, titleTonePref)
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <header className="px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 sm:pt-[calc(1.5rem+env(safe-area-inset-top))]">
-        <div className={`mx-auto flex items-center gap-3 ${wide ? 'max-w-6xl' : 'max-w-3xl'}`}>
+    <div className={`page-shell flex min-h-dvh min-w-0 flex-col ${fillViewport ? 'h-dvh overflow-hidden' : ''}`}>
+      <header className="shrink-0 px-4 pt-[calc(1rem+env(safe-area-inset-top))] sm:px-6 sm:pt-[calc(1.5rem+env(safe-area-inset-top))]">
+        <div className={`mx-auto flex flex-wrap items-center gap-3 ${wide ? 'max-w-6xl' : 'max-w-3xl'}`}>
           <Link
             to="/"
-            className="glass flex size-11 shrink-0 items-center justify-center rounded-xl text-fg/80 transition hover:text-fg"
+            className="glass flex size-11 shrink-0 items-center justify-center rounded-xl text-fg/80 transition hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             aria-label="返回首页"
           >
             <ArrowLeft className="size-4" aria-hidden />
           </Link>
 
-          <div ref={titleRef} style={readableToneStyle(titleTone)} className="min-w-0 flex-1">
+          <div ref={titleRef} style={readableToneStyle(titleTone)} className="min-w-0 flex-[1_1_9rem]">
             {/* 标题直接压在壁纸上，用 wp（跟随壁纸明暗）而不是 fg（跟随主题） */}
-            <h1 className="text-shadow-soft truncate text-base font-semibold text-wp">{title}</h1>
+            <h1 className="text-shadow-soft break-words text-base font-semibold text-wp sm:truncate">{title}</h1>
             {description && (
-              <p className="text-shadow-soft mt-0.5 text-xs leading-relaxed text-wp/80 sm:truncate">{description}</p>
+              <p className="text-shadow-soft mt-0.5 text-xs leading-relaxed text-wp/80 [overflow-wrap:anywhere] sm:truncate">{description}</p>
             )}
           </div>
 
-          {actions}
+          {actions && <div className="page-shell-actions ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2 empty:hidden">{actions}</div>}
         </div>
       </header>
 
       <main
-        className={`mx-auto w-full flex-1 px-4 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-8 ${wide ? 'max-w-6xl' : 'max-w-3xl'}`}
+        className={`mx-auto w-full min-w-0 flex-1 px-4 pt-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-8 ${wide ? 'max-w-6xl' : 'max-w-3xl'} ${fillViewport ? 'flex min-h-0 flex-col overflow-hidden' : ''}`}
       >
         {children}
       </main>

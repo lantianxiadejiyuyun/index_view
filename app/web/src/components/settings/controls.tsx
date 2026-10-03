@@ -380,7 +380,7 @@ export function ToggleField({
         }`}
       >
         <span
-          className={`absolute top-0.5 size-5 rounded-full bg-line shadow transition-all ${
+          className={`absolute top-0.5 size-5 rounded-full bg-white shadow transition-all ${
             checked ? 'left-[1.375rem]' : 'left-0.5'
           }`}
         />

@@ -294,6 +294,27 @@
   gap: var(--site-grid-gap);
 }
 
+/* Shared subpage actions may contain several text buttons (for example Photos).
+   Keep them together when possible and let the group wrap within a narrow header. */
+.page-shell-actions > div {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.page-shell-actions :is(button, a),
+.shared-modal-footer > :is(button, a) {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.shared-modal-footer > div {
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
 .site-grid-item {
   min-width: 0;
   width: var(--site-desktop-width);
