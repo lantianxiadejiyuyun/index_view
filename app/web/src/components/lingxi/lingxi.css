@@ -21,10 +21,10 @@
 .lingxi-month-actions { display:flex; align-items:center; gap:2px; margin-left:auto; }
 .lingxi-month-actions .lingxi-link { padding-inline:5px; }
 .lingxi-calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; }
-.lingxi-weekday { font-size:12px; opacity:.65; text-align:center; padding:8px 0; }
+.lingxi-weekday { font-size:12px; opacity:.82; text-align:center; padding:8px 0; }
 .lingxi-day { position:relative; min-width:0; min-height:36px; border-radius:10px; font-size:13px; transition:background .15s; display:flex; align-items:center; justify-content:center; padding-bottom:3px; }
 .lingxi-day:hover { background:color-mix(in srgb,currentColor 7%,transparent); }
-.lingxi-day[data-outside=true] { opacity:.38; }
+.lingxi-day[data-outside=true] { opacity:.65; }
 .lingxi-day[data-today=true] { font-weight:750; color:var(--color-accent); }
 .lingxi-day[data-selected=true] { background:var(--color-brand-500); color:white; opacity:1; }
 .lingxi-day[data-events=true]::after { content:''; position:absolute; bottom:4px; left:calc(50% - 2px); width:4px; height:4px; border-radius:100%; background:currentColor; }
@@ -35,7 +35,7 @@
 .lingxi-event:hover { background:color-mix(in srgb,currentColor 5%,transparent); }
 .lingxi-event-time { color:var(--color-accent); font-size:12px; min-width:38px; padding-top:1px; font-variant-numeric:tabular-nums; }
 .lingxi-event-title { display:block; overflow-wrap:anywhere; font-size:14px; font-weight:550; line-height:1.6; }
-.lingxi-event-meta { display:block; font-size:12px; color:color-mix(in srgb,currentColor 64%,transparent); margin-top:4px; overflow-wrap:anywhere; line-height:1.65; }
+.lingxi-event-meta { display:block; font-size:12px; color:color-mix(in srgb,currentColor 78%,transparent); margin-top:4px; overflow-wrap:anywhere; line-height:1.65; }
 .lingxi-list { display:flex; flex-direction:column; gap:8px; }
 .lingxi-task { display:flex; align-items:flex-start; gap:6px; min-width:0; border:1px solid color-mix(in srgb,currentColor 6%,transparent); border-radius:13px; padding:9px; background:color-mix(in srgb,currentColor 3%,transparent); }
 .lingxi-task-check { display:flex; align-items:center; justify-content:center; flex-shrink:0; padding:8px; min-height:40px; min-width:40px; border-radius:10px; color:var(--color-accent); }
@@ -103,7 +103,7 @@
 .lingxi-widget .lingxi-composer textarea:focus-visible { outline:none; box-shadow:none; }
 .lingxi-send { height:40px; width:40px; display:flex; align-items:center; justify-content:center; border-radius:11px; background:var(--color-brand-500); color:white; flex-shrink:0; }
 .lingxi-send:disabled { opacity:.38; }
-.lingxi-chat-status { font-size:12px; color:color-mix(in srgb,currentColor 65%,transparent); line-height:1.5; min-height:18px; overflow-wrap:anywhere; }
+.lingxi-chat-status { font-size:12px; color:color-mix(in srgb,currentColor 78%,transparent); line-height:1.5; min-height:18px; overflow-wrap:anywhere; }
 .lingxi-chat-confirm { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; border-radius:11px; padding:8px 10px; font-size:12px; color:var(--color-danger); background:color-mix(in srgb,var(--color-danger) 7%,transparent); }
 .lingxi-chat-confirm > span { flex:1 0 100%; }
 .lingxi-chat-rename { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }

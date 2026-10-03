@@ -218,8 +218,8 @@
   white-space: nowrap;
   color: rgb(var(--wp-rgb));
   text-shadow: var(--wp-shadow, 0 1px 5px #0007);
-  font-size: 11px;
-  font-weight: 400;
+  font-size: 12px;
+  font-weight: 500;
   line-height: 17px;
   text-align: center;
 }
@@ -461,7 +461,7 @@
   .desktop-app { --folder-icon-size: 56px; gap: 7px; padding-inline: 0; }
   .desktop-app > .folder-site-icon { width: 56px; height: 56px; border-radius: 15px; }
   .desktop-app > span:last-child:not(.folder-site-icon),
-  .desktop-tile-caption { font-size: 10px; line-height: 16px; }
+  .desktop-tile-caption { font-size: 11px; line-height: 16px; }
   .desktop-widget-unit,
   .desktop-folder-unit { gap: 6px; }
   .desktop-widget { border-radius: 14px; padding: 15px; }

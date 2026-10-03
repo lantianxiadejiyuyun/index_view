@@ -25,7 +25,6 @@ import { useApp } from '../store/app.ts'
 import { useWeather } from '../lib/useWeather.ts'
 import { cityDate, solarState, uvLevel, uvReading } from '../lib/weather-display.ts'
 import { WeatherScene } from './weather/WeatherScene.tsx'
-import { citySilhouette } from './weather/weather-scene-model.ts'
 import './weather/weather-widget.css'
 
 /** WMO 天气码 → 图标。分组与后端的中文描述表保持一致。 */
@@ -64,7 +63,7 @@ export function WeatherWidget() {
     <div className="weather-widget weather-rich glass rounded-2xl text-fg" data-day={isDay ? 'day' : 'night'}>
       <WeatherScene city={data.city} code={data.weather_code} isDay={isDay} />
       <div className="weather-content">
-        <div className="weather-heading"><span className="weather-city"><MapPin aria-hidden="true" />{data.city}</span><span className="weather-live-label">{citySilhouette(data.city).landmark}</span></div>
+        <div className="weather-heading"><span className="weather-city"><MapPin aria-hidden="true" />{data.city}</span></div>
         <div className="weather-main">
           <span className="weather-temperature">{Math.round(data.temperature)}<small>°</small></span>
           <div className="weather-summary"><span className="weather-description"><Icon aria-hidden="true" />{data.description}</span><span className="weather-feels">体感 {Math.round(data.apparent_temperature)}°</span></div>

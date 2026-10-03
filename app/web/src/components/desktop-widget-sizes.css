@@ -55,13 +55,13 @@
   display: block; overflow: visible; -webkit-line-clamp: unset; overflow-wrap: anywhere; line-height: 1.75;
 }
 .desktop-widget-quote .quote-widget .quote-text { font-size: 13px; }
-.desktop-widget-quote .quote-widget .quote-attribution { font-size: 12px; margin-top: 6px; }
+.desktop-widget-quote .quote-widget .quote-attribution { font-size: 12px; margin-top: 6px; color: rgb(var(--fg-rgb) / .75); }
 .desktop-widget-quote[data-widget-height='2'] .quote-widget .quote-text { font-size: 15px; }
 
 .desktop-widget-workbench { padding: 10px 12px; }
 .desktop-widget-workbench > .workbench-widget { min-width: 0; gap: 9px; }
 .desktop-widget-workbench .workbench-title { font-size: 14px; line-height: 1.4; }
-.desktop-widget-workbench > .workbench-widget .workbench-description { font-size: 12px; overflow-wrap: anywhere; }
+.desktop-widget-workbench > .workbench-widget .workbench-description { font-size: 12px; overflow-wrap: anywhere; color: rgb(var(--fg-rgb) / .75); }
 .desktop-widget-workbench[data-widget-height='2'] > .workbench-widget { flex-direction: column; gap: 12px; }
 .desktop-widget-workbench[data-widget-height='2'] > .workbench-widget > svg { width: 48px; height: 48px; padding: 10px; border-radius: 14px; }
 .desktop-widget-workbench[data-widget-height='2'] .workbench-title { font-size: 16px; }
