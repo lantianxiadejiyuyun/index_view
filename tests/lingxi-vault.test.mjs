@@ -217,6 +217,8 @@ test('scheduler renews expiring tokens and can stop before database shutdown', a
   await stop()
   assert.equal(h.calls.length, 2)
   assert.notEqual(h.calls[1].request.body.read_token, first)
-  assert.ok(h.readLingxiVaultGrant(1).service_token_expires_at > Date.now() + 23 * 60 * 60_000)
+  const renewedExpiry = h.readLingxiVaultGrant(1).service_token_expires_at
+  assert.ok(renewedExpiry > Date.now() + 22 * 60 * 60_000)
+  assert.ok(renewedExpiry <= Date.now() + 23 * 60 * 60_000)
   assert.equal((await request('service/read', { method: 'POST', auth: first, body: {} })).status, 401)
 })

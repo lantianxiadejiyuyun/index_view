@@ -111,7 +111,8 @@ export function issueLingxiVaultServiceToken(userId: number) {
   const grant = readLingxiVaultGrant(userId)
   if (!grant?.enabled || !grant.snapshot_encrypted || !hasLingxiBinding(userId)) throw new Error('密码授权尚未就绪')
   const token = `lxv_${randomBytes(32).toString('base64url')}`
-  const expires_at = Date.now() + 24 * 60 * 60_000
+  // The peer caps grants at 24 hours; leave room for clock skew between hosts.
+  const expires_at = Date.now() + 23 * 60 * 60_000
   sql.run('UPDATE lingxi_vault_grants SET service_token_hash = ?, service_token_expires_at = ? WHERE user_id = ?', hashVaultServiceToken(token), expires_at, userId)
   auditLingxiVault(userId, 'token_issued')
   return { token, expires_at, grant_id: grant.grant_id, scope: 'vault:read' as const }
