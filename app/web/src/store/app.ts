@@ -11,7 +11,11 @@ import { currentNetMode, type NetMode } from '../lib/net.ts'
 import { normalizeSettings, type AppSettings, type ThemePref } from '../lib/settings.ts'
 import { deviceTheme, isThemePref } from '../lib/device-theme.ts'
 import type { Bootstrap, Category, Folder, SessionUser, Site } from '../lib/types.ts'
-import type { DesktopLayout } from '../lib/desktop-layout.ts'
+import { parseDesktopLayout, type DesktopLayout } from '../lib/desktop-layout.ts'
+import { planDesktopSettingsLayout } from '../lib/desktop-settings-layout.ts'
+import { planGridCollectionRestore } from '../lib/grid-site-layout.ts'
+import { widgetLabels } from '../lib/desktop-widgets.ts'
+import { toast } from './toast.ts'
 
 type Status = 'loading' | 'ready' | 'error'
 
@@ -21,6 +25,8 @@ type Status = 'loading' | 'ready' | 'error'
  * 而且 refresh 失败时还可能形成循环。
  */
 let silentRestoreTried = false
+// Settings pages may save several toggles at once. Each plan needs the previous save's layout.
+let settingsSaveQueue: Promise<void> | null = null
 
 export type SiteInput = {
   title: string
@@ -96,6 +102,18 @@ type AppState = {
 
   /** 探针同步后需要整体刷新一次 */
   reload: () => Promise<void>
+}
+
+async function prepareReleasedSites(before: AppState, sites: Site[], folders: Folder[]) {
+  const plan = planGridCollectionRestore({ ...before, authenticated: !!before.user, beforeSites: before.sites, beforeFolders: before.folders, sites, folders })
+  // Save while released members are still hidden. A failed layout write leaves
+  // folder membership untouched, and a failed membership write is safe to retry.
+  for (const batch of [...plan.freeze, ...plan.restore]) {
+    for (let offset = 0; offset < batch.placements.length; offset += 500) {
+      const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', { method: 'PATCH', body: JSON.stringify({ scope: batch.scope, viewport: batch.viewport, placements: batch.placements.slice(offset, offset + 500) }) })
+      useApp.setState(current => ({ rawSettings: { ...current.rawSettings, [`${batch.scope}_layout`]: JSON.stringify(result.layout) } }))
+    }
+  }
 }
 
 export const useApp = create<AppState>()((set, get) => ({
@@ -208,15 +226,46 @@ export const useApp = create<AppState>()((set, get) => ({
     const { theme, ...sharedPatch } = patch
     if (isThemePref(theme)) get().setTheme(theme)
     if (Object.keys(sharedPatch).length === 0) return
-    const res = await api<{ settings: Record<string, string> }>('/api/settings', {
-      method: 'PUT',
-      body: JSON.stringify(sharedPatch),
-    })
-    set({
-      rawSettings: res.settings,
-      settings: { ...normalizeSettings(res.settings), theme: deviceTheme.initialize(res.settings.theme) },
-    })
-    prewarmLinks(get().sites, get().netMode)
+    const persist = async () => {
+      const state = get()
+      const after = normalizeSettings({ ...state.rawSettings, ...Object.fromEntries(Object.entries(sharedPatch).map(([key, value]) => [key, String(value)])) })
+      const plans = (['desktop', 'home'] as const).map(scope => {
+        const key = scope === 'home' ? 'home_layout' : 'desktop_layout'
+        return { scope, key, plan: planDesktopSettingsLayout({
+          before: state.settings, after, authenticated: !!state.user, scope,
+          folders: state.folders, sites: state.sites, layout: parseDesktopLayout(state.rawSettings[key]),
+        }) }
+      })
+      // Freeze both viewports in both modes, then restore, and only then reveal widgets.
+      const batches = (['freeze', 'restore'] as const).flatMap(phase => plans.flatMap(({ scope, key, plan }) => (plan?.[phase] ?? []).map(batch => ({ ...batch, scope, key }))))
+      for (const batch of batches) {
+        for (let offset = 0; offset < batch.placements.length; offset += 500) {
+          const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', {
+            method: 'PATCH', body: JSON.stringify({ ...(batch.scope === 'home' ? { scope: 'home' } : {}), viewport: batch.viewport, placements: batch.placements.slice(offset, offset + 500) }),
+          })
+          set(current => ({ rawSettings: { ...current.rawSettings, [batch.key]: JSON.stringify(result.layout) } }))
+        }
+      }
+      const res = await api<{ settings: Record<string, string> }>('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify(sharedPatch),
+      })
+      set({
+        rawSettings: res.settings,
+        settings: { ...normalizeSettings(res.settings), theme: deviceTheme.initialize(res.settings.theme) },
+      })
+      const relocated = plans.flatMap(({ plan }) => plan?.relocated ?? [])
+      if (relocated.length) {
+        const labels = [...new Set(relocated.map(item => widgetLabels[item.id.slice('widget:'.length)]))]
+        toast.info(`原位置已有内容，${labels.join('、')}已恢复到空白位置`)
+      }
+      prewarmLinks(get().sites, get().netMode)
+    }
+    const operation = settingsSaveQueue ? settingsSaveQueue.then(persist) : persist()
+    const tail = operation.catch(() => undefined)
+    settingsSaveQueue = tail
+    void tail.then(() => { if (settingsSaveQueue === tail) settingsSaveQueue = null })
+    await operation
   },
 
   // ── 分组 ────────────────────────────────────────────────────
@@ -288,6 +337,12 @@ export const useApp = create<AppState>()((set, get) => ({
   },
 
   async updateFolder(id, patch) {
+    const before = get()
+    if (patch.site_ids) {
+      const selected = new Set(patch.site_ids)
+      const sites = before.sites.map(site => selected.has(site.id) ? { ...site, folder_id: id } : site.folder_id === id ? { ...site, folder_id: null } : site)
+      await prepareReleasedSites(before, sites, before.folders.map(folder => folder.id === id ? { ...folder, ...patch } : folder))
+    }
     const res = await api<{ folder: Folder; sites: Site[] }>(`/api/folders/${id}`, {
       method: 'PUT',
       body: JSON.stringify(patch),
@@ -300,6 +355,8 @@ export const useApp = create<AppState>()((set, get) => ({
   },
 
   async deleteFolder(id) {
+    const before = get()
+    await prepareReleasedSites(before, before.sites.map(site => site.folder_id === id ? { ...site, folder_id: null } : site), before.folders.filter(folder => folder.id !== id))
     const res = await api<{ sites: Site[] }>(`/api/folders/${id}`, { method: 'DELETE' })
     set((s) => ({ folders: s.folders.filter((folder) => folder.id !== id), sites: res.sites }))
     prewarmLinks(res.sites, get().netMode)
@@ -315,6 +372,8 @@ export const useApp = create<AppState>()((set, get) => ({
   },
 
   async updateSite(id, patch) {
+    const before = get()
+    if (patch.folder_id === null) await prepareReleasedSites(before, before.sites.map(site => site.id === id ? { ...site, folder_id: null } : site), before.folders)
     const res = await api<{ site: Site }>(`/api/sites/${id}`, {
       method: 'PUT',
       body: JSON.stringify(patch),
@@ -329,12 +388,12 @@ export const useApp = create<AppState>()((set, get) => ({
   },
 
   async bulkDeleteSites(input) {
-    const res = await api<{ sites: Site[]; deleted_count: number; desktop_layout: DesktopLayout }>(
+    const res = await api<{ sites: Site[]; deleted_count: number; desktop_layout: DesktopLayout; home_layout?: DesktopLayout }>(
       '/api/sites/bulk-delete', jsonBody(input),
     )
     set((s) => ({
       sites: res.sites,
-      rawSettings: { ...s.rawSettings, desktop_layout: JSON.stringify(res.desktop_layout) },
+      rawSettings: { ...s.rawSettings, desktop_layout: JSON.stringify(res.desktop_layout), ...(res.home_layout ? { home_layout: JSON.stringify(res.home_layout) } : {}) },
     }))
     clearLinkCache()
     prewarmLinks(res.sites, get().netMode)
@@ -348,7 +407,7 @@ export const useApp = create<AppState>()((set, get) => ({
       sites: res.sites,
       folders: res.folders ?? [],
       categories: res.categories,
-      rawSettings: { ...s.rawSettings, desktop_layout: res.settings.desktop_layout ?? '' },
+      rawSettings: { ...s.rawSettings, desktop_layout: res.settings.desktop_layout ?? '', home_layout: res.settings.home_layout ?? '' },
     }))
     clearLinkCache()
     prewarmLinks(res.sites, get().netMode)

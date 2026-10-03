@@ -1,4 +1,4 @@
-import { validWidgetSize, widgetLabels, widgetSize, type WidgetDimensions } from './desktop-widgets.ts'
+import { validWidgetSize, widgetSize, type WidgetDimensions } from './desktop-widgets.ts'
 
 export type DesktopViewport = 'wide' | 'compact'
 export type DesktopPosition = { col: number; row: number; width?: number; height?: number }
@@ -28,11 +28,39 @@ export function overlaps(a: PlacedItem, b: PlacedItem): boolean {
   return a.col < b.col + b.width && a.col + a.width > b.col && a.row < b.row + b.height && a.row + a.height > b.row
 }
 
-/** Hidden widgets keep their saved footprint so showing them cannot cover a new item. */
+/** Only drawn tiles occupy the canvas. Hidden widgets retain preferences, not invisible obstacles. */
 export function desktopOccupants(items: DesktopItem[], layout: DesktopLayout, view: DesktopViewport): PlacedItem[] {
-  const ids = new Set(items.map(item => item.id))
-  const reserved = Object.keys(widgetLabels).filter(name => layout[view][`widget:${name}`] && !ids.has(`widget:${name}`)).map(name => ({ id: `widget:${name}`, ...widgetSize(name, view, layout[view][`widget:${name}`]) }))
-  return arrangeDesktop([...items, ...reserved], layout[view], view === 'wide' ? 12 : 4)
+  return arrangeDesktop(items, layout[view], view === 'wide' ? 12 : 4)
+}
+
+/** Restore only the requested widgets, keeping every currently visible tile fixed. */
+export function restoreDesktopWidgets(current: PlacedItem[], names: string[], layout: DesktopLayout, view: DesktopViewport): PlacedItem[] {
+  const occupied = [...current]
+  const candidates = [...new Set(names)].flatMap(name => {
+    const id = `widget:${name}`
+    return occupied.some(item => item.id === id) ? [] : [{ id, ...widgetSize(name, view, layout[view][id]) }]
+  })
+  const columns = view === 'wide' ? 12 : 4
+  const restored = new Map<string, PlacedItem>()
+  // Claim vacant saved positions first so one relocated widget cannot steal
+  // another widget's still-available home (e.g. restoring clock and search together).
+  for (const item of candidates) {
+    const saved = layout[view][item.id]
+    const position = saved && vacantDropPosition(item, saved, occupied, columns)
+    if (!position) continue
+    const placed = { ...item, ...position }
+    occupied.push(placed)
+    restored.set(item.id, placed)
+  }
+  for (const item of candidates) {
+    if (restored.has(item.id)) continue
+    const position = freePosition(item, layout[view][item.id] ?? { col: 0, row: 0 }, occupied, columns)
+    const placed = { ...item, ...position }
+    if (occupied.some(other => overlaps(placed, other))) throw new Error('桌面没有足够空位，请先腾出空间再显示组件')
+    occupied.push(placed)
+    restored.set(item.id, placed)
+  }
+  return candidates.map(item => restored.get(item.id)!)
 }
 
 /** Resizing stays anchored; it never snaps sideways or rearranges neighbouring tiles. */

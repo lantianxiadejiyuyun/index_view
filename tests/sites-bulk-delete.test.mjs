@@ -57,6 +57,10 @@ beforeEach(() => {
     wide: { [`site:${ids[0]}`]: { col: 3, row: 2 }, [`site:${ids[1]}`]: { col: 4, row: 2 }, [`site:${ids[2]}`]: { col: 5, row: 2 }, [`folder:${folder}`]: { col: 0, row: 3 }, 'widget:clock': { col: 0, row: 0, width: 6, height: 2 } },
     compact: { [`site:${ids[0]}`]: { col: 0, row: 9 }, [`site:${ids[1]}`]: { col: 1, row: 9 }, [`site:${ids[2]}`]: { col: 2, row: 9 }, [`folder:${folder}`]: { col: 0, row: 5 }, 'widget:clock': { col: 0, row: 0, width: 4, height: 3 } },
   }))
+  h.putSetting('home_layout', JSON.stringify({ version: 1,
+    wide: { [`site:${ids[0]}`]: { col: 8, row: 3 }, [`site:${ids[1]}`]: { col: 9, row: 3 }, [`site:${ids[2]}`]: { col: 10, row: 3 }, [`folder:${folder}`]: { col: 1, row: 6 }, 'widget:clock': { col: 0, row: 0, width: 4, height: 2 } },
+    compact: { [`site:${ids[0]}`]: { col: 0, row: 12 }, [`site:${ids[1]}`]: { col: 1, row: 12 }, [`site:${ids[2]}`]: { col: 2, row: 12 }, [`folder:${folder}`]: { col: 0, row: 8 }, 'widget:clock': { col: 0, row: 0, width: 2, height: 1 } },
+  }))
 })
 
 after(() => {
@@ -87,6 +91,7 @@ test('bulk deletion requires authentication for both scopes and never changes da
 test('selected deletion includes folder members and prunes both desktop layouts while retaining other data', async () => {
   const original = state()
   const layout = h.readDesktopLayout()
+  const homeLayout = h.readDesktopLayout('home')
   const response = await request({ ids: ids.slice(0, 2) })
   assert.equal(response.status, 200)
   assert.equal(response.headers.get('Cache-Control'), 'no-store')
@@ -98,15 +103,19 @@ test('selected deletion includes folder members and prunes both desktop layouts 
   for (const view of ['wide', 'compact']) {
     delete layout[view][`site:${ids[0]}`]
     delete layout[view][`site:${ids[1]}`]
+    delete homeLayout[view][`site:${ids[0]}`]
+    delete homeLayout[view][`site:${ids[1]}`]
   }
   assert.deepEqual(result.desktop_layout, layout)
   assert.deepEqual(result.desktop_layout.wide['widget:clock'], { col: 0, row: 0, width: 6, height: 2 })
   assert.deepEqual(result.desktop_layout.compact['widget:clock'], { col: 0, row: 0, width: 4, height: 3 })
   assert.deepEqual(JSON.parse(h.getSetting('desktop_layout')), layout)
+  assert.deepEqual(result.home_layout, homeLayout)
+  assert.deepEqual(JSON.parse(h.getSetting('home_layout')), homeLayout)
   assert.deepEqual(state().sites, original.sites.slice(2))
   assert.deepEqual(state().folders, original.folders)
   assert.deepEqual(state().categories, original.categories)
-  assert.deepEqual(state().settings.filter(row => row.key !== 'desktop_layout'), original.settings.filter(row => row.key !== 'desktop_layout'))
+  assert.deepEqual(state().settings.filter(row => !['desktop_layout', 'home_layout'].includes(row.key)), original.settings.filter(row => !['desktop_layout', 'home_layout'].includes(row.key)))
 })
 
 test('invalid or ambiguous scopes, malformed JSON, duplicate IDs and oversized selections cannot delete anything', async () => {
@@ -141,14 +150,19 @@ test('a stale selection fails atomically before deleting any still-existing icon
 test('explicit confirmed all scope clears every icon and retains empty folders, groups and widgets; repeating is harmless', async () => {
   const original = state()
   const layout = h.readDesktopLayout()
+  const homeLayout = h.readDesktopLayout('home')
   const response = await request({ all: true, confirm: 'delete-all-sites', expected_ids: [...ids].reverse() })
   assert.equal(response.status, 200)
   const result = await response.json()
   assert.deepEqual(result.deleted_ids, ids)
   assert.equal(result.deleted_count, ids.length)
   assert.deepEqual(result.sites, [])
-  for (const view of ['wide', 'compact']) for (const id of ids) delete layout[view][`site:${id}`]
+  for (const view of ['wide', 'compact']) for (const id of ids) {
+    delete layout[view][`site:${id}`]
+    delete homeLayout[view][`site:${id}`]
+  }
   assert.deepEqual(result.desktop_layout, layout)
+  assert.deepEqual(result.home_layout, homeLayout)
   assert.deepEqual(state().folders, original.folders)
   assert.deepEqual(state().categories, original.categories)
   assert.equal(h.getSetting('keep-bulk-fixture'), 'Other settings survive deletion')
@@ -156,6 +170,7 @@ test('explicit confirmed all scope clears every icon and retains empty folders, 
   assert.equal(repeated.deleted_count, 0)
   assert.deepEqual(repeated.deleted_ids, [])
   assert.deepEqual(repeated.desktop_layout, layout)
+  assert.deepEqual(repeated.home_layout, homeLayout)
 })
 
 test('all deletion rejects icons added after review without touching any current data', async () => {
@@ -214,6 +229,13 @@ test('database failures roll back every selected deletion and its layout update'
     assert.equal((await request({ all: true, confirm: 'delete-all-sites', expected_ids: ids })).status, 500)
     assert.deepEqual(state(), original)
   } finally { h.sql.exec('DROP TRIGGER fail_bulk_layout') }
+
+  // Home is persisted after desktop; a failure must roll back both layouts and the icons.
+  h.sql.exec("CREATE TRIGGER fail_bulk_home BEFORE UPDATE ON settings WHEN NEW.key = 'home_layout' BEGIN SELECT RAISE(ABORT, 'fixture home layout failure'); END;")
+  try {
+    assert.equal((await request({ ids })).status, 500)
+    assert.deepEqual(state(), original)
+  } finally { h.sql.exec('DROP TRIGGER fail_bulk_home') }
 })
 
 test('existing single-icon deletion remains authenticated and cannot delete neighboring icons or folders', async () => {

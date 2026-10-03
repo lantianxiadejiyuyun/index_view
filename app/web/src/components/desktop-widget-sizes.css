@@ -124,9 +124,9 @@
 .desktop-widget-lingxi-schedule .lingxi-filter button { flex: 1; padding-inline: 7px; }
 .desktop-widget-lingxi-chat .lingxi-chat { min-height: 220px; gap: 6px; }
 .desktop-widget-lingxi-chat .lingxi-chat > :not(.lingxi-messages) { flex-shrink: 0; }
-.desktop-widget-lingxi-chat .lingxi-chat-toolbar { gap: 4px; padding-bottom: 5px; }
-.desktop-widget-lingxi-chat .lingxi-chat-toolbar select { min-height: 38px; padding: 5px 8px; }
-.desktop-widget-lingxi-chat .lingxi-chat-toolbar > button { min-width: 36px; min-height: 36px; padding: 6px; }
+.desktop-widget-lingxi-chat .lingxi-chat-toolbar { gap: 6px; padding-bottom: 6px; }
+.desktop-widget-lingxi-chat .lingxi-session-select { min-height: 38px; padding: 6px 9px; }
+.desktop-widget-lingxi-chat .lingxi-chat-actions > button { min-width: 36px; min-height: 36px; padding: 6px; }
 .desktop-widget-lingxi-chat .lingxi-chat-status:empty { display: none; }
 .desktop-widget-lingxi-chat .lingxi-messages { min-height: 54px; gap: 10px; }
 .desktop-widget-lingxi-chat .lingxi-message { padding: 9px 10px; max-width: 96%; }
@@ -155,17 +155,18 @@
   .desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-deadline { padding: 9px; }
   .desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-countdown { font-size: 17px; }
 }
-@container desktop-widget (max-width: 420px) {
-  .desktop-widget-lingxi-chat .lingxi-chat-toolbar > button:first-of-type > span { display: none; }
+@container desktop-widget (max-width: 280px) {
+  .desktop-widget-lingxi-chat .lingxi-chat-actions > button:first-child > span { display: none; }
 }
 @container desktop-widget (min-width: 421px) {
-  .desktop-widget-lingxi-chat .lingxi-chat-toolbar select { width: 0; flex: 1 1 120px; }
+  .desktop-widget-lingxi-chat .lingxi-session-select { width: 0; flex: 1 1 120px; }
+  .desktop-widget-lingxi-chat .lingxi-chat-actions { flex: 0 0 auto; }
 }
 @media (pointer: coarse) {
   .desktop-widget-search .home-search-engine-button { min-height: 44px; min-width: 40px; }
   .desktop-widget-search .glass-pop button { min-height: 44px; }
-  .desktop-widget-lingxi-chat .lingxi-chat-toolbar select { min-height: 44px; }
-  .desktop-widget-lingxi-chat .lingxi-chat-toolbar > button { min-width: 44px; min-height: 44px; }
+  .desktop-widget-lingxi-chat .lingxi-session-select { min-height: 44px; }
+  .desktop-widget-lingxi-chat .lingxi-chat-actions > button { min-width: 44px; min-height: 44px; }
 }
 @media (max-width: 700px) {
   .desktop-widget-search .home-search input,

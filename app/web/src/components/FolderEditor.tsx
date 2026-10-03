@@ -7,7 +7,10 @@ import { toast } from '../store/toast.ts'
 import { FolderSiteIcon } from './FolderCard.tsx'
 import { Modal, btnGhost, btnPrimary, fieldClass, labelClass } from './Modal.tsx'
 
-type Props = { open: boolean; folder: Folder | null; defaultCategoryId: number | null; foldersOnly?: boolean; onClose: () => void }
+type Props = {
+  open: boolean; folder: Folder | null; defaultCategoryId: number | null; foldersOnly?: boolean; onClose: () => void
+  validateSize?: (folderId: number, columns: number, rows: number) => string | null
+}
 const SIZES = [{ columns: 1, rows: 1 }, { columns: 2, rows: 1 }, { columns: 2, rows: 2 }, { columns: 3, rows: 2 }, { columns: 4, rows: 2 }]
 const COLORS = ['#0284c7', '#6366f1', '#8b5cf6', '#db2777', '#ea580c', '#ca8a04', '#16a34a', '#0d9488']
 
@@ -22,7 +25,7 @@ function sizeErrorMessage(label: string, value: string): string {
   return `${label}必须是大于 0 的整数，不能使用小数或负数。`
 }
 
-export function FolderEditorModal({ open, folder, defaultCategoryId, foldersOnly = false, onClose }: Props) {
+export function FolderEditorModal({ open, folder, defaultCategoryId, foldersOnly = false, onClose, validateSize }: Props) {
   const categories = useApp((state) => state.categories)
   const folders = useApp((state) => state.folders)
   const sites = useApp((state) => state.sites)
@@ -33,7 +36,7 @@ export function FolderEditorModal({ open, folder, defaultCategoryId, foldersOnly
   const [categoryId, setCategoryId] = useState('')
   const [columns, setColumns] = useState('2')
   const [rows, setRows] = useState('2')
-  const [sizeError, setSizeError] = useState<{ field: 'columns' | 'rows'; message: string } | null>(null)
+  const [sizeError, setSizeError] = useState<{ field: 'columns' | 'rows' | 'layout'; message: string } | null>(null)
   const [color, setColor] = useState('')
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [query, setQuery] = useState('')
@@ -77,6 +80,8 @@ export function FolderEditorModal({ open, folder, defaultCategoryId, foldersOnly
     if (!name.trim()) { toast.error('请填写文件夹名称'); return }
     if (parsedColumns === null) { setSizeError({ field: 'columns', message: sizeErrorMessage('宽度', columns) }); return }
     if (parsedRows === null) { setSizeError({ field: 'rows', message: sizeErrorMessage('高度', rows) }); return }
+    const layoutError = folder ? validateSize?.(folder.id, parsedColumns, parsedRows) : null
+    if (layoutError) { setSizeError({ field: 'layout', message: layoutError }); return }
     setSizeError(null)
     const payload = { name: name.trim(), category_id: categoryId ? Number(categoryId) : null, columns: parsedColumns, rows: parsedRows, color: color || null, site_ids: [...selected] }
     setSaving(true)
@@ -121,8 +126,8 @@ export function FolderEditorModal({ open, folder, defaultCategoryId, foldersOnly
             {SIZES.map((size) => <button key={`${size.columns}-${size.rows}`} type="button" className="folder-size-preset" aria-pressed={parsedColumns === size.columns && parsedRows === size.rows} onClick={() => { setColumns(String(size.columns)); setRows(String(size.rows)); setSizeError(null) }}><span className="folder-size-diagram" style={{ gridTemplateColumns: `repeat(${size.columns}, 1fr)` }} aria-hidden>{Array.from({ length: size.columns * size.rows }, (_, index) => <i key={index} />)}</span><span>{size.columns} × {size.rows}</span></button>)}
           </div>
           <div className="folder-custom-size">
-            <label htmlFor="folder-columns">自定义宽度（列）<input id="folder-columns" type="number" min={1} step={1} inputMode="numeric" className={fieldClass} value={columns} aria-invalid={sizeError?.field === 'columns'} aria-describedby={sizeError?.field === 'columns' ? 'folder-size-error folder-size-note' : 'folder-size-note'} onChange={(event) => { setColumns(event.target.value); setSizeError(null) }} placeholder="例如 10" /></label>
-            <label htmlFor="folder-rows">自定义高度（行）<input id="folder-rows" type="number" min={1} step={1} inputMode="numeric" className={fieldClass} value={rows} aria-invalid={sizeError?.field === 'rows'} aria-describedby={sizeError?.field === 'rows' ? 'folder-size-error folder-size-note' : 'folder-size-note'} onChange={(event) => { setRows(event.target.value); setSizeError(null) }} placeholder="例如 6" /></label>
+            <label htmlFor="folder-columns">自定义宽度（列）<input id="folder-columns" type="number" min={1} step={1} inputMode="numeric" className={fieldClass} value={columns} aria-invalid={sizeError?.field === 'columns' || sizeError?.field === 'layout'} aria-describedby={sizeError?.field === 'columns' || sizeError?.field === 'layout' ? 'folder-size-error folder-size-note' : 'folder-size-note'} onChange={(event) => { setColumns(event.target.value); setSizeError(null) }} placeholder="例如 10" /></label>
+            <label htmlFor="folder-rows">自定义高度（行）<input id="folder-rows" type="number" min={1} step={1} inputMode="numeric" className={fieldClass} value={rows} aria-invalid={sizeError?.field === 'rows' || sizeError?.field === 'layout'} aria-describedby={sizeError?.field === 'rows' || sizeError?.field === 'layout' ? 'folder-size-error folder-size-note' : 'folder-size-note'} onChange={(event) => { setRows(event.target.value); setSizeError(null) }} placeholder="例如 6" /></label>
           </div>
           {sizeError && <p id="folder-size-error" className="folder-size-error" role="alert">{sizeError.message}</p>}
           <p id="folder-size-note" className="folder-field-note">按图标格子自定义任意正整数尺寸，例如 10 × 6。较大宽度会适配当前可见区域，保存的尺寸不会改小；手机端仍为 4 列。预览显示部分图标，点击文件夹可查看全部内容。</p>

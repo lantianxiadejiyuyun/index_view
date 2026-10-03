@@ -53,7 +53,7 @@ function IconButton({
   )
 }
 
-export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: { onAddSite: () => void; onAddCategory: () => void; onAddFolder: () => void; onOrganize: () => void }) {
+export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize, onToggleEdit, onBulkDelete, onLayoutOptions, layoutBusy = false }: { onAddSite: () => void; onAddCategory?: () => void; onAddFolder: () => void; onOrganize: () => void; onToggleEdit?: () => void; onBulkDelete?: () => void; onLayoutOptions?: () => void; layoutBusy?: boolean }) {
   const canEdit = useApp((s) => s.canEdit)
   const editMode = useApp((s) => s.editMode)
   const setEditMode = useApp((s) => s.setEditMode)
@@ -68,6 +68,8 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   const isDark = useTheme(settings.theme)
+  const toggleEdit = () => { if (!layoutBusy) (onToggleEdit ?? (() => setEditMode(!editMode)))() }
+  const openBulkDelete = () => { if (!layoutBusy) (onBulkDelete ?? (() => setBulkDeleteOpen(true)))() }
 
   function toggleTheme() {
     setTheme(isDark ? 'light' : 'dark')
@@ -89,7 +91,7 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
     <div className="home-toolbar flex items-center justify-end gap-2 px-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:gap-3 sm:px-5 sm:pt-[calc(1.25rem+env(safe-area-inset-top))]">
       {settings.appearance_preset === 'desktop' && <div className="desktop-brand"><PanelsTopLeft size={19} aria-hidden /><span>{settings.site_title || '我的桌面'}</span><span className="desktop-brand-note">个人空间</span></div>}
       <nav aria-label="手机快捷操作" className="glass grid w-full grid-flow-col auto-cols-fr gap-1 rounded-2xl p-1 sm:hidden">
-        {canEdit && <button type="button" aria-label={editMode ? '完成编辑' : '编辑首页'} onClick={() => setEditMode(!editMode)} className={`flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium ${editMode ? 'bg-emerald-500/85 text-white' : 'text-fg/80 active:bg-line/15'}`}>{editMode ? <Check className="size-4" aria-hidden /> : <Pencil className="size-4" aria-hidden />}{editMode ? '完成' : '编辑'}</button>}
+        {canEdit && <button type="button" disabled={layoutBusy} aria-label={editMode ? '完成编辑' : '编辑首页'} onClick={toggleEdit} className={`flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium ${editMode ? 'bg-emerald-500/85 text-white' : 'text-fg/80 active:bg-line/15'}`}>{editMode ? <Check className="size-4" aria-hidden /> : <Pencil className="size-4" aria-hidden />}{editMode ? '完成' : '编辑'}</button>}
         <button type="button" aria-label={isDark ? '切换到浅色' : '切换到深色'} onClick={toggleTheme} className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-fg/80 active:bg-line/15">{isDark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}{isDark ? '浅色' : '深色'}</button>
         {user && <Link to="/subscriptions" aria-label="订阅中心" className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-fg/80 active:bg-line/15"><Rss className="size-4" aria-hidden />订阅</Link>}
         <button type="button" aria-haspopup="dialog" aria-expanded={moreOpen} onClick={() => setMoreOpen(true)} className="flex min-h-12 items-center justify-center gap-1.5 rounded-xl text-xs font-medium text-fg/80 active:bg-line/15"><MoreHorizontal className="size-4" aria-hidden />更多</button>
@@ -99,7 +101,8 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
           <>
             <button
               type="button"
-              onClick={() => setEditMode(!editMode)}
+              onClick={toggleEdit}
+              disabled={layoutBusy}
               className={[
                 'flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-medium transition sm:px-3',
                 editMode
@@ -125,13 +128,13 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
                 <IconButton label="添加图标" onClick={onAddSite}>
                   <Plus className="size-4" aria-hidden />
                 </IconButton>
-                <IconButton label="添加分组" onClick={onAddCategory}>
+                {onAddCategory && <IconButton label="添加分组" onClick={onAddCategory}>
                   <Group className="size-4" aria-hidden />
-                </IconButton>
+                </IconButton>}
                 <IconButton label="添加文件夹" onClick={onAddFolder}>
                   <FolderPlus className="size-4" aria-hidden />
                 </IconButton>
-                <IconButton label="批量删除图标" onClick={() => setBulkDeleteOpen(true)}>
+                <IconButton label="批量删除图标" onClick={openBulkDelete}>
                   <Trash2 className="size-4" aria-hidden />
                 </IconButton>
               </>
@@ -140,6 +143,7 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
         )}
 
         {canEdit && user && <button type="button" onClick={onOrganize} className="flex items-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-medium text-brand-500 transition hover:bg-brand-500/10 sm:px-3"><Sparkles className="size-4" aria-hidden />AI 整理</button>}
+        {canEdit && onLayoutOptions && <IconButton label="首页布局选项" onClick={onLayoutOptions}><PanelsTopLeft className="size-4" aria-hidden /></IconButton>}
 
         <IconButton label={isDark ? '切换到浅色' : '切换到深色'} onClick={() => void toggleTheme()}>
           {isDark ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
@@ -217,7 +221,13 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
       </div>
       <Modal open={moreOpen} title="更多功能" onClose={() => setMoreOpen(false)} size="sm">
         <nav aria-label="更多功能" className="grid grid-cols-2 gap-2">
-          {canEdit && <button type="button" onClick={() => { setMoreOpen(false); setBulkDeleteOpen(true) }} className="flex min-h-16 items-center gap-3 rounded-2xl border border-line/10 bg-line/5 px-4 text-sm text-fg/85 active:bg-line/15"><Trash2 className="size-5 shrink-0 text-rose-500" aria-hidden />批量删除图标</button>}
+          {canEdit && <>
+            <button type="button" onClick={() => { setMoreOpen(false); onAddSite() }} className="home-more-action"><Plus className="size-5 text-accent" />添加图标</button>
+            <button type="button" onClick={() => { setMoreOpen(false); onAddFolder() }} className="home-more-action"><FolderPlus className="size-5 text-accent" />添加文件夹</button>
+            {user && <button type="button" onClick={() => { setMoreOpen(false); onOrganize() }} className="home-more-action"><Sparkles className="size-5 text-accent" />AI 整理</button>}
+            {onLayoutOptions && <button type="button" onClick={() => { setMoreOpen(false); onLayoutOptions() }} className="home-more-action"><PanelsTopLeft className="size-5 text-accent" />首页布局选项</button>}
+            <button type="button" onClick={() => { setMoreOpen(false); openBulkDelete() }} className="home-more-action"><Trash2 className="size-5 shrink-0 text-rose-500" aria-hidden />批量删除图标</button>
+          </>}
           {[
             { to: '/desktop', label: '自由桌面', icon: Monitor },
             ...(user ? [{ to: '/lingxi', label: '灵犀工作区', icon: MessageCircle }] : []),

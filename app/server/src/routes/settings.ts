@@ -244,13 +244,15 @@ settingsRoutes.post('/import', requireAuth, async (c) => {
     throw new NavigationInputError('文件里没有可导入的有效内容，现有内容已保留')
   }
 
-  const desktopLayout = body.settings?.desktop_layout
-  if (desktopLayout !== undefined) {
+  const layouts = [{ scope: 'desktop', key: 'desktop_layout', label: '桌面' }, { scope: 'home', key: 'home_layout', label: '普通首页' }] as const
+  for (const { key, label } of layouts) {
+    const value = body.settings?.[key]
+    if (value === undefined) continue
     try {
-      if (typeof desktopLayout !== 'string' || desktopLayout.length > 512 * 1024) throw new Error()
-      const parsed = JSON.parse(desktopLayout)
+      if (typeof value !== 'string' || value.length > 512 * 1024) throw new Error()
+      const parsed = JSON.parse(value)
       if (!parsed || parsed.version !== 1) throw new Error()
-    } catch { throw new NavigationInputError('备份中的桌面布局无效') }
+    } catch { throw new NavigationInputError(`备份中的${label}布局无效`) }
   }
   if (body.settings?.home_mode !== undefined && !ENUM_VALUES.home_mode!.includes(String(body.settings.home_mode))) throw new NavigationInputError('备份中的首页模式无效')
   if (body.settings?.desktop_header_mode !== undefined && !ENUM_VALUES.desktop_header_mode!.includes(String(body.settings.desktop_header_mode))) throw new NavigationInputError('备份中的桌面时钟与搜索位置无效')
@@ -319,7 +321,7 @@ settingsRoutes.post('/import', requireAuth, async (c) => {
       siteCount += 1
     })
 
-    importDesktopLayout(desktopLayout as string | undefined, folderMap, siteMap, mode === 'replace')
+    for (const { scope, key } of layouts) importDesktopLayout(body.settings?.[key] as string | undefined, folderMap, siteMap, mode === 'replace', scope)
 
     if (body.settings && typeof body.settings === 'object') {
       for (const [key, value] of Object.entries(body.settings)) {

@@ -66,6 +66,22 @@ test('failed deletion leaves every icon and saved desktop position available for
   assert.equal(store.getState().status, 'ready')
 })
 
+test('bulk deletion updates independent home positions from the server and accepts older responses without them', async (t) => {
+  const store = await createStore(t), before = fixtures()
+  const home = { version: 1, wide: { 'site:1': { col: 0, row: 4 }, 'site:2': { col: 3, row: 4 } }, compact: {} }
+  store.setState({ ...before, rawSettings: { ...before.rawSettings, home_layout: JSON.stringify(home) } })
+  const nextHome = { version: 1, wide: { 'site:1': { col: 0, row: 4 } }, compact: {} }
+  const desktop = { version: 1, wide: { 'folder:10': { col: 6, row: 6 } }, compact: {} }
+  let includeHome = true
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ sites: [before.sites[0]], deleted_count: 1, desktop_layout: desktop, ...(includeHome ? { home_layout: nextHome } : {}) }))
+  await store.getState().bulkDeleteSites({ ids: [2] })
+  assert.deepEqual(JSON.parse(store.getState().rawSettings.home_layout), nextHome)
+  assert.deepEqual(JSON.parse(store.getState().rawSettings.desktop_layout), desktop)
+  includeHome = false
+  await store.getState().bulkDeleteSites({ ids: [2] })
+  assert.deepEqual(JSON.parse(store.getState().rawSettings.home_layout), nextHome)
+})
+
 test('delete-all sends the explicit confirmation and keeps empty folders and groups', async (t) => {
   const store = await createStore(t), before = fixtures(), calls = []
   store.setState(before)
@@ -91,7 +107,7 @@ test('a changed delete-all review does not mutate state and can refresh without 
       return new Response(JSON.stringify({ error: 'sites_changed', message: '图标清单已变更，请刷新清单后重新确认' }), { status: 409 })
     }
     assert.equal(init.cache, 'no-store')
-    return new Response(JSON.stringify({ sites: refreshedSites, folders: before.folders, categories: before.categories, settings: { wallpaper_url: '/new-wallpaper.jpg', desktop_layout: 'updated-layout' } }))
+    return new Response(JSON.stringify({ sites: refreshedSites, folders: before.folders, categories: before.categories, settings: { wallpaper_url: '/new-wallpaper.jpg', desktop_layout: 'updated-layout', home_layout: 'updated-home-layout' } }))
   })
   await assert.rejects(store.getState().bulkDeleteSites({ all: true, confirm: 'delete-all-sites', expected_ids: [1, 2] }), { status: 409, code: 'sites_changed' })
   assert.deepEqual(store.getState().sites, before.sites)
@@ -103,6 +119,7 @@ test('a changed delete-all review does not mutate state and can refresh without 
   assert.deepEqual(statuses, ['ready'])
   assert.equal(store.getState().editMode, true)
   assert.equal(store.getState().rawSettings.desktop_layout, 'updated-layout')
+  assert.equal(store.getState().rawSettings.home_layout, 'updated-home-layout')
   assert.equal(store.getState().rawSettings.wallpaper_url, '/wallpaper.jpg')
   assert.deepEqual(calls, [{ path: '/api/sites/bulk-delete', method: 'POST' }, { path: '/api/bootstrap', method: 'GET' }])
 })

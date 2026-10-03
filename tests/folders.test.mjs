@@ -650,3 +650,153 @@ test('damaged stored or imported dimensions fall back to default sizes at the or
   assert.equal(restoredFolder.columns, 3)
   assert.equal(restoredFolder.rows, 2)
 })
+
+test('home scope independently persists all widgets on both viewports while legacy requests keep desktop scope', async () => {
+  await fixture()
+  for (const scope of ['desktop', 'home']) for (const viewport of ['wide', 'compact']) await json('/desktop/layout', { scope, viewport, reset: true }, 'PATCH')
+  const expected = {}
+  for (const scope of ['desktop', 'home']) {
+    expected[scope] = { version: 1, wide: {}, compact: {} }
+    for (const viewport of ['wide', 'compact']) {
+      const placements = widgetPlacements(viewport).map(item => ({ ...item, row: item.row + (scope === 'home' ? 100 : 0) }))
+      const result = await json('/desktop/layout', { scope, viewport, placements }, 'PATCH')
+      expected[scope][viewport] = positionsOf(placements)
+      assert.deepEqual(result.layout, expected[scope])
+    }
+  }
+  assert.deepEqual((await json('/desktop/layout')).layout, expected.desktop)
+  assert.deepEqual((await json('/desktop/layout?scope=desktop')).layout, expected.desktop)
+  assert.deepEqual((await json('/desktop/layout?scope=home')).layout, expected.home)
+  const bootstrap = await json('/bootstrap')
+  assert.deepEqual(JSON.parse(bootstrap.settings.desktop_layout), expected.desktop)
+  assert.deepEqual(JSON.parse(bootstrap.settings.home_layout), expected.home)
+
+  const originalSize = expected.home.wide['widget:clock']
+  const moved = await json('/desktop/layout', { scope: 'home', viewport: 'wide', placements: [{ id: 'widget:clock', col: 1, row: 200 }] }, 'PATCH')
+  assert.deepEqual(moved.layout.wide['widget:clock'], { ...originalSize, col: 1, row: 200 })
+  assert.deepEqual(moved.layout.compact, expected.home.compact)
+  assert.deepEqual((await json('/desktop/layout')).layout, expected.desktop)
+  const reset = await json('/desktop/layout', { scope: 'home', viewport: 'wide', reset: true }, 'PATCH')
+  assert.deepEqual(reset.layout, { ...expected.home, wide: {} })
+  assert.deepEqual((await json('/desktop/layout')).layout, expected.desktop)
+  await json('/desktop/layout', { viewport: 'wide', placements: [{ id: 'widget:clock', col: 3, row: 210 }] }, 'PATCH')
+  assert.deepEqual((await json('/desktop/layout?scope=home')).layout, reset.layout)
+})
+
+test('home endpoints remain authenticated and invalid scope or home dimensions cannot mutate either layout', async () => {
+  const { sites } = await fixture()
+  const before = await json('/settings')
+  const beforeSites = state()
+  for (const [route, method, body] of [
+    ['/desktop/layout?scope=home', 'GET'],
+    ['/desktop/layout', 'PATCH', { scope: 'home', viewport: 'wide', reset: true }],
+    ['/desktop/move', 'POST', { scope: 'home', viewport: 'wide', site_id: sites[0], folder_id: null, position: { col: 0, row: 1 } }],
+  ]) assert.equal((await request(route, body, method, false)).status, 401)
+  for (const scope of ['', 'navigation', 'HOME', null, true, {}, 0]) {
+    await json('/desktop/layout?scope=' + encodeURIComponent(String(scope)), undefined, 'GET', 400)
+    await json('/desktop/layout', { scope, viewport: 'wide', reset: true }, 'PATCH', 400)
+    await json('/desktop/move', { scope, viewport: 'wide', site_id: sites[0], folder_id: null, position: { col: 0, row: 1 } }, 'POST', 400)
+  }
+  await json('/desktop/layout', { scope: 'home', viewport: 'compact', placements: [
+    { id: 'widget:clock', col: 0, row: 0, width: 2, height: 1 },
+    { id: 'widget:weather', col: 0, row: 3, width: 5, height: 2 },
+  ] }, 'PATCH', 400)
+  assert.deepEqual(await json('/settings'), before)
+  assert.deepEqual(state(), beforeSites)
+  const ignored = await json('/settings', { home_layout: '{}' }, 'PUT')
+  assert.ok(ignored.ignored.includes('home_layout'))
+  assert.deepEqual(await json('/settings'), before)
+})
+
+test('home folder detach writes only home coordinates and failed writes roll back shared membership', async () => {
+  const { a, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Home detach', category_id: a, site_ids: [sites[0]] }, 'POST', 201)
+  const id = `site:${sites[0]}`
+  await json('/desktop/layout', { scope: 'desktop', viewport: 'wide', placements: [{ id, col: 8, row: 9 }] }, 'PATCH')
+  await json('/desktop/layout', { scope: 'home', viewport: 'compact', placements: [{ id, col: 1, row: 20 }] }, 'PATCH')
+  const desktop = await json('/desktop/layout')
+  const compact = (await json('/desktop/layout?scope=home')).layout.compact
+  const result = await json('/desktop/move', { scope: 'home', viewport: 'wide', site_id: sites[0], folder_id: null, position: { col: 2, row: 5 } })
+  assert.equal(site(sites[0]).folder_id, null)
+  assert.deepEqual(result.layout.wide[id], { col: 2, row: 5 })
+  assert.deepEqual(result.layout.compact, compact)
+  assert.deepEqual(await json('/desktop/layout'), desktop)
+  await json('/desktop/move', { scope: 'home', viewport: 'wide', site_id: sites[0], folder_id: folder.id })
+  const before = state()
+  const layouts = await json('/settings')
+  h.sql.exec("CREATE TRIGGER fail_home_move BEFORE INSERT ON settings WHEN NEW.key = 'home_layout' BEGIN SELECT RAISE(ABORT, 'fixture home write'); END")
+  try {
+    assert.equal((await request('/desktop/move', { scope: 'home', viewport: 'wide', site_id: sites[0], folder_id: null, position: { col: 4, row: 8 } })).status, 500)
+    assert.deepEqual(state(), before)
+    assert.deepEqual(await json('/settings'), layouts)
+  } finally { h.sql.exec('DROP TRIGGER fail_home_move') }
+})
+
+test('backup export and replace preserve both layout scopes and remap their folder and site IDs', async () => {
+  const { a, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Dual-layout folder', category_id: a, site_ids: [sites[0]] }, 'POST', 201)
+  const originals = {}
+  for (const scope of ['desktop', 'home']) {
+    for (const viewport of ['wide', 'compact']) {
+      await json('/desktop/layout', { scope, viewport, reset: true }, 'PATCH')
+      const row = scope === 'home' ? 30 : 4
+      await json('/desktop/layout', { scope, viewport, placements: [
+        { id: 'widget:clock', col: 0, row, width: viewport === 'wide' ? (scope === 'home' ? 6 : 3) : 4, height: scope === 'home' ? 3 : 2 },
+        { id: `folder:${folder.id}`, col: 1, row: row + 5 },
+        { id: `site:${sites[1]}`, col: 2, row: row + 10 },
+      ] }, 'PATCH')
+    }
+    originals[scope] = (await json('/desktop/layout?scope=' + scope)).layout
+  }
+  const backup = await json('/export')
+  for (const scope of ['desktop', 'home']) assert.deepEqual(JSON.parse(backup.settings[`${scope}_layout`]), originals[scope])
+  await json('/import', { ...backup, mode: 'replace' })
+  const current = await json('/bootstrap')
+  const newFolder = current.folders.find(item => item.name === folder.name)
+  const newSite = current.sites.find(item => item.title === 'Site 1')
+  for (const scope of ['desktop', 'home']) {
+    const { layout } = await json('/desktop/layout?scope=' + scope)
+    for (const viewport of ['wide', 'compact']) assert.deepEqual(layout[viewport], {
+      'widget:clock': originals[scope][viewport]['widget:clock'],
+      [`folder:${newFolder.id}`]: originals[scope][viewport][`folder:${folder.id}`],
+      [`site:${newSite.id}`]: originals[scope][viewport][`site:${sites[1]}`],
+    })
+  }
+  const before = { data: state(), settings: await json('/settings') }
+  for (const broken of ['{bad', 'null', JSON.stringify({ version: 2 }), {}, ' '.repeat(512 * 1024 + 1)]) {
+    await json('/import', { ...backup, mode: 'replace', settings: { ...backup.settings, home_layout: broken } }, 'POST', 400)
+    assert.deepEqual(state(), before.data)
+    assert.deepEqual(await json('/settings'), before.settings)
+  }
+})
+
+test('merge preserves each scope widget preferences and older backups do not copy desktop positions into home', async () => {
+  await fixture()
+  for (const scope of ['desktop', 'home']) for (const viewport of ['wide', 'compact']) {
+    await json('/desktop/layout', { scope, viewport, reset: true }, 'PATCH')
+    await json('/desktop/layout', { scope, viewport, placements: [
+      { id: 'widget:clock', col: 0, row: scope === 'home' ? 20 : 2, width: 2, height: 1 },
+      { id: 'widget:weather', col: 0, row: scope === 'home' ? 25 : 6, width: 4, height: 2 },
+    ] }, 'PATCH')
+  }
+  const backup = await json('/export')
+  for (const scope of ['desktop', 'home']) for (const viewport of ['wide', 'compact']) {
+    await json('/desktop/layout', { scope, viewport, reset: true }, 'PATCH')
+    await json('/desktop/layout', { scope, viewport, placements: [{ id: 'widget:clock', col: 0, row: scope === 'home' ? 100 : 80, width: 3, height: 4 }] }, 'PATCH')
+  }
+  await json('/import', { ...backup, mode: 'merge' })
+  for (const scope of ['desktop', 'home']) {
+    const { layout } = await json('/desktop/layout?scope=' + scope)
+    for (const viewport of ['wide', 'compact']) {
+      assert.deepEqual(layout[viewport]['widget:clock'], { col: 0, row: scope === 'home' ? 100 : 80, width: 3, height: 4 })
+      assert.deepEqual(layout[viewport]['widget:weather'], JSON.parse(backup.settings[`${scope}_layout`])[viewport]['widget:weather'])
+    }
+  }
+  const { home_layout: _home, ...legacySettings } = backup.settings
+  const beforeHome = await json('/desktop/layout?scope=home')
+  await json('/import', { ...backup, settings: legacySettings, mode: 'merge' })
+  assert.deepEqual(await json('/desktop/layout?scope=home'), beforeHome)
+  await json('/import', { ...backup, settings: legacySettings, mode: 'replace' })
+  assert.deepEqual((await json('/desktop/layout?scope=home')).layout, { version: 1, wide: {}, compact: {} })
+  assert.deepEqual((await json('/desktop/layout')).layout, JSON.parse(backup.settings.desktop_layout))
+})

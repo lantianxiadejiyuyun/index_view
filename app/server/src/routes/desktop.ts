@@ -9,8 +9,9 @@ import type { AppEnv } from '../types.js'
 
 type Position = { col: number; row: number; width?: number; height?: number }
 type Layout = { version: 1; wide: Record<string, Position>; compact: Record<string, Position> }
+type LayoutScope = 'desktop' | 'home'
 const widgets = new Set(['clock', 'search', 'weather', 'quote', 'workbench', 'calendar', 'lingxi-calendar', 'lingxi-schedule', 'lingxi-deadline', 'lingxi-chat'])
-const key = 'desktop_layout'
+const layoutKey = (scope: LayoutScope) => scope === 'home' ? 'home_layout' : 'desktop_layout'
 export const desktopRoutes = new Hono<AppEnv>()
 desktopRoutes.use('/desktop/*', requireAuth)
 desktopRoutes.use('/desktop/*', bodyLimit({ maxSize: 64 * 1024 }))
@@ -34,6 +35,11 @@ function viewport(value: unknown): 'wide' | 'compact' {
   if (value !== 'wide' && value !== 'compact') throw new NavigationInputError('桌面尺寸无效')
   return value
 }
+function layoutScope(value: unknown): LayoutScope {
+  if (value === undefined) return 'desktop'
+  if (value !== 'desktop' && value !== 'home') throw new NavigationInputError('布局范围无效，请选择普通首页或桌面')
+  return value
+}
 function position(value: unknown, view: 'wide' | 'compact', id: string, recoverSize = false): Position {
   const p = value as Position | null
   if (!p || !Number.isInteger(p.col) || p.col < 0 || p.col >= (view === 'wide' ? 12 : 4) || !Number.isInteger(p.row) || p.row < 0 || p.row > 10000) throw new NavigationInputError('桌面位置无效')
@@ -47,10 +53,10 @@ function position(value: unknown, view: 'wide' | 'compact', id: string, recoverS
   }
   return { ...output, width: p.width, height: p.height }
 }
-export function readDesktopLayout(): Layout {
+export function readDesktopLayout(scope: LayoutScope = 'desktop'): Layout {
   const clean: Layout = { version: 1, wide: {}, compact: {} }
   try {
-    const stored = JSON.parse(getSetting(key) ?? '{}')
+    const stored = JSON.parse(getSetting(layoutKey(scope)) ?? '{}')
     for (const view of ['wide', 'compact'] as const) {
       for (const [id, p] of Object.entries(stored[view] ?? {})) {
         if (!itemExists(id)) continue
@@ -61,8 +67,8 @@ export function readDesktopLayout(): Layout {
   return clean
 }
 
-export function importDesktopLayout(raw: string | undefined, folders: Map<number, { id: number }>, sites: Map<number, number>, replace: boolean) {
-  const output = replace ? { version: 1 as const, wide: {}, compact: {} } as Layout : readDesktopLayout()
+export function importDesktopLayout(raw: string | undefined, folders: Map<number, { id: number }>, sites: Map<number, number>, replace: boolean, scope: LayoutScope = 'desktop') {
+  const output = replace ? { version: 1 as const, wide: {}, compact: {} } as Layout : readDesktopLayout(scope)
   if (raw) {
     const value = JSON.parse(raw)
     for (const view of ['wide', 'compact'] as const) for (const [oldId, p] of Object.entries(value[view] ?? {})) {
@@ -73,12 +79,13 @@ export function importDesktopLayout(raw: string | undefined, folders: Map<number
       try { output[view][newId] = position(p, view, newId, true) } catch { /* Invalid old coordinates use automatic placement. */ }
     }
   }
-  putSetting(key, JSON.stringify(output))
+  putSetting(layoutKey(scope), JSON.stringify(output))
 }
 
-desktopRoutes.get('/desktop/layout', c => c.json({ layout: readDesktopLayout() }))
+desktopRoutes.get('/desktop/layout', c => c.json({ layout: readDesktopLayout(layoutScope(c.req.query('scope'))) }))
 desktopRoutes.patch('/desktop/layout', async c => {
   const body = await readJson(c)
+  const scope = layoutScope(body.scope)
   const view = viewport(body.viewport)
   if (body.reset !== true && (!Array.isArray(body.placements) || body.placements.length < 1 || body.placements.length > 1000)) throw new NavigationInputError('桌面位置列表无效')
   const changes = body.reset === true ? [] : (body.placements as Array<Record<string, unknown>>).map(item => {
@@ -87,11 +94,11 @@ desktopRoutes.patch('/desktop/layout', async c => {
   })
   if (new Set(changes.map(p => p.id)).size !== changes.length) throw new NavigationInputError('桌面项目不能重复')
   const layout = sql.tx(() => {
-    const current = readDesktopLayout()
+    const current = readDesktopLayout(scope)
     if (body.reset === true) current[view] = {}
     // Older clients and drag operations only send coordinates; keep explicit widget sizes.
     for (const p of changes) current[view][p.id] = { ...current[view][p.id], ...p.position }
-    putSetting(key, JSON.stringify(current))
+    putSetting(layoutKey(scope), JSON.stringify(current))
     return current
   })
   return c.json({ layout })
@@ -100,6 +107,7 @@ desktopRoutes.patch('/desktop/layout', async c => {
 // Membership and the desktop position change together; a failed drop cannot detach an icon.
 desktopRoutes.post('/desktop/move', async c => {
   const body = await readJson(c)
+  const scope = layoutScope(body.scope)
   const id = referenceId(body.site_id, '站点 ID')
   const site = id === null ? undefined : sql.get<{ id: number; category_id: number | null }>('SELECT id, category_id FROM sites WHERE id = ?', id)
   if (!site) throw new NavigationInputError('图标不存在，请刷新后重试')
@@ -110,11 +118,11 @@ desktopRoutes.post('/desktop/move', async c => {
   const view = viewport(body.viewport)
   const target = folderId === null ? position(body.position, view, `site:${id}`) : null
   const layout = sql.tx(() => {
-    const current = readDesktopLayout()
+    const current = readDesktopLayout(scope)
     const order = sql.get<{ n: number }>('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM sites WHERE folder_id IS ?', folderId)!.n
     sql.run('UPDATE sites SET folder_id = ?, category_id = ?, sort_order = ?, updated_at = ? WHERE id = ?', folderId, folder ? folder.category_id : site.category_id, order, Date.now(), site.id)
     if (target) current[view][`site:${site.id}`] = target
-    putSetting(key, JSON.stringify(current))
+    putSetting(layoutKey(scope), JSON.stringify(current))
     return current
   })
   return c.json({ layout, sites: allSites() })

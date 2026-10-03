@@ -16,6 +16,8 @@ type Props = {
   onEdit: () => void
   onDelete: () => void
   dragging?: boolean
+  /** Grid canvases provide their own drag handle; editing opens the same modal. */
+  hideActions?: boolean
 }
 
 function SiteIcon({ site, px }: { site: Site; px: number }) {
@@ -91,6 +93,7 @@ export function SiteCard({
   onEdit,
   onDelete,
   dragging = false,
+  hideActions = false,
 }: Props) {
   const preset = CARD_PRESETS[size]
   const link = resolveLink(site, netMode)
@@ -152,7 +155,7 @@ export function SiteCard({
         </span>
       )}
 
-      {editMode && (
+      {editMode && !hideActions && (
         <div className="site-card-actions absolute -right-1.5 -top-1.5 flex gap-1" onPointerDown={(e) => e.stopPropagation()}>
           <button
             type="button"

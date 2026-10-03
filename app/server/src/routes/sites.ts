@@ -189,8 +189,10 @@ siteRoutes.post('/sites/bulk-delete', requireAuth, bodyLimit({
     else for (const id of ids) sql.run('DELETE FROM sites WHERE id = ?', id)
     // Persist pruning in the same transaction so backups cannot retain deleted icon positions.
     const layout = readDesktopLayout()
+    const homeLayout = readDesktopLayout('home')
     putSetting('desktop_layout', JSON.stringify(layout))
-    return { ok: true, deleted_count: ids.length, deleted_ids: ids, sites: allSites(), desktop_layout: layout }
+    putSetting('home_layout', JSON.stringify(homeLayout))
+    return { ok: true, deleted_count: ids.length, deleted_ids: ids, sites: allSites(), desktop_layout: layout, home_layout: homeLayout }
   })
   c.header('Cache-Control', 'no-store')
   return c.json(result)

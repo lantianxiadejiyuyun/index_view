@@ -3,7 +3,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { buildSync } from 'esbuild'
 const bundle = buildSync({ entryPoints: [fileURLToPath(new URL('../app/web/src/lib/desktop-layout.ts', import.meta.url))], bundle: true, write: false, platform: 'node', format: 'esm' })
-const { arrangeDesktop, canvasDropPosition, desktopOccupants, dropPosition, parseDesktopLayout, overlaps, widgetResizeError } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
+const { arrangeDesktop, canvasDropPosition, desktopOccupants, dropPosition, freePosition, parseDesktopLayout, overlaps, restoreDesktopWidgets, widgetResizeError } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`)
 const widgetsBundle = buildSync({ entryPoints: [fileURLToPath(new URL('../app/web/src/lib/desktop-widgets.ts', import.meta.url))], bundle: true, write: false, platform: 'node', format: 'esm' })
 const { widgetLabels, widgetSize, widgetSizePresets } = await import(`data:text/javascript;base64,${Buffer.from(widgetsBundle.outputFiles[0].text).toString('base64')}`)
 test('desktop leaves intentional blank space, reserves saved tiles before automatic items and never overlaps', () => {
@@ -102,12 +102,45 @@ test('widget resize remains anchored and rejects collisions and canvas overflow 
   assert.deepEqual(occupied, before)
 })
 
-test('hidden widgets reserve their resized footprint across hide, reload and restore', () => {
+test('hidden widgets retain preferences while freeing their space for drops, resizing and new items', () => {
   const layout = parseDesktopLayout(JSON.stringify({ compact: { 'widget:weather': { col: 0, row: 0, width: 2, height: 1 }, 'widget:clock': { col: 0, row: 2, width: 4, height: 3 } } }))
   const visible = [{ id: 'widget:weather', ...widgetSize('weather', 'compact', layout.compact['widget:weather']) }, { id: 'site:1', width: 1, height: 1 }]
   const occupants = desktopOccupants(visible, layout, 'compact')
-  assert.deepEqual(occupants.find(p => p.id === 'widget:clock'), { id: 'widget:clock', col: 0, row: 2, width: 4, height: 3 })
-  assert.match(widgetResizeError(occupants[0], { width: 2, height: 3 }, occupants, 4), /占用/)
-  const restored = desktopOccupants([...visible, { id: 'widget:clock', ...widgetSize('clock', 'compact', layout.compact['widget:clock']) }], layout, 'compact')
-  for (const item of restored) assert.deepEqual(item, occupants.find(p => p.id === item.id))
+  assert.equal(occupants.find(p => p.id === 'widget:clock'), undefined)
+  assert.equal(widgetResizeError(occupants[0], { width: 2, height: 3 }, occupants, 4), null)
+  assert.deepEqual(freePosition({ id: 'folder:1', width: 4, height: 2 }, { col: 0, row: 2 }, occupants, 4), { col: 0, row: 2 })
+  assert.deepEqual(layout.compact['widget:clock'], { col: 0, row: 2, width: 4, height: 3 })
+  const restored = restoreDesktopWidgets(occupants, ['clock'], layout, 'compact')
+  assert.deepEqual(restored, [{ id: 'widget:clock', col: 0, row: 2, width: 4, height: 3 }])
+})
+
+test('a five-column AI card can move into the screenshot blank area despite a hidden deadline at column four', () => {
+  const layout = parseDesktopLayout(JSON.stringify({ wide: {
+    'widget:lingxi-chat': { col: 7, row: 6, width: 5, height: 4 },
+    'widget:lingxi-deadline': { col: 4, row: 6, width: 3, height: 2 },
+    'widget:weather': { col: 0, row: 4 }, 'widget:workbench': { col: 4, row: 4, width: 4, height: 2 },
+  } }))
+  const visible = [{ id: 'widget:lingxi-chat', width: 5, height: 4 }, { id: 'widget:weather', width: 4, height: 2 }, { id: 'widget:workbench', width: 4, height: 2 }]
+  const occupants = desktopOccupants(visible, layout, 'wide')
+  assert.deepEqual(canvasDropPosition(visible[0], { left: 554, top: 452 }, { left: 200, top: -280 }, 100, 104, 18, occupants, 12), { col: 3, row: 6 })
+  assert.equal(canvasDropPosition(visible[0], { left: 200, top: 208 }, { left: 200, top: -280 }, 100, 104, 18, occupants, 12), null)
+})
+
+test('restoring a hidden widget whose space was reused relocates only that widget and keeps its size', () => {
+  const current = [{ id: 'widget:lingxi-chat', col: 0, row: 6, width: 5, height: 4 }, { id: 'site:1', col: 5, row: 6, width: 1, height: 1 }]
+  const before = structuredClone(current)
+  const layout = parseDesktopLayout(JSON.stringify({ wide: { 'widget:lingxi-deadline': { col: 4, row: 6, width: 3, height: 2 } } }))
+  const restored = restoreDesktopWidgets(current, ['lingxi-deadline', 'lingxi-deadline', 'lingxi-chat'], layout, 'wide')
+  assert.deepEqual(restored, [{ id: 'widget:lingxi-deadline', col: 6, row: 6, width: 3, height: 2 }])
+  assert.deepEqual(current, before)
+  assert.deepEqual(layout.wide['widget:lingxi-deadline'], { col: 4, row: 6, width: 3, height: 2 })
+  for (const existing of current) assert.equal(overlaps(existing, restored[0]), false)
+})
+
+test('restoring multiple widgets preserves vacant saved homes before allocating any displaced widget', () => {
+  const current = [{ id: 'site:1', col: 0, row: 0, width: 1, height: 1 }]
+  const layout = parseDesktopLayout(JSON.stringify({ wide: { 'widget:clock': { col: 0, row: 0, width: 2, height: 1 }, 'widget:search': { col: 1, row: 0, width: 5, height: 1 } } }))
+  const restored = restoreDesktopWidgets(current, ['clock', 'search'], layout, 'wide')
+  assert.deepEqual(restored, [{ id: 'widget:clock', col: 6, row: 0, width: 2, height: 1 }, { id: 'widget:search', col: 1, row: 0, width: 5, height: 1 }])
+  assert.deepEqual(current, [{ id: 'site:1', col: 0, row: 0, width: 1, height: 1 }])
 })

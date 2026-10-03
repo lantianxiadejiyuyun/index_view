@@ -4,8 +4,11 @@ import { Link, Navigate } from 'react-router-dom'
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type KeyboardCoordinateGetter } from '@dnd-kit/core'
 import { Check, Command, Folder as FolderIcon, FolderPlus, Grip, Home, LayoutGrid, Loader2, LogIn, MessageCircle, Maximize2, Moon, NotebookPen, Pencil, Plus, Rss, Settings2, Sun, Trash2, X } from 'lucide-react'
 import { api, errorMessage } from '../lib/api.ts'
-import { arrangeDesktop, canvasDropPosition, desktopOccupants, dropPosition, freePosition, overlaps, parseDesktopLayout, widgetResizeError, type DesktopItem, type DesktopLayout, type DesktopViewport, type PlacedItem } from '../lib/desktop-layout.ts'
+import { canvasDropPosition, desktopOccupants, dropPosition, freePosition, parseDesktopLayout, widgetResizeError, type DesktopItem, type DesktopLayout, type DesktopViewport, type PlacedItem } from '../lib/desktop-layout.ts'
 import { widgetLabels, widgetSize, type WidgetDimensions } from '../lib/desktop-widgets.ts'
+import { folderResizeError } from '../lib/grid-folder-layout.ts'
+import { planGridSiteRestore } from '../lib/grid-site-layout.ts'
+import { desktopSettingsItems, visibleDesktopWidgetNames } from '../lib/desktop-settings-layout.ts'
 import { DesktopWidgetSizeDialog } from '../components/DesktopWidgetSizeDialog.tsx'
 import { resolveLink, openResolved } from '../lib/link.ts'
 import type { Folder, Site } from '../lib/types.ts'
@@ -18,10 +21,13 @@ import { DesktopCalendar } from '../components/DesktopCalendar.tsx'
 import { LingxiCalendarWidget, LingxiScheduleWidget, LingxiDeadlineWidget, LingxiChatWidget } from '../components/lingxi/LingxiWidgets.tsx'
 import { FolderEditorModal } from '../components/FolderEditor.tsx'
 import { SiteEditorModal } from '../components/SiteEditor.tsx'
+import { SiteCard } from '../components/SiteCard.tsx'
 import { SearchBar } from '../components/SearchBar.tsx'
 import { HitokotoWidget, WeatherWidget, WorkbenchWidget } from '../components/Widgets.tsx'
 import { Modal, btnGhost } from '../components/Modal.tsx'
 import { BulkSiteDeleteModal } from '../components/BulkSiteDelete.tsx'
+import { Toolbar } from '../components/Toolbar.tsx'
+import { NavigationAiOrganizer } from '../components/NavigationAiOrganizer.tsx'
 import './desktop.css'
 import '../components/desktop-widget-sizes.css'
 
@@ -45,7 +51,7 @@ function FolderMember({ site, editing, busy, onOpen, onEdit, onDetach }: { site:
   const drag = useDraggable({ id: `site:${site.id}`, data: { kind: 'site', fromFolder: true }, disabled: !editing || busy })
   return <div ref={drag.setNodeRef} className={`desktop-member${drag.isDragging ? ' is-dragging' : ''}`}>
     <button type="button" className="desktop-app" {...(editing ? { ...drag.attributes, ...drag.listeners, style: { touchAction: 'none' } } : {})} aria-label={editing ? `拖动图标 ${site.title}` : site.title} onClick={editing ? undefined : onOpen}><FolderSiteIcon site={site} /><span>{site.title}</span></button>
-    {editing && <div className="desktop-member-actions"><button type="button" disabled={busy} onClick={onEdit}>编辑</button><button type="button" disabled={busy} onClick={onDetach}>移到桌面</button></div>}
+    {editing && <div className="desktop-member-actions"><button type="button" disabled={busy} onClick={onEdit}>编辑</button><button type="button" disabled={busy} onClick={onDetach}>移出文件夹</button></div>}
   </div>
 }
 
@@ -63,8 +69,8 @@ function DesktopFolderWindow({ folder, sites, editing, busy, onClose, onOpen, on
   }, [folder.id])
   return createPortal(<div ref={node => { ref.current = node; drop.setNodeRef(node) }} role="dialog" aria-label={`文件夹 ${folder.name}`} aria-modal="false" tabIndex={-1} className={`desktop-folder-window${drop.isOver ? ' is-drop-target' : ''}`}>
     <header><FolderIcon size={19} aria-hidden /><strong>{folder.name}</strong><span>{sites.length} 个图标</span><button type="button" className="desktop-window-close" onClick={onClose} disabled={busy} aria-label="关闭文件夹"><X size={18} /></button></header>
-    <div className="desktop-folder-toolbar"><span>{editing ? '拖出窗口可放回桌面，拖到其他文件夹可转移' : '你的收藏，随手可达'}</span>{editing && <><button type="button" disabled={busy} onClick={onEditFolder}><Settings2 size={14} />管理</button><button type="button" disabled={busy} onClick={onAdd}><Plus size={14} />添加</button></>}</div>
-    <div className="desktop-folder-members">{sites.map(site => <FolderMember key={site.id} site={site} editing={editing} busy={busy} onOpen={() => onOpen(site)} onEdit={() => onEditSite(site)} onDetach={() => onDetach(site)} />)}{!sites.length && <p className="desktop-folder-empty">文件夹还是空的。编辑桌面后，把图标拖到这里。</p>}</div>
+    <div className="desktop-folder-toolbar"><span>{editing ? '拖出窗口可放回画布，拖到其他文件夹可转移' : '你的收藏，随手可达'}</span>{editing && <><button type="button" disabled={busy} onClick={onEditFolder}><Settings2 size={14} />管理</button><button type="button" disabled={busy} onClick={onAdd}><Plus size={14} />添加</button></>}</div>
+    <div className="desktop-folder-members">{sites.map(site => <FolderMember key={site.id} site={site} editing={editing} busy={busy} onOpen={() => onOpen(site)} onEdit={() => onEditSite(site)} onDetach={() => onDetach(site)} />)}{!sites.length && <p className="desktop-folder-empty">文件夹还是空的。进入编辑后，把图标拖到这里。</p>}</div>
   </div>, document.body)
 }
 
@@ -87,10 +93,12 @@ function placeVisibleItems(items: DesktopItem[], layout: DesktopLayout, view: De
 }
 
 
-export function DesktopPage() {
+export function DesktopPage({ mode = 'desktop' }: { mode?: 'desktop' | 'home' }) {
+  const isHome = mode === 'home'
+  const layoutKey = isHome ? 'home_layout' : 'desktop_layout'
   const { sites, folders, categories, settings, rawSettings, user, canEdit, needsLogin, editMode, setEditMode, saveSettings, setTheme, netMode, registerClick } = useApp()
   const dark = useTheme(settings.theme)
-  const [layout, setLayout] = useState(() => parseDesktopLayout(rawSettings.desktop_layout))
+  const [layout, setLayout] = useState(() => parseDesktopLayout(rawSettings[layoutKey]))
   const [boardWidth, setBoardWidth] = useState(0)
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
@@ -105,12 +113,13 @@ export function DesktopPage() {
   const [sizingWidget, setSizingWidget] = useState<string | null>(null)
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [organizerOpen, setOrganizerOpen] = useState(false)
   const board = useRef<HTMLDivElement | null>(null)
   const dragPreview = useRef<HTMLDivElement | null>(null)
   const keyboardSteps = useRef({ col: 0, row: 0 })
   const [now, setNow] = useState(new Date())
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(timer) }, [])
-  useEffect(() => { setLayout(parseDesktopLayout(rawSettings.desktop_layout)) }, [rawSettings.desktop_layout])
+  useEffect(() => { setLayout(parseDesktopLayout(rawSettings[layoutKey])) }, [rawSettings[layoutKey], layoutKey])
   useLayoutEffect(() => {
     if (!board.current) return
     const element = board.current
@@ -122,15 +131,17 @@ export function DesktopPage() {
   }, [needsLogin])
   const view: DesktopViewport = boardWidth >= 900 ? 'wide' : 'compact'
   const columns = view === 'wide' ? 12 : 4
-  const gap = view === 'wide' ? 18 : 12
-  const rowHeight = view === 'wide' ? 104 : 92
+  const gap = isHome ? (view === 'wide' ? { sm: 12, md: 18, lg: 24 } : { sm: 8, md: 12, lg: 16 })[settings.grid_gap] : view === 'wide' ? 18 : 12
+  const rowHeight = view === 'wide' ? (isHome ? { sm: 92, md: 104, lg: 120 }[settings.card_size] : 104) : 92
+  // Each canvas/viewport must freeze its own initial positions before editing.
+  useEffect(() => { setEditMode(false); setSizingWidget(null); setOpenFolderId(null) }, [mode, view, setEditMode])
   const cellWidth = Math.max(1, (boardWidth - (columns - 1) * gap) / columns)
   const editing = canEdit && editMode
   const folder = folders.find(f => f.id === openFolderId) ?? null
   const items = useMemo<Item[]>(() => {
     const result: Item[] = []
     const widget = (name: string) => result.push({ id: `widget:${name}`, kind: 'widget', widget: name, ...widgetSize(name, view, layout[view][`widget:${name}`]) })
-    if (settings.desktop_header_mode === 'widgets') {
+    if (isHome || settings.desktop_header_mode === 'widgets') {
       if (settings.show_clock) widget('clock')
       widget('search')
     }
@@ -139,7 +150,7 @@ export function DesktopPage() {
     if (settings.show_hitokoto) widget('quote')
     if (settings.show_workbench) widget('workbench')
     const folderIds = new Set(folders.map(f => f.id))
-    for (const f of [...folders].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)) result.push({ id: `folder:${f.id}`, kind: 'folder', folder: f, width: Math.min(columns, Math.max(1, f.columns)), height: Math.min(6, Math.max(1, f.rows)) })
+    for (const f of [...folders].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)) result.push({ id: `folder:${f.id}`, kind: 'folder', folder: f, width: Math.min(columns, Math.max(1, f.columns)), height: Math.max(1, f.rows) })
     for (const site of [...sites].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)) if (!site.folder_id || !folderIds.has(site.folder_id)) result.push({ id: `site:${site.id}`, kind: 'site', site, width: 1, height: 1 })
     // New integrations claim remaining space after existing icons, including
     // before the user has entered edit mode and saved their initial layout.
@@ -150,8 +161,8 @@ export function DesktopPage() {
       if (settings.show_lingxi_chat) widget('lingxi-chat')
     }
     return result
-  }, [sites, folders, view, columns, layout, user, settings.desktop_header_mode, settings.show_calendar, settings.show_clock, settings.show_weather, settings.show_hitokoto, settings.show_workbench, settings.show_lingxi_calendar, settings.show_lingxi_schedule, settings.show_lingxi_deadline, settings.show_lingxi_chat])
-  // Preserve saved spaces of hidden widgets when placing newly added items.
+  }, [isHome, sites, folders, view, columns, layout, user, settings.desktop_header_mode, settings.show_calendar, settings.show_clock, settings.show_weather, settings.show_hitokoto, settings.show_workbench, settings.show_lingxi_calendar, settings.show_lingxi_schedule, settings.show_lingxi_deadline, settings.show_lingxi_chat])
+  // Hidden widgets leave usable space while their last position and size remain saved.
   const placed = useMemo(() => placeVisibleItems(items, layout, view), [items, layout, view, columns])
   const occupied = useMemo(() => desktopOccupants(items, layout, view), [items, layout, view])
   const sizingItem = placed.find(item => item.id === `widget:${sizingWidget}`)
@@ -198,7 +209,7 @@ export function DesktopPage() {
 
   function keepLayout(value: DesktopLayout) {
     setLayout(value)
-    useApp.setState(state => ({ rawSettings: { ...state.rawSettings, desktop_layout: JSON.stringify(value) } }))
+    useApp.setState(state => ({ rawSettings: { ...state.rawSettings, [layoutKey]: JSON.stringify(value) } }))
   }
   async function run(operation: () => Promise<void>) {
     if (busyRef.current) return
@@ -212,28 +223,26 @@ export function DesktopPage() {
     registerClick(site.id); openResolved(link, settings.open_in_new_tab)
   }
   async function freezeInitialPositions() {
-    const missing = placed.filter(p => !layout[view][p.id]).map(({ id, col, row }) => ({ id, col, row }))
-    // Preserve empty space after an icon is moved into a folder or deleted.
-    for (let offset = 0; offset < missing.length; offset += 500) {
-      const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', { method: 'PATCH', body: JSON.stringify({ viewport: view, placements: missing.slice(offset, offset + 500) }) })
-      keepLayout(result.layout)
+    const state = useApp.getState()
+    // Shared folders can change both modes: preserve every already-used canvas,
+    // but only initialize the canvas the user is currently editing.
+    for (const scope of ['desktop', 'home'] as const) {
+      const saved = parseDesktopLayout(state.rawSettings[`${scope}_layout`])
+      for (const viewport of ['wide', 'compact'] as const) {
+        const active = scope === mode && viewport === view
+        if (!active && !Object.keys(saved[viewport]).length) continue
+        const current = active ? placed : desktopOccupants(desktopSettingsItems(visibleDesktopWidgetNames(state.settings, !!state.user, scope), state.folders, state.sites, saved, viewport), saved, viewport)
+        const missing = current.filter(p => !saved[viewport][p.id]).map(({ id, col, row, width, height }) => ({ id, col, row, ...(id.startsWith('widget:') ? { width, height } : {}) }))
+        for (let offset = 0; offset < missing.length; offset += 500) {
+          const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', { method: 'PATCH', body: JSON.stringify({ scope, viewport, placements: missing.slice(offset, offset + 500) }) })
+          if (scope === mode) keepLayout(result.layout)
+          else useApp.setState(value => ({ rawSettings: { ...value.rawSettings, [`${scope}_layout`]: JSON.stringify(result.layout) } }))
+        }
+      }
     }
   }
   async function changeWidgets(key: string, value: boolean | string) {
-    const widgetKey: Record<string, string> = { show_calendar: 'calendar', show_clock: 'clock', show_weather: 'weather', show_hitokoto: 'quote', show_workbench: 'workbench', show_lingxi_calendar: 'lingxi-calendar', show_lingxi_schedule: 'lingxi-schedule', show_lingxi_deadline: 'lingxi-deadline', show_lingxi_chat: 'lingxi-chat' }
-    const restore = key === 'desktop_header_mode' && value === 'widgets' ? ['search', ...(settings.show_clock ? ['clock'] : [])] : value === true && widgetKey[key] && !(key === 'show_clock' && settings.desktop_header_mode === 'hero') ? [widgetKey[key]!] : []
-    for (const viewport of ['wide', 'compact'] as const) {
-      const cols = viewport === 'wide' ? 12 : 4
-      const existing = items.map(item => ({ ...item, ...(item.kind === 'widget' ? widgetSize(item.widget, viewport, layout[viewport][item.id]) : { width: item.kind === 'folder' ? Math.min(cols, Math.max(1, item.folder.columns)) : 1 }) }))
-      const added = restore.filter(name => !existing.some(item => item.id === `widget:${name}`)).map(name => ({ id: `widget:${name}`, ...widgetSize(name, viewport, layout[viewport][`widget:${name}`]) }))
-      const current = viewport === view ? placed : placeVisibleItems(existing, layout, viewport)
-      const positions = { ...layout[viewport], ...Object.fromEntries(current.map(({ id, col, row }) => [id, { col, row }])) }
-      const next = arrangeDesktop([...existing, ...added], positions, cols)
-      if (added.some(item => { const position = next.find(p => p.id === item.id)!; return next.some(other => other.id !== item.id && overlaps(position, other)) })) {
-        toast.error(`${viewport === 'wide' ? '电脑' : '手机'}布局中组件原来的位置已被占用，请先移开该位置的图标后再显示`); return
-      }
-    }
-    await freezeInitialPositions()
+    if (isHome) await freezeInitialPositions()
     await saveSettings({ [key]: value })
   }
   function resizeWidget(size: WidgetDimensions) {
@@ -242,7 +251,7 @@ export function DesktopPage() {
     if (error) { toast.error(error); return }
     void run(async () => {
       await freezeInitialPositions()
-      const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', { method: 'PATCH', body: JSON.stringify({ viewport: view, placements: [{ id: sizingItem.id, col: sizingItem.col, row: sizingItem.row, ...size }] }) })
+      const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', { method: 'PATCH', body: JSON.stringify({ scope: mode, viewport: view, placements: [{ id: sizingItem.id, col: sizingItem.col, row: sizingItem.row, ...size }] }) })
       keepLayout(result.layout)
       setSizingWidget(null)
       toast.success(`已调整为 ${size.width} × ${size.height} 格`)
@@ -258,9 +267,20 @@ export function DesktopPage() {
   async function moveSite(site: Site, folderId: number | null, target?: { col: number; row: number }) {
     await freezeInitialPositions()
     const position = target ?? freePosition({ id: `site:${site.id}`, width: 1, height: 1 }, { col: 0, row: 0 }, occupied, columns)
-    const result = await api<{ layout: DesktopLayout; sites: Site[] }>('/api/desktop/move', { method: 'POST', body: JSON.stringify({ site_id: site.id, folder_id: folderId, viewport: view, position }) })
+    if (folderId === null && site.folder_id) {
+      const state = useApp.getState()
+      const plan = planGridSiteRestore({ ...state, scope: mode, viewport: view, target: position, site, authenticated: !!state.user })
+      for (const batch of [...plan.freeze, ...plan.restore]) {
+        for (let offset = 0; offset < batch.placements.length; offset += 500) {
+          const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', { method: 'PATCH', body: JSON.stringify({ scope: batch.scope, viewport: batch.viewport, placements: batch.placements.slice(offset, offset + 500) }) })
+          if (batch.scope === mode) keepLayout(result.layout)
+          else useApp.setState(current => ({ rawSettings: { ...current.rawSettings, [`${batch.scope}_layout`]: JSON.stringify(result.layout) } }))
+        }
+      }
+    }
+    const result = await api<{ layout: DesktopLayout; sites: Site[] }>('/api/desktop/move', { method: 'POST', body: JSON.stringify({ scope: mode, site_id: site.id, folder_id: folderId, viewport: view, position }) })
     keepLayout(result.layout); useApp.setState({ sites: result.sites })
-    toast.success(folderId === null ? '已放回桌面' : '已移入文件夹')
+    toast.success(folderId === null ? (isHome ? '已放回首页' : '已放回桌面') : '已移入文件夹')
   }
   // Shared by the live frame and the final drop, so the white outline is
   // exactly where the item will be saved, with the same collision checks.
@@ -307,13 +327,15 @@ export function DesktopPage() {
     }
     void run(async () => {
       await freezeInitialPositions()
-      const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', { method: 'PATCH', body: JSON.stringify({ viewport: view, placements: [{ id, col, row }] }) })
+      const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', { method: 'PATCH', body: JSON.stringify({ scope: mode, viewport: view, placements: [{ id, col, row }] }) })
       keepLayout(result.layout)
     })
   }
 
   const activeItem = items.find(i => i.id === activeId)
   const activeSite = sites.find(s => `site:${s.id}` === activeId)
+  const componentPreview = activeItem && activeItem.kind !== 'site'
+  const previewSize = componentPreview ? { width: activeItem.width * (cellWidth + gap) - gap, height: activeItem.height * (rowHeight + gap) - gap } : undefined
   const looseGroups = categories.filter(c => sites.some(s => s.category_id === c.id && !s.folder_id)).length
   const dockSites = useMemo(() => [...sites].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id).slice(0, 6), [sites])
   const renderWidget = (name: string) => {
@@ -325,11 +347,13 @@ export function DesktopPage() {
   }
   function addSite() { void run(async () => { await freezeInitialPositions(); setSiteEditor({ site: null, folderId: null }) }) }
   function addFolder() { void run(async () => { await freezeInitialPositions(); setFolderEditor({ folder: null }) }) }
+  function editFolder(value: Folder) { void run(async () => { await freezeInitialPositions(); setOpenFolderId(null); setFolderEditor({ folder: value }) }) }
 
   if (needsLogin) return <Navigate to="/login" replace />
   return <DndContext sensors={sensors} collisionDetection={collision} onDragStart={event => { keyboardSteps.current = { col: 0, row: 0 }; liveDrag.current = { ...event, over: null, delta: { x: 0, y: 0 } }; setActiveId(String(event.active.id)) }} onDragMove={trackDrag} onDragOver={trackDrag} onDragCancel={clearDrag} onDragEnd={endDrag}>
-    <div className={`free-desktop${editing ? ' desktop-editing' : ''}`}>
-      <nav className="desktop-sidebar" aria-label="桌面导航">
+    <div className={`free-desktop${isHome ? ' home-shell free-home' : ''}${editing ? ' desktop-editing' : ''}`} data-layout-scope={mode}>
+      {isHome && <Toolbar onAddSite={addSite} onAddFolder={addFolder} onToggleEdit={toggleEditing} onBulkDelete={openBulkDelete} onLayoutOptions={() => setOptionsOpen(true)} layoutBusy={busy} onOrganize={() => void run(async () => { await freezeInitialPositions(); setOrganizerOpen(true) })} />}
+      {!isHome && <><nav className="desktop-sidebar" aria-label="桌面导航">
         <Link to="/desktop" className="desktop-sidebar-brand" title={settings.site_title} aria-label={settings.site_title}><Command size={24} /><span>{settings.site_title}</span></Link>
         <div className="desktop-sidebar-links">
           <Link to="/desktop" className="is-active" aria-current="page" title="桌面"><Home /><span>桌面</span></Link>
@@ -344,40 +368,42 @@ export function DesktopPage() {
         {canEdit && <>{editing && <button type="button" disabled={busy} onClick={openBulkDelete} title="批量删除图标" aria-label="批量删除图标"><Trash2 size={17} /><span>批量删除</span></button>}<button type="button" disabled={busy} onClick={toggleEditing} title={editing ? '完成布局' : '编辑桌面'} aria-label={editing ? '完成布局' : '编辑桌面'}>{busy ? <Loader2 size={17} className="animate-spin" /> : editing ? <Check size={17} /> : <Pencil size={17} />}<span>{editing ? '完成' : '编辑'}</span></button></>}
         <button type="button" title={dark ? '切换到浅色' : '切换到深色'} aria-label={dark ? '切换到浅色' : '切换到深色'} onClick={() => setTheme(dark ? 'light' : 'dark')}>{dark ? <Sun size={17} /> : <Moon size={17} />}</button>
         {canEdit && <button type="button" disabled={busy} onClick={() => setOptionsOpen(true)} title="桌面选项" aria-label="桌面选项"><Settings2 size={17} /></button>}
-      </header>
-      <main className="desktop-workspace" aria-label={settings.site_title}>
-        {settings.desktop_header_mode === 'hero' && <div className="desktop-hero">{settings.show_clock && <Clock />}<SearchBar /></div>}
+      </header></>}
+      <main className={`desktop-workspace${isHome ? ' home-canvas-workspace' : ''}`} aria-label={settings.site_title}>
+        {!isHome && settings.desktop_header_mode === 'hero' && <div className="desktop-hero">{settings.show_clock && <Clock />}<SearchBar /></div>}
         {editing && <p className="desktop-edit-hint"><Grip size={15} />拖到空白网格保存，点击尺寸按钮调整大小</p>}
-        <DesktopSurface boardRef={board} height={boardHeight} editing={editing} columns={columns} cellWidth={cellWidth} gap={gap} rowHeight={rowHeight}>
+        <DesktopSurface label={isHome ? '首页自由布局画布' : '自由桌面画布'} boardRef={board} height={boardHeight} editing={editing} columns={columns} cellWidth={cellWidth} gap={gap} rowHeight={rowHeight}>
           {activeId && dropPreview && <div className="desktop-drop-preview" aria-hidden="true" data-drop-col={dropPreview.col} data-drop-row={dropPreview.row} style={{ left: dropPreview.col * (cellWidth + gap), top: dropPreview.row * (rowHeight + gap), width: dropPreview.width * (cellWidth + gap) - gap, height: dropPreview.height * (rowHeight + gap) - gap }}><span>松开放置</span></div>}
           {boardWidth > 0 && items.map(item => <DesktopTile key={item.id} item={item} position={placed.find(p => p.id === item.id)!} cellWidth={cellWidth} gap={gap} rowHeight={rowHeight} editing={editing} disabled={busy} onResize={() => { if (item.kind === 'widget') { setOpenFolderId(null); setSizingWidget(item.widget) } }}>
-            {item.kind === 'widget' ? <div className="desktop-widget-unit"><div className={`desktop-widget desktop-widget-${item.widget}`} data-widget-width={item.width} data-widget-height={item.height}>{renderWidget(item.widget)}</div><span className="desktop-tile-caption">{widgetLabels[item.widget]}</span></div> : item.kind === 'folder' ? <DesktopFolderPreview folder={item.folder} sites={sites.filter(s => s.folder_id === item.folder.id).sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)} width={item.width} height={item.height} editing={editing} onOpen={() => setOpenFolderId(item.folder.id)} onEdit={() => setFolderEditor({ folder: item.folder })} /> : <button type="button" className="desktop-app" onClick={() => editing ? setSiteEditor({ site: item.site, folderId: item.site.folder_id ?? null }) : openSite(item.site)} title={item.site.title}><FolderSiteIcon site={item.site} /><span>{item.site.title}</span></button>}
+            {item.kind === 'widget' ? <div className="desktop-widget-unit"><div className={`desktop-widget desktop-widget-${item.widget}`} data-widget-width={item.width} data-widget-height={item.height}>{renderWidget(item.widget)}</div><span className="desktop-tile-caption">{widgetLabels[item.widget]}</span></div> : item.kind === 'folder' ? <DesktopFolderPreview folder={item.folder} sites={sites.filter(s => s.folder_id === item.folder.id).sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)} width={item.width} height={item.height} editing={editing} onOpen={() => setOpenFolderId(item.folder.id)} onEdit={() => editFolder(item.folder)} /> : isHome ? <SiteCard site={item.site} editMode={editing} size={settings.card_size} netMode={netMode} hideActions onOpen={() => openSite(item.site)} onEdit={() => setSiteEditor({ site: item.site, folderId: item.site.folder_id ?? null })} onDelete={() => setSiteEditor({ site: item.site, folderId: item.site.folder_id ?? null })} /> : <button type="button" className="desktop-app" onClick={() => editing ? setSiteEditor({ site: item.site, folderId: item.site.folder_id ?? null }) : openSite(item.site)} title={item.site.description || item.site.title}><FolderSiteIcon site={item.site} /><span>{item.site.title}</span></button>}
           </DesktopTile>)}
         </DesktopSurface>
       </main>
-      <nav className="desktop-dock" aria-label="快捷图标">{dockSites.map(site => <button key={site.id} type="button" className="desktop-dock-site" onClick={() => openSite(site)} title={site.title} aria-label={`打开 ${site.title}`}><FolderSiteIcon site={site} /><span>{site.title}</span></button>)}<Link to="/navigation" className="desktop-dock-more" title="所有图标" aria-label="所有图标"><LayoutGrid /><span>所有图标</span></Link></nav>
+      {!isHome && <nav className="desktop-dock" aria-label="快捷图标">{dockSites.map(site => <button key={site.id} type="button" className="desktop-dock-site" onClick={() => openSite(site)} title={site.title} aria-label={`打开 ${site.title}`}><FolderSiteIcon site={site} /><span>{site.title}</span></button>)}<Link to="/navigation" className="desktop-dock-more" title="所有图标" aria-label="所有图标"><LayoutGrid /><span>所有图标</span></Link></nav>}
+      {isHome && editing && <nav className="home-canvas-editbar glass glass-pop" aria-label="首页编辑操作"><button type="button" disabled={busy} onClick={addSite}><Plus size={20} />加图标</button><button type="button" disabled={busy} onClick={addFolder}><FolderPlus size={20} />文件夹</button><button type="button" disabled={busy} onClick={() => setOptionsOpen(true)}><Settings2 size={20} />组件</button><button type="button" disabled={busy} onClick={toggleEditing}><Check size={20} />完成</button></nav>}
     </div>
-    {folder && <DesktopFolderWindow folder={folder} sites={sites.filter(s => s.folder_id === folder.id).sort((a, b) => a.sort_order - b.sort_order)} editing={editing} busy={busy} onClose={() => setOpenFolderId(null)} onOpen={openSite} onEditSite={site => { setOpenFolderId(null); setSiteEditor({ site, folderId: folder.id }) }} onEditFolder={() => { setOpenFolderId(null); setFolderEditor({ folder }) }} onAdd={() => { setOpenFolderId(null); setSiteEditor({ site: null, folderId: folder.id }) }} onDetach={site => void run(() => moveSite(site, null))} />}
+    {folder && <DesktopFolderWindow folder={folder} sites={sites.filter(s => s.folder_id === folder.id).sort((a, b) => a.sort_order - b.sort_order)} editing={editing} busy={busy} onClose={() => setOpenFolderId(null)} onOpen={openSite} onEditSite={site => { setOpenFolderId(null); setSiteEditor({ site, folderId: folder.id }) }} onEditFolder={() => editFolder(folder)} onAdd={() => { setOpenFolderId(null); setSiteEditor({ site: null, folderId: folder.id }) }} onDetach={site => void run(() => moveSite(site, null))} />}
     {siteEditor && <SiteEditorModal open foldersOnly site={siteEditor.site} defaultCategoryId={siteEditor.site?.category_id ?? null} defaultFolderId={siteEditor.folderId} onClose={() => setSiteEditor(null)} />}
-    {folderEditor && <FolderEditorModal open foldersOnly folder={folderEditor.folder} defaultCategoryId={null} onClose={() => setFolderEditor(null)} />}
+    {folderEditor && <FolderEditorModal open foldersOnly validateSize={(folderId, columns, rows) => folderResizeError({ ...useApp.getState(), folderId, columns, rows })} folder={folderEditor.folder} defaultCategoryId={null} onClose={() => setFolderEditor(null)} />}
     {canEdit && <BulkSiteDeleteModal open={bulkDeleteOpen} onClose={() => setBulkDeleteOpen(false)} />}
+    {isHome && canEdit && user && <NavigationAiOrganizer open={organizerOpen} onClose={() => setOrganizerOpen(false)} />}
     {sizingWidget && sizingItem && <DesktopWidgetSizeDialog key={`${view}:${sizingWidget}`} name={sizingWidget} viewport={view} item={sizingItem} occupied={occupied} busy={busy} onClose={() => setSizingWidget(null)} onApply={resizeWidget} />}
-    <Modal open={optionsOpen} title="桌面选项" onClose={() => !busy && setOptionsOpen(false)}>
-      <div className="desktop-options"><p>电脑和手机分别保存位置与尺寸。拖放吸附网格，目标有组件时保留原位，不自动排列或挪动其他组件。聚焦把手后按空格开始或结束，方向键移动。</p>
+    <Modal open={optionsOpen} title={isHome ? '首页布局选项' : '桌面选项'} onClose={() => !busy && setOptionsOpen(false)}>
+      <div className="desktop-options"><p>电脑和手机分别保存位置与尺寸。拖放吸附网格，目标有组件时保留原位，不自动排列或挪动其他组件。隐藏组件会释放空间；重新显示时优先回到原位，被占用则仅将恢复的组件放到空位。聚焦把手后按空格开始或结束，方向键移动。</p>
         {([['show_clock', '时钟'], ['show_calendar', '日历'], ['show_weather', '天气'], ['show_hitokoto', '每日一句'], ['show_workbench', '工作台'], ['show_lingxi_calendar', '灵犀日历'], ['show_lingxi_schedule', '日程与待办'], ['show_lingxi_deadline', '截止倒计时'], ['show_lingxi_chat', '灵犀 AI 聊天']] as const).map(([key, label]) => <label key={key}>{label}<input type="checkbox" checked={settings[key]} disabled={busy} onChange={event => { const checked = event.target.checked; void run(() => changeWidgets(key, checked)) }} /></label>)}
-        <div className="desktop-widget-size-list"><strong>组件尺寸</strong><p>每个组件提供小号、标准和大号；也可在编辑桌面时点击组件左上角的尺寸按钮。</p>{items.filter(item => item.kind === 'widget').map(item => <button type="button" key={item.id} disabled={busy} onClick={() => { if (item.kind === 'widget') { setOpenFolderId(null); setOptionsOpen(false); setSizingWidget(item.widget) } }}><span>{item.kind === 'widget' ? widgetLabels[item.widget] : ''}</span><span>{item.width} × {item.height} 格 <Maximize2 size={14} /></span></button>)}{settings.desktop_header_mode === 'hero' && <p>将下方「时钟与搜索」设为「可拖动组件」后，也能调整它们的尺寸。</p>}</div>
+        <div className="desktop-widget-size-list"><strong>组件尺寸</strong><p>每个组件提供小号、标准和大号；也可在编辑时点击组件左上角的尺寸按钮。</p>{items.filter(item => item.kind === 'widget').map(item => <button type="button" key={item.id} disabled={busy} onClick={() => { if (item.kind === 'widget') { setOpenFolderId(null); setOptionsOpen(false); setSizingWidget(item.widget) } }}><span>{item.kind === 'widget' ? widgetLabels[item.widget] : ''}</span><span>{item.width} × {item.height} 格 <Maximize2 size={14} /></span></button>)}{!isHome && settings.desktop_header_mode === 'hero' && <p>将下方「时钟与搜索」设为「可拖动组件」后，也能调整它们的尺寸。</p>}</div>
         <Link to="/settings/lingxi" className={btnGhost}>管理灵犀账号与密码读取权限</Link>
-        <label>时钟与搜索<select aria-label="时钟与搜索位置" value={settings.desktop_header_mode} disabled={busy} onChange={event => { const mode = event.target.value; void run(() => changeWidgets('desktop_header_mode', mode)) }}><option value="hero">居中置顶</option><option value="widgets">可拖动组件</option></select></label>
-        <button type="button" className={btnGhost} disabled={busy || settings.home_mode === 'desktop'} onClick={() => void run(async () => { await saveSettings({ home_mode: 'desktop' }); toast.success('已将自由桌面设为首页') })}>{settings.home_mode === 'desktop' ? '当前默认首页：自由桌面' : '将自由桌面设为首页'}</button>
+        {!isHome && <label>时钟与搜索<select aria-label="时钟与搜索位置" value={settings.desktop_header_mode} disabled={busy} onChange={event => { const mode = event.target.value; void run(() => changeWidgets('desktop_header_mode', mode)) }}><option value="hero">居中置顶</option><option value="widgets">可拖动组件</option></select></label>}
+        <button type="button" className={btnGhost} disabled={busy || settings.home_mode === (isHome ? 'navigation' : 'desktop')} onClick={() => void run(async () => { await saveSettings({ home_mode: isHome ? 'navigation' : 'desktop' }); toast.success(isHome ? '已将普通导航设为首页' : '已将自由桌面设为首页') })}>{isHome ? (settings.home_mode === 'navigation' ? '当前默认首页：普通导航' : '将普通导航设为首页') : (settings.home_mode === 'desktop' ? '当前默认首页：自由桌面' : '将自由桌面设为首页')}</button>
         {looseGroups > 0 && <div className="desktop-collect"><strong>用文件夹收纳已有图标</strong><p>将 {looseGroups} 个原分组的散落图标分别收纳到同名文件夹。已有文件夹保持原样，删除新文件夹可把图标放回桌面。</p><button type="button" className={btnGhost} disabled={busy} onClick={() => void run(async () => { await freezeInitialPositions(); const result = await api<{ created: number; sites: Site[]; folders: Folder[] }>('/api/desktop/collect-groups', { method: 'POST' }); useApp.setState({ sites: result.sites, folders: result.folders }); toast.success(`已收纳到 ${result.created} 个文件夹`) })}>按原分组收纳为文件夹</button></div>}
       </div>
     </Modal>
-    {createPortal(<DragOverlay dropAnimation={null} transition="none" zIndex={90}>{activeId && <div ref={dragPreview} className="desktop-drag-preview">{activeSite ? <><FolderSiteIcon site={activeSite} /><span>{activeSite.title}</span></> : <><Grip size={28} /><span>{activeItem?.kind === 'folder' ? activeItem.folder.name : activeItem?.kind === 'widget' ? widgetLabels[activeItem.widget] : '移动'}</span></>}</div>}</DragOverlay>, document.body)}
+    {createPortal(<DragOverlay dropAnimation={null} transition="none" zIndex={90}>{activeId && <div ref={dragPreview} className={`desktop-drag-preview${componentPreview ? ' is-component' : ''}`} style={previewSize}>{activeSite ? <><FolderSiteIcon site={activeSite} /><span>{activeSite.title}</span></> : <div className="desktop-drag-badge"><Grip size={24} /><span>{activeItem?.kind === 'folder' ? activeItem.folder.name : activeItem?.kind === 'widget' ? widgetLabels[activeItem.widget] : '移动'}</span>{componentPreview && <small>{activeItem.width} × {activeItem.height} 格</small>}</div>}</div>}</DragOverlay>, document.body)}
   </DndContext>
 }
 
 // This child lives inside DndContext so the canvas is a registered drop target.
-function DesktopSurface({ boardRef, height, editing, columns, cellWidth, gap, rowHeight, children }: { boardRef: React.RefObject<HTMLDivElement | null>; height: number; editing: boolean; columns: number; cellWidth: number; gap: number; rowHeight: number; children: ReactNode }) {
+function DesktopSurface({ label, boardRef, height, editing, columns, cellWidth, gap, rowHeight, children }: { label: string; boardRef: React.RefObject<HTMLDivElement | null>; height: number; editing: boolean; columns: number; cellWidth: number; gap: number; rowHeight: number; children: ReactNode }) {
   const drop = useDroppable({ id: 'desktop-surface' })
-  return <div ref={node => { boardRef.current = node; drop.setNodeRef(node) }} className="desktop-surface" aria-label="自由桌面画布" style={{ height, '--desktop-cell': `${cellWidth + gap}px`, '--desktop-row': `${rowHeight + gap}px`, '--desktop-columns': columns } as CSSProperties} data-editing={editing || undefined}>{children}</div>
+  return <div ref={node => { boardRef.current = node; drop.setNodeRef(node) }} className="desktop-surface" aria-label={label} style={{ height, '--desktop-cell': `${cellWidth + gap}px`, '--desktop-row': `${rowHeight + gap}px`, '--desktop-columns': columns } as CSSProperties} data-editing={editing || undefined}>{children}</div>
 }
