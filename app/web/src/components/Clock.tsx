@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { readableToneStyle, useReadableTone } from '../lib/useWallpaperTone.ts'
 import { useApp } from '../store/app.ts'
+import { useWeather } from '../lib/useWeather.ts'
+import { SolarTimeline } from './weather/SolarTimeline.tsx'
 
 const WEEKDAYS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
 
@@ -22,6 +24,7 @@ export function Clock() {
   const showGreeting = useApp((s) => s.settings.show_greeting)
   const title = useApp((s) => s.settings.site_title)
   const subtitle = useApp((s) => s.settings.site_subtitle)
+  const weather = useWeather(showClock)
 
   const [now, setNow] = useState(() => new Date())
 
@@ -70,6 +73,7 @@ export function Clock() {
             <span className="home-clock-date-full">{now.getFullYear()} 年 {now.getMonth() + 1} 月 {now.getDate()} 日 · {WEEKDAYS[now.getDay()]}</span>
             <span className="home-clock-date-short hidden" aria-hidden="true">{now.getMonth() + 1} 月 {now.getDate()} 日 · {WEEKDAYS[now.getDay()]}</span>
           </p>
+          <SolarTimeline data={weather} now={now} />
         </>
       )}
 

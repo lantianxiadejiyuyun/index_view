@@ -44,28 +44,7 @@
   box-shadow: 0 5px 16px #0002; font-size: 12px; text-align: left;
 }
 
-/* Weather scales the primary reading and wraps its secondary measurements. */
-.desktop-widget-weather { padding: 16px; }
-.desktop-widget-weather > .weather-widget {
-  width: 100%; min-height: 0; max-height: 100%; overflow: auto; align-items: center; gap: 12px;
-}
-.desktop-widget-weather .weather-content { flex: 1; }
-.desktop-widget-weather .weather-main { flex-wrap: wrap; gap: 4px 9px; }
-.desktop-widget-weather .weather-temperature { font-size: clamp(32px, 13cqi, 54px); }
-.desktop-widget-weather .weather-description { font-size: 13px; white-space: normal; overflow-wrap: anywhere; }
-.desktop-widget-weather .weather-details { flex-wrap: wrap; gap: 5px 12px; margin-top: 10px; font-size: 12px; }
-.desktop-widget-weather .weather-details > span { max-width: 100%; }
-.desktop-widget-weather .weather-wind { display: flex; }
-.desktop-widget-weather[data-widget-height='1'] { padding: 8px 10px; }
-.desktop-widget-weather[data-widget-height='1'] > .weather-widget { gap: 8px; }
-.desktop-widget-weather[data-widget-height='1'] > .weather-widget > svg { width: 28px; height: 28px; }
-.desktop-widget-weather[data-widget-height='1'] .weather-temperature { font-size: 29px; }
-.desktop-widget-weather[data-widget-height='1'] .weather-description { font-size: 12px; }
-.desktop-widget-weather[data-widget-height='1'] .weather-details { margin-top: 4px; font-size: 11px; }
-.desktop-widget-weather[data-widget-height='1'] :is(.weather-humidity, .weather-wind) { display: none; }
-.desktop-widget-weather[data-widget-height='3'] > .weather-widget { flex-direction: column; text-align: center; gap: 14px; }
-.desktop-widget-weather[data-widget-height='3'] > .weather-widget > svg { width: 56px; height: 56px; }
-.desktop-widget-weather[data-widget-height='3'] :is(.weather-main, .weather-details) { justify-content: center; }
+/* Weather's scene and measurements adapt together in weather/weather-widget.css. */
 
 /* Quotes are readable in full, rather than being permanently line-clamped. */
 .desktop-widget.desktop-widget-quote { padding: 12px; }

@@ -7,14 +7,14 @@
  *   - 「怎么缓存 / 怎么合并并发」→ 本文件统一的 getWeather()。
  * 路由层只认 getWeather(city, providerName)，不关心背后是谁。
  *
- * 目前只实现 open-meteo：免 Key、免注册，个人自用的量级不会被拦。
- * 设置项 weather_provider 里出现未实现的名字时回落到 open-meteo，
- * 而不是报错——首页少一个小组件远比整块报错体面。
+ * 实况优先走中国天气网，支持 Open-Meteo 回退；后者同时提供独立缓存的
+ * UV 日峰值与最高/最低温度。日出、太阳正午、日落按城市坐标本地估算。
  */
 
 import { lookupCityCode } from './city-codes.js'
 import { lookupCity } from './cities.js'
 import { cacheRead, cacheWrite } from './widget-cache.js'
+import { calculateSolarTimes, dateAtZone, validTimeZone } from './weather-solar.js'
 
 /** 外部接口超时 6 秒：天气是给人看的小组件，宁可先不显示也别把首页挂着 */
 const TIMEOUT_MS = 6000
@@ -76,6 +76,21 @@ export type WeatherData = {
   is_day: boolean
   updated_at: string
   provider: string
+  latitude?: number
+  longitude?: number
+  timezone?: string
+  solar_date?: string
+  sunrise?: string | null
+  solar_noon?: string | null
+  sunset?: string | null
+  solar_source?: 'calculated'
+  /** Open-Meteo's forecast daily maximum, never a current UV measurement. */
+  uv_index?: number | null
+  uv_index_kind?: 'daily_max'
+  temperature_min?: number | null
+  temperature_max?: number | null
+  forecast_date?: string
+  forecast_provider?: 'open-meteo'
 }
 
 export type WeatherErrorCode = 'city_not_found' | 'upstream_failed'
@@ -143,6 +158,7 @@ export interface WeatherProvider {
 }
 
 function num(v: unknown): number | null {
+  if (v === null || v === undefined || (typeof v === 'string' && !v.trim()) || typeof v === 'boolean') return null
   const n = typeof v === 'number' ? v : Number(v)
   return Number.isFinite(n) ? n : null
 }
@@ -216,8 +232,8 @@ async function requestJson(url: string): Promise<unknown> {
   }
 }
 
-type GeocodeHit = { name?: unknown; latitude?: unknown; longitude?: unknown }
-type Place = { name: string; latitude: number; longitude: number }
+type GeocodeHit = { name?: unknown; latitude?: unknown; longitude?: unknown; timezone?: unknown }
+type Place = { name: string; latitude: number; longitude: number; timezone?: string }
 
 /**
  * 城市名 → 经纬度。三级查找，越靠前越省事：
@@ -248,7 +264,7 @@ async function geocode(city: string): Promise<Place> {
 
   // 用上游返回的规范名（例如输入拼音也能回成中文名），拿不到就用用户输入
   const name = typeof hit.name === 'string' && hit.name.trim() ? hit.name.trim() : city
-  const place: Place = { name, latitude, longitude }
+  const place: Place = { name, latitude, longitude, ...(validTimeZone(hit.timezone) ? { timezone: hit.timezone } : {}) }
 
   // 记下来，下次这个城市就不用再联网解析了
   cacheWrite(DISK_KEY_GEOCODE, { ...(cached ?? {}), [key]: place })
@@ -266,11 +282,99 @@ const openMeteoProvider: WeatherProvider = {
       longitude: String(place.longitude),
       current:
         'temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m',
+      daily: 'uv_index_max,temperature_2m_max,temperature_2m_min',
+      forecast_days: '2',
       timezone: 'auto',
     })
 
-    return parseOpenMeteoCurrent(await requestJson(`${FORECAST_URL}?${query}`), place.name)
+    const raw = await requestJson(`${FORECAST_URL}?${query}`)
+    return { ...parseOpenMeteoCurrent(raw, place.name), ...parseWeatherForecast(raw, place) }
   },
+}
+
+type ForecastData = Pick<WeatherData, 'latitude' | 'longitude' | 'timezone' | 'uv_index' | 'uv_index_kind' | 'temperature_min' | 'temperature_max' | 'forecast_date' | 'forecast_provider'>
+
+/** Only select the requested city's local day; null upstream values stay unavailable. */
+export function parseWeatherForecast(raw: unknown, place: Place, now = new Date()): ForecastData {
+  const source = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
+  const timezone = validTimeZone(source.timezone) ? source.timezone : validTimeZone(place.timezone) ? place.timezone : undefined
+  const latitude = num(source.latitude) ?? place.latitude
+  const longitude = num(source.longitude) ?? place.longitude
+  const result: ForecastData = { latitude, longitude, ...(timezone ? { timezone } : {}), uv_index: null, uv_index_kind: 'daily_max', temperature_min: null, temperature_max: null }
+  if (!timezone) return result
+  const daily = source.daily && typeof source.daily === 'object' ? source.daily as Record<string, unknown> : {}
+  const today = dateAtZone(now, timezone)
+  const index = Array.isArray(daily.time) ? daily.time.indexOf(today) : -1
+  if (index < 0) return result
+  const value = (key: string) => Array.isArray(daily[key]) ? num(daily[key][index]) : null
+  const uv = value('uv_index_max')
+  return { ...result, uv_index: uv !== null && uv >= 0 ? round1(uv) : null, temperature_min: value('temperature_2m_min'), temperature_max: value('temperature_2m_max'), forecast_date: today, forecast_provider: 'open-meteo' }
+}
+
+/** Refresh solar times even when temperature comes from an old disk cache. */
+export function weatherForToday(data: WeatherData, city = data.city, now = new Date()): WeatherData {
+  const builtin = lookupCity(data.city) ?? lookupCity(city)
+  const domestic = !!lookupCityCode(data.city) || !!lookupCityCode(city)
+  const latitude = num(data.latitude) ?? (domestic ? builtin?.latitude : undefined)
+  const longitude = num(data.longitude) ?? (domestic ? builtin?.longitude : undefined)
+  const timezone = validTimeZone(data.timezone) ? data.timezone : domestic ? 'Asia/Shanghai' : undefined
+  const context = { ...data, ...(latitude !== undefined ? { latitude } : {}), ...(longitude !== undefined ? { longitude } : {}), ...(timezone ? { timezone } : {}) }
+  const solar = latitude !== undefined && longitude !== undefined && timezone ? calculateSolarTimes(latitude, longitude, timezone, now) : null
+  const today = timezone ? dateAtZone(now, timezone) : null
+  const isDay = solar?.sunrise && solar.sunset ? now.getTime() >= Date.parse(solar.sunrise) && now.getTime() < Date.parse(solar.sunset) : data.is_day
+  return {
+    ...context, ...(solar ?? {}), is_day: isDay,
+    ...(data.forecast_date && data.forecast_date === today ? {} : { uv_index: null, uv_index_kind: 'daily_max' as const, temperature_min: null, temperature_max: null, forecast_date: undefined, forecast_provider: undefined }),
+  }
+}
+
+// UV and high/low temperature use a separate optional forecast. In particular, an
+// unreachable international endpoint must never block China's realtime provider.
+const FORECAST_DISK_KEY = 'weather-forecast-v1'
+const FORECAST_RETRY_MS = 15 * 60 * 1000
+type ForecastEntry = { at: number; data: ForecastData }
+const forecastCache = new Map<string, ForecastEntry>()
+const forecastInflight = new Map<string, Promise<void>>()
+const forecastAttempts = new Map<string, number>()
+
+function forecastSnapshot(key: string): ForecastEntry | undefined {
+  return forecastCache.get(key) ?? cacheRead<Record<string, ForecastEntry>>(FORECAST_DISK_KEY)?.value?.[key]
+}
+
+function rememberForecast(key: string, data: ForecastData): void {
+  const entry = { at: Date.now(), data }
+  forecastCache.set(key, entry)
+  cacheWrite(FORECAST_DISK_KEY, { ...(cacheRead<Record<string, ForecastEntry>>(FORECAST_DISK_KEY)?.value ?? {}), [key]: entry })
+}
+
+function requestForecast(key: string, city: string, weather: WeatherData): void {
+  const entry = forecastSnapshot(key)
+  const today = validTimeZone(entry?.data.timezone) ? dateAtZone(new Date(), entry.data.timezone) : undefined
+  if (entry && today && Date.now() - entry.at < CACHE_TTL_MS && entry.data.forecast_date === today) return
+  if (forecastInflight.has(key) || Date.now() - (forecastAttempts.get(key) ?? 0) < FORECAST_RETRY_MS) return
+  forecastAttempts.set(key, Date.now())
+  const task = (async () => {
+    const coordinates = num(weather.latitude) !== null && num(weather.longitude) !== null
+      ? { name: weather.city, latitude: weather.latitude!, longitude: weather.longitude!, timezone: weather.timezone }
+      : await geocode(city)
+    const query = new URLSearchParams({ latitude: String(coordinates.latitude), longitude: String(coordinates.longitude), timezone: coordinates.timezone ?? 'auto', forecast_days: '2', daily: 'uv_index_max,temperature_2m_max,temperature_2m_min' })
+    const forecast = parseWeatherForecast(await requestJson(`${FORECAST_URL}?${query}`), coordinates)
+    rememberForecast(key, forecast)
+  })().catch(() => {
+    // Optional data remains null; temperature, city and offline solar times survive.
+  })
+  forecastInflight.set(key, task)
+  void task.finally(() => forecastInflight.delete(key))
+}
+
+function enrichWeather(key: string, city: string, data: WeatherData): WeatherData {
+  if (data.provider === DEFAULT_PROVIDER_NAME && data.forecast_date && validTimeZone(data.timezone) && data.forecast_date === dateAtZone(new Date(), data.timezone)) {
+    return weatherForToday(data, city)
+  }
+  const forecast = forecastSnapshot(key)?.data
+  const weather = weatherForToday({ ...data, ...(forecast ?? {}) }, city)
+  requestForecast(key, city, weather)
+  return weather
 }
 
 // ── 中国天气网 ────────────────────────────────────────────────
@@ -527,7 +631,7 @@ export async function getWeather(city: string, providerName?: string | null): Pr
   const fresh = cache.get(key) ?? readDiskMap()[key]
 
   if (fresh) {
-    if (Date.now() - fresh.at < CACHE_TTL_MS) return fresh.data
+    if (Date.now() - fresh.at < CACHE_TTL_MS) return enrichWeather(key, city, fresh.data)
 
     // 过期：先给旧的，后台去换新的。失败也无所谓，下次请求还会再试
     refresh(key, city, provider).catch((err: unknown) => {
@@ -536,10 +640,10 @@ export async function getWeather(city: string, providerName?: string | null): Pr
         err instanceof Error ? err.message : err,
       )
     })
-    return fresh.data
+    return enrichWeather(key, city, fresh.data)
   }
 
-  return refresh(key, city, provider)
+  return enrichWeather(key, city, await refresh(key, city, provider))
 }
 
 /**
@@ -553,9 +657,12 @@ export function prewarmWeather(city: string, providerName?: string | null): void
   const provider = resolveProvider(providerName)
   const key = cacheKey(city, provider.name)
   const fresh = cache.get(key) ?? readDiskMap()[key]
-  if (fresh && Date.now() - fresh.at < CACHE_TTL_MS) return
+  if (fresh && Date.now() - fresh.at < CACHE_TTL_MS) {
+    enrichWeather(key, city, fresh.data)
+    return
+  }
 
-  refresh(key, city, provider).catch((err: unknown) => {
+  refresh(key, city, provider).then((data) => enrichWeather(key, city, data)).catch((err: unknown) => {
     console.warn('[weather] 预热失败：', err instanceof Error ? err.message : err)
   })
 }

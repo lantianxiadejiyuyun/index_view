@@ -95,6 +95,22 @@ export type Weather = {
   is_day: boolean
   updated_at: string
   provider: string
+  latitude?: number
+  longitude?: number
+  timezone?: string
+  solar_date?: string
+  sunrise?: string | null
+  solar_noon?: string | null
+  sunset?: string | null
+  /** Approximate sea-level solar times calculated for the weather city. */
+  solar_source?: 'calculated'
+  /** Forecast daily maximum, not a live ultraviolet reading. */
+  uv_index?: number | null
+  uv_index_kind?: 'daily_max'
+  temperature_min?: number | null
+  temperature_max?: number | null
+  forecast_date?: string
+  forecast_provider?: 'open-meteo'
 }
 
 export type Hitokoto = {

@@ -1,0 +1,49 @@
+.clock-solar { --solar-color: #d88927; max-width: 300px; margin: 13px auto 0; color: inherit; text-align: left; }
+.clock-solar[data-phase='sunrise'] { --solar-color: #e4954b; }
+.clock-solar[data-phase='noon'] { --solar-color: #db9c14; }
+.clock-solar[data-phase='sunset'] { --solar-color: #d97267; }
+.clock-solar[data-phase='night'] { --solar-color: #889ad5; }
+.solar-caption { display: flex; justify-content: space-between; gap: 10px; font-size: 10px; line-height: 1.3; opacity: .8; }
+.solar-caption > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.solar-estimate { opacity: .65; flex-shrink: 0; }
+.solar-track { display: block; width: 100%; height: 58px; overflow: visible; color: var(--solar-color); }
+.solar-track-fill { fill: currentColor; opacity: .055; }
+.solar-horizon { fill: none; stroke: currentColor; stroke-width: .7; opacity: .18; }
+.solar-arc, .solar-arc-progress { fill: none; stroke: currentColor; stroke-width: 1.4; }
+.solar-arc { opacity: .25; stroke-dasharray: 2.2 2.6; }
+.solar-arc-progress { opacity: .65; }
+.solar-stop { fill: currentColor; opacity: .6; }
+.solar-orb-halo { fill: currentColor; opacity: .12; animation: solar-breathe 4s ease-in-out infinite; }
+.solar-orb-core { fill: currentColor; }
+.solar-rays { fill: none; stroke: currentColor; stroke-width: 1.1; animation: solar-turn 36s linear infinite; }
+.solar-moon { fill: none; stroke: currentColor; stroke-width: 1.4; }
+.solar-moon > circle { fill: currentColor; stroke: none; animation: solar-breathe 5s ease-in-out infinite; }
+.solar-times { display: flex; justify-content: space-between; gap: 7px; font-size: 10px; line-height: 1.3; }
+.solar-times > span { display: flex; align-items: center; gap: 5px; opacity: .8; }
+.solar-times svg { width: 13px; height: 13px; color: var(--solar-color); flex-shrink: 0; }
+.solar-times time { display: inline; font-size: 11px; font-variant-numeric: tabular-nums; margin-left: 4px; }
+.solar-times > span > span { white-space: nowrap; }
+.desktop-widget-clock .solar-track { height: 52px; margin-bottom: 4px; }
+.desktop-widget-clock[data-widget-height='2']:has(.clock-solar) { padding: 10px; }
+.desktop-widget-clock[data-widget-height='2'] .home-clock:has(.clock-solar) .home-clock-time { font-size: clamp(30px, 15cqi, 44px); }
+.desktop-widget-clock[data-widget-height='2'] .solar-track { height: 36px; }
+.desktop-widget-clock .clock-solar { margin-top: 8px; width: 100%; }
+.desktop-widget-clock .home-clock:has(.clock-solar) .home-clock-time { font-size: clamp(30px, 17cqi, 54px); }
+.desktop-widget-clock .home-clock:has(.clock-solar) .home-clock-date { margin-top: 5px; font-size: 11px; }
+.desktop-widget-clock[data-widget-height='1'] .home-clock { position: relative; overflow: hidden; }
+.desktop-widget-clock[data-widget-height='1'] .clock-solar { margin-top: 5px; }
+.desktop-widget-clock[data-widget-height='1'] .solar-caption { justify-content: center; font-size: 9px; }
+.desktop-widget-clock[data-widget-height='1'] :is(.solar-estimate, .solar-times) { display: none; }
+.desktop-widget-clock[data-widget-height='1'] .solar-track { position: absolute; inset: 0; height: 100%; opacity: .2; pointer-events: none; }
+.desktop-widget-clock[data-widget-height='1'] .home-clock:has(.clock-solar) .home-clock-time { font-size: clamp(26px, 19cqi, 36px); }
+.desktop-widget-clock[data-widget-height='1'] .home-clock:has(.clock-solar) .home-clock-date { position: absolute; width: 1px; height: 1px; padding: 0; margin: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.desktop-widget-clock[data-widget-height='3'] .solar-track { height: 76px; }
+.desktop-hero .clock-solar { max-width: 300px; }
+@container desktop-widget (max-width: 220px) {
+  .solar-times { font-size: 9px; gap: 4px; }
+  .solar-times svg { display: none; }
+  .solar-estimate { display: none; }
+}
+@keyframes solar-breathe { 50% { opacity: .28; } }
+@keyframes solar-turn { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .clock-solar * { animation: none !important; transition: none !important; } }
