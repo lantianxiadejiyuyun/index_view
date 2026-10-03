@@ -210,6 +210,7 @@ async function pushNow({ force = false, automatic = false } = {}) {
       version: result.version, lastSyncAt: Date.now(), dirty: false,
       conflict: false, remoteVersion: null, lastError: '',
     }, current)
+    await syncLingxiNow().catch(() => {})
     void notifyState()
     return { pushed: true, version: result.version }
   } catch (err) {
@@ -262,12 +263,62 @@ async function pullNow({ force = false, password } = {}) {
     current.vault = sealed.vault
     current.vaultKey = unlocked.vaultKey
     cancelPush()
+    await syncLingxiNow().catch(() => {})
     void notifyState()
     return { pulled: true, version: remote.version, items: sealed.vault.items.length }
   } catch (err) {
     await recordSyncError(err, current)
     throw err
   }
+}
+
+async function localLingxiGrant() {
+  return (await chrome.storage.local.get(['lingxiGrant'])).lingxiGrant ?? null
+}
+async function clearLingxiGrant(error = '') {
+  await chrome.storage.local.set({ lingxiGrant: null, lingxiLastError: error })
+}
+async function syncLingxiNow({ consent = false } = {}) {
+  const current = active()
+  const { sync: conf } = await readAll()
+  const local = await localLingxiGrant()
+  if (!consent && (!local || local.base !== conf.base || local.user !== conf.user)) return { skipped: true }
+  if (!conf.enabled || conf.dirty || conf.conflict) {
+    throw failure('请先完成密码库密文同步，再授权灵犀', 'sync_required')
+  }
+  try {
+    const remote = await withToken(current, conf, (token) => sync.lingxiVaultSettings(conf.base, token))
+    if (!remote.enabled || !remote.grant_id) {
+      await clearLingxiGrant()
+      throw failure('请先在导航站设置中开启允许灵犀读取密码', 'grant_disabled')
+    }
+    if (!consent && remote.grant_id !== local.grantId) {
+      await clearLingxiGrant()
+      throw failure('密码授权已变化，请重新确认', 'grant_changed')
+    }
+    const result = await withToken(current, conf, (token) => sync.pushLingxiVault(conf.base, token, {
+      grantId: remote.grant_id, consent, baseVersion: remote.snapshot_version,
+      sourceVersion: conf.version, items: current.vault.items,
+    }))
+    active(current)
+    await chrome.storage.local.set({ lingxiGrant: {
+      base: conf.base, user: conf.user, grantId: remote.grant_id, lastSyncAt: Date.now(),
+      snapshotVersion: result.snapshot_version,
+    }, lingxiLastError: '' })
+    return result
+  } catch (error) {
+    if (current === session) await chrome.storage.local.set({ lingxiLastError: error.message })
+    throw error
+  }
+}
+async function revokeLocalLingxiGrant(force = false) {
+  const current = active()
+  const local = await localLingxiGrant()
+  const { sync: conf } = await readAll()
+  if (conf.enabled && (force || (local?.base === conf.base && local?.user === conf.user))) {
+    await withToken(current, conf, (token) => sync.disableLingxiVault(conf.base, token))
+  }
+  await clearLingxiGrant()
 }
 
 function doLock() {
@@ -319,6 +370,7 @@ const handlers = {
     touch()
     void notifyState()
     void schedulePush()
+    void enqueue(() => syncLingxiNow(), epoch).catch(() => {})
     return { items: unlocked.vault.items.length }
   },
   lock: doLock,
@@ -376,6 +428,7 @@ const handlers = {
       assertEpoch(epoch)
       // An imported backup must not silently target the previous binding.
       await chrome.storage.local.set({ file: parsed.file, sync: { ...DEFAULT_SYNC, dirty: true } })
+      await clearLingxiGrant()
       assertEpoch(epoch)
       session = { ...unlocked, token: null }
       touch()
@@ -415,6 +468,29 @@ const handlers = {
       signedIn: Boolean(session?.token),
     }
   },
+  async 'lingxi-status'() {
+    const current = active()
+    const { sync: conf } = await readAll()
+    if (!conf.enabled) return { connected: false, authorized: false }
+    const local = await localLingxiGrant()
+    const remote = await withToken(current, conf, (token) => sync.lingxiVaultSettings(conf.base, token))
+    const authorized = Boolean(local?.base === conf.base && local?.user === conf.user && local?.grantId === remote.grant_id && remote.enabled)
+    if (local && !authorized) await clearLingxiGrant()
+    const { lingxiLastError } = await chrome.storage.local.get(['lingxiLastError'])
+    return { ...remote, connected: true, authorized, lastSyncAt: authorized ? local.lastSyncAt : null, lastError: lingxiLastError || '' }
+  },
+  async 'lingxi-authorize'({ consent }) {
+    if (consent !== true) throw failure('请先在插件中确认授权', 'consent_required')
+    const current = active()
+    const { sync: conf } = await readAll()
+    if (conf.dirty && !conf.conflict) await pushNow()
+    active(current)
+    const result = await syncLingxiNow({ consent: true })
+    void notifyState()
+    return result
+  },
+  async 'lingxi-revoke'() { await revokeLocalLingxiGrant(true); void notifyState(); return { ok: true } },
+  'lingxi-sync': () => syncLingxiNow(),
   async 'account-test'({ base }) {
     const check = sync.normalizeServer(base)
     if (!check.ok) throw new Error(check.error)
@@ -441,6 +517,7 @@ const handlers = {
     // previous server/account's bearer token to an edited destination.
     const saved = current.vault.account
     const previousToken = saved?.base === check.base && saved.user === user ? current.token : undefined
+    if (saved && (saved.base !== check.base || saved.user !== user)) await revokeLocalLingxiGrant()
     const { token } = await sync.login(check.base, user, password, previousToken)
     active(current)
     const remote = await sync.pull(check.base, token)
@@ -468,6 +545,7 @@ const handlers = {
   },
   async 'account-forget'() {
     const current = active()
+    await revokeLocalLingxiGrant()
     const { account: _account, ...vault } = current.vault
     await persist(current, vault, { ...DEFAULT_SYNC, dirty: true })
     const draftRevision = await invalidateServerForm()
@@ -503,7 +581,7 @@ const handlers = {
 
 const reads = new Set(['status', 'settings-get', 'account-status', 'match', 'list', 'fill'])
 const formMessages = new Set(['server-form-get', 'server-form-save'])
-const interactions = new Set(['list', 'fill', 'save', 'remove', 'export', 'import', 'settings-set', 'account-connect', 'sync-push', 'sync-pull', 'change-master'])
+const interactions = new Set(['list', 'fill', 'save', 'remove', 'export', 'import', 'settings-set', 'account-connect', 'sync-push', 'sync-pull', 'change-master', 'lingxi-authorize', 'lingxi-revoke', 'lingxi-sync'])
 chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   if (msg?.type === 'hd-pm-state-changed' || msg?.type === 'hd-pm-form-draft-reset') return false
   const handler = Object.hasOwn(handlers, msg?.type) ? handlers[msg.type] : null

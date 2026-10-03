@@ -31,9 +31,12 @@ function deferred() {
   return { promise, resolve }
 }
 async function until(predicate) {
-  for (let i = 0; i < 100; i++) {
+  // Authentication uses asynchronous crypto; a fixed count of immediates can
+  // finish before its worker gets CPU when the complete suite runs in parallel.
+  const deadline = Date.now() + 2000
+  while (Date.now() < deadline) {
     if (predicate()) return
-    await new Promise((resolve) => setImmediate(resolve))
+    await new Promise((resolve) => setTimeout(resolve, 5))
   }
   assert.fail('fixture did not reach its expected asynchronous state')
 }
@@ -130,7 +133,7 @@ async function refresh(id, auth = token) {
 async function listing(auth = token) { return (await request('', { auth })).json() }
 
 test('current migration retains durable subscription tables, and creation does not fetch', async () => {
-  assert.equal(harness.sql.get('PRAGMA user_version').user_version, 16)
+  assert.equal(harness.sql.get('PRAGMA user_version').user_version, 17)
   const created = await source()
   assert.equal(created.refresh_interval_minutes, 60)
   assert.equal(created.proxy_count, 0)

@@ -38,6 +38,10 @@ export type AppSettings = {
   home_mode: 'navigation' | 'desktop'
   desktop_header_mode: 'hero' | 'widgets'
   show_calendar: boolean
+  show_lingxi_calendar: boolean
+  show_lingxi_schedule: boolean
+  show_lingxi_deadline: boolean
+  show_lingxi_chat: boolean
   site_title: string
   site_subtitle: string
   search_engine: string
@@ -93,6 +97,10 @@ export function normalizeSettings(raw: Record<string, string> | undefined): AppS
     home_mode: pick(s.home_mode, ['navigation', 'desktop'] as const, 'navigation'),
     desktop_header_mode: pick(s.desktop_header_mode, ['hero', 'widgets'] as const, 'hero'),
     show_calendar: toBool(s.show_calendar, true),
+    show_lingxi_calendar: toBool(s.show_lingxi_calendar, false),
+    show_lingxi_schedule: toBool(s.show_lingxi_schedule, false),
+    show_lingxi_deadline: toBool(s.show_lingxi_deadline, false),
+    show_lingxi_chat: toBool(s.show_lingxi_chat, false),
     site_title: s.site_title || '我的导航',
     site_subtitle: s.site_subtitle || '',
     search_engine: s.search_engine || 'bing',

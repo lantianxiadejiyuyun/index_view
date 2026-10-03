@@ -118,3 +118,23 @@ export async function push(base, token, baseVersion, blob) {
   }
   return { version: data.version }
 }
+
+export const lingxiVaultSettings = (base, token) => call(base, '/api/lingxi/vault/settings', { token })
+export const disableLingxiVault = (base, token) => call(base, '/api/lingxi/vault/settings', {
+  method: 'PUT', token, body: { enabled: false },
+})
+export async function pushLingxiVault(base, token, { grantId, consent, baseVersion, sourceVersion, items }) {
+  const server = normalizeServer(base)
+  if (!server.ok) throw new SyncError(server.error, { code: 'invalid_server' })
+  const hostname = new URL(server.base).hostname
+  if (server.insecure && !['localhost', '127.0.0.1', '[::1]'].includes(hostname)) {
+    throw new SyncError('授权密码同步必须使用 HTTPS 服务器', { code: 'https_required' })
+  }
+  // Never include vault.account, the vault key, or the master password.
+  const snapshot = items.map(({ id, title, url, username, password, notes, createdAt, updatedAt }) =>
+    ({ id, title, url, username, password, notes, createdAt, updatedAt }))
+  return call(server.base, '/api/lingxi/vault/snapshot', {
+    method: 'POST', token, body: { grant_id: grantId, consent: consent === true,
+      base_version: baseVersion, source_version: sourceVersion, items: snapshot }, timeoutMs: 45000,
+  })
+}

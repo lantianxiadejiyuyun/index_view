@@ -12,6 +12,8 @@ import { prewarmHitokoto } from './lib/hitokoto.js'
 import { DEFAULT_WEATHER_CITY, prewarmWeather } from './lib/weather.js'
 import { startSubscriptionScheduler } from './lib/subscriptions.js'
 import { attachSubscriptionRelayWebSocket } from './lib/subscription-relay-ws.js'
+import { attachLingxiWebSocket } from './lib/lingxi-ws.js'
+import { startLingxiVaultRefreshScheduler } from './lib/lingxi-vault.js'
 import { authRoutes } from './routes/auth.js'
 import { bootstrapRoutes } from './routes/bootstrap.js'
 import { faviconRoutes } from './routes/favicon.js'
@@ -30,6 +32,8 @@ import { uploadedVideoRoutes } from './routes/uploaded-video.js'
 import { vaultRoutes } from './routes/vault.js'
 import { widgetRoutes } from './routes/widgets.js'
 import { workbenchRoutes } from './routes/workbench.js'
+import { lingxiRoutes } from './routes/lingxi.js'
+import { lingxiVaultRoutes } from './routes/lingxi-vault.js'
 import type { AppEnv } from './types.js'
 
 ensureDirs()
@@ -48,6 +52,7 @@ app.use('*', logger((message, ...rest) => {
   console.log(message.replace(/(\/api\/subscriptions\/feed\/)[^?\s]+/g, '$1[redacted]'), ...rest)
 }))
 let stopSubscriptions = () => {}
+let stopLingxiVault = async () => {}
 
 // ── API ───────────────────────────────────────────────────────
 const api = new Hono<AppEnv>()
@@ -66,6 +71,10 @@ api.route('/', navigationAiRoutes)
 api.route('/', desktopRoutes)
 api.route('/', uploadRoutes)
 api.route('/', vaultRoutes)
+// The vault callback has its own limited service credential; mount before the
+// Lingxi proxy's navigation-session authentication middleware.
+api.route('/', lingxiVaultRoutes)
+api.route('/', lingxiRoutes)
 api.route('/', noteRoutes)
 api.route('/', nodeRoutes)
 api.route('/', serverRoutes)
@@ -202,8 +211,16 @@ const server = serve({ fetch: app.fetch, port: PORT, hostname: HOST }, (info) =>
 
   startWidgetWarmup()
   stopSubscriptions = startSubscriptionScheduler()
+  stopLingxiVault = startLingxiVaultRefreshScheduler()
 })
 const stopSubscriptionSockets = attachSubscriptionRelayWebSocket(server)
+const stopLingxiSockets = attachLingxiWebSocket(server)
+server.on('upgrade', (request, socket) => {
+  const pathname = (request.url ?? '').split('?')[0]
+  if (pathname !== '/api/agent/subscriptions/ws' && pathname !== '/api/lingxi/ws') {
+    socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n')
+  }
+})
 
 // ── 小组件预热 ────────────────────────────────────────────────
 
@@ -246,7 +263,7 @@ function shutdown(signal: string): void {
   shuttingDown = true
   console.log(`\n[server] 收到 ${signal}，正在关闭…`)
   stopSubscriptions()
-  void stopSubscriptionSockets().then(() => {
+  void Promise.all([stopSubscriptionSockets(), stopLingxiSockets(), stopLingxiVault()]).then(() => {
     server.close(() => {
       closeDb()
       process.exit(0)

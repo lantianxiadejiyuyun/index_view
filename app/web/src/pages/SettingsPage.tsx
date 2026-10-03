@@ -13,6 +13,7 @@ const PAGES = {
   widgets: lazy(() => import('../components/settings/WidgetSection.tsx').then(m => ({ default: m.WidgetSection }))),
   behavior: lazy(() => import('../components/settings/BehaviorSection.tsx').then(m => ({ default: m.BehaviorSection }))),
   ai: lazy(() => import('../components/settings/AISection.tsx').then(m => ({ default: m.AISection }))),
+  lingxi: lazy(() => import('../components/settings/LingxiSection.tsx').then(m => ({ default: m.LingxiSection }))),
   account: lazy(() => import('../components/settings/AccountSection.tsx').then(m => ({ default: m.AccountSection }))),
   backup: lazy(() => import('../components/settings/BackupSection.tsx').then(m => ({ default: m.BackupSection }))),
   bookmarks: lazy(() => import('../components/settings/BookmarkSection.tsx').then(m => ({ default: m.BookmarkSection }))),

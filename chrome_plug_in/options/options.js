@@ -29,8 +29,9 @@ chrome.runtime.onMessage.addListener((msg) => {
 formDraft = await formCache.load().catch(() => null)
 const serverActions = ['account-connect', 'account-test', 'account-forget', 'sync-push', 'sync-pull', 'sync-overwrite']
 const wizardActions = ['srv-connect', 'srv-local-only']
+const lingxiActions = ['lingxi-authorize', 'lingxi-sync', 'lingxi-revoke']
 const bind = (id, msg, action) => $(id).addEventListener('click', () => {
-  const peers = serverActions.includes(id) ? serverActions : wizardActions.includes(id) ? wizardActions : []
+  const peers = serverActions.includes(id) ? serverActions : wizardActions.includes(id) ? wizardActions : lingxiActions.includes(id) ? lingxiActions : []
   return run($(id), $(msg), action, peers.map($))
 })
 function show(section) {
@@ -108,6 +109,9 @@ function applyState(st) {
     $('account-base').value = ''
     $('account-msg').textContent = ''
     $('wizard-result').textContent = ''
+    $('lingxi-consent').checked = false
+    $('lingxi-state').textContent = ''
+    $('lingxi-msg').textContent = ''
     accountState = null
     accountInputsReady = false
     wizardInputsReady = false
@@ -123,6 +127,7 @@ async function refresh() {
   if (!wizardActive) show('main')
   await renderSettings()
   await renderAccount(true)
+  await renderLingxi()
 }
 $('wizard-password').addEventListener('input', renderStrength)
 bind('wizard-create', 'wizard-msg', async () => {
@@ -218,6 +223,40 @@ function renderAccountText() {
     ].filter(Boolean).join('\n')
     : t('未绑定服务器，密码库仅保存在当前浏览器。')
 }
+async function renderLingxi() {
+  for (const id of lingxiActions) setDisabled($(id), true)
+  try {
+    const state = await send('lingxi-status')
+    $('lingxi-state').textContent = !state.connected ? t('请先绑定服务器账号')
+      : !state.enabled ? t('后台读取开关已关闭')
+        : state.authorized ? t('已授权全部 {count} 条密码', { count: state.item_count })
+          : t('等待本机解锁后确认授权')
+    if (state.lastError) $('lingxi-state').textContent += '\n' + translateError(state.lastError)
+    if (state.enabled && state.authorized && !state.service_connected) $('lingxi-state').textContent += '\n' + t('授权副本已保存，正在连接灵犀读取服务')
+    setDisabled($('lingxi-authorize'), !state.connected || !state.enabled)
+    setDisabled($('lingxi-sync'), !state.authorized)
+    setDisabled($('lingxi-revoke'), !state.enabled)
+  } catch (error) { $('lingxi-state').textContent = translateError(error) }
+}
+bind('lingxi-authorize', 'lingxi-msg', async () => {
+  if (!$('lingxi-consent').checked) throw new Error(t('请先勾选密码读取授权'))
+  await send('lingxi-authorize', { consent: true })
+  $('lingxi-consent').checked = false
+  setMsg($('lingxi-msg'), t('密码授权副本已加密保存'), 'ok')
+  await renderLingxi()
+})
+bind('lingxi-sync', 'lingxi-msg', async () => {
+  await send('sync-push')
+  await send('lingxi-sync')
+  setMsg($('lingxi-msg'), t('密码授权副本已加密保存'), 'ok')
+  await renderLingxi()
+})
+bind('lingxi-revoke', 'lingxi-msg', async () => {
+  await send('lingxi-revoke')
+  $('lingxi-consent').checked = false
+  setMsg($('lingxi-msg'), t('读取已关闭，后台授权副本已删除'), 'ok')
+  await renderLingxi()
+})
 bind('account-connect', 'account-msg', async () => {
   setMsg($('account-msg'), t('正在连接…'))
   const base = $('account-base').value.trim()
@@ -327,7 +366,7 @@ async function checkState(force = false) {
   if (document.hidden && !force) return
   const st = await send('status')
   if (st.locked !== locked || st.hasVault !== hasVault) await refresh()
-  else if (!st.locked && !wizardActive) await renderAccount()
+  else if (!st.locked && !wizardActive) { await renderAccount(); await renderLingxi() }
 }
 setInterval(() => void checkState().catch(() => {}), 15_000)
 window.addEventListener('focus', () => void checkState().catch(() => {}))

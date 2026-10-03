@@ -277,6 +277,8 @@
 .desktop-widget-fallback { opacity: .5; font-size: 12px; line-height: 1.7; }
 .desktop-widget > .glass ~ .desktop-widget-fallback { display: none; }
 .desktop-widget.desktop-widget-calendar { padding: 0; }
+.desktop-widget[class*="desktop-widget-lingxi-"] { padding: 0; justify-content: stretch; }
+.desktop-widget[class*="desktop-widget-lingxi-"] > * { min-height: 0; height: 100%; }
 .desktop-widget.desktop-widget-quote { padding: 12px 16px; background: linear-gradient(155deg, rgb(var(--surface-rgb) / .99), rgb(var(--surface-rgb) / .85)); }
 .desktop-widget-quote > .glass { max-width: none; }
 .desktop-widget-quote .glass p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 11px; line-height: 1.5; }

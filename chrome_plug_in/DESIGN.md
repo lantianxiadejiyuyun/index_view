@@ -1,4 +1,4 @@
-# 密码管理器设计说明（v0.3.1）
+# 密码管理器设计说明（v0.4.0）
 
 ## 数据与密钥
 
@@ -48,7 +48,23 @@ PUT  /api/vault  { base_version, blob }             成功更新或返回 409
 
 普通上传带已知版本。用户明确覆盖时重新读取远端版本，再用 CAS 上传；读取与上传之间的第二次修改仍然产生冲突。服务端用带版本条件的 SQLite 语句保证跨进程原子性，不允许省略 base_version 绕过检查。密文响应均为 no-store。
 
-服务端校验 v1 加密信封形状与 1 MB UTF-8 上限，不持有主密码或解密密钥。blob 的条目明文仅扩展本机可见。
+原 `/api/vault` 接口只校验 v1 加密信封形状与 1 MB UTF-8 上限，不持有主密码或该保险库的解密密钥。服务端不能直接解密原 blob。
+
+### 可选的灵犀读取授权
+
+这是原保险库以外的独立功能：后台开关默认关闭；用户先绑定灵犀并打开后台开关，再解锁插件并勾选授权，插件才通过 HTTPS 上传仅含 `items` 的副本。不会发送 `vault.account`、主密码或 `vaultKey`。本机记录当前服务器、账号和 `grant_id`，后台开关重新开启、换绑或授权批次变化后不会静默重新授权。
+
+`lingxi_vault_grants` 保存 AES-256-GCM 副本，AAD 绑定导航账号和 `vault-snapshot` 用途，密文内容另含当前授权批次。后台按需解密供绑定灵犀读取。专用服务令牌只存 SHA-256 摘要，不能访问导航站其他 API，24 小时有效并提前刷新。公网回调来源只取管理员配置的 `NAVIGATION_PUBLIC_URL`，不信任请求 Host。
+
+`source_version` 必须等于原保险库版本，`base_version` 用于授权副本 CAS。原保险库更新但副本未同步时拒绝读取，避免返回旧密码。关闭读取会删除副本、清空服务令牌并轮换批次；读取路由在请求体接收完毕后再次同步校验权限，避免接收慢请求期间的撤销竞态。审计仅保存动作、数量、时间，最多保留最近 200 条。
+
+```text
+GET/PUT /api/lingxi/vault/settings              当前账号的后台读取开关及无敏感信息的状态
+POST    /api/lingxi/vault/snapshot              已解锁插件显式授权后的副本同步
+POST    /api/lingxi/vault/service/read          仅限权服务令牌，读取全部或 ids 指定条目
+```
+
+普通导航登录令牌不能调用服务读取接口；服务令牌也不能调用设置或其他导航 API。密码不自动进入模型对话上下文；灵犀如何提供按需显示应遵循其自己的工具与用户界面协议。插件锁定仅关闭本机会话，不撤销用户此前明确授予的服务端读取权限。
 
 自动上传受 enabled、autoPush、dirty、conflict 共同控制。修改后等待约 5 秒上传，并设置浏览器闹钟兜底；锁定不会为了上传而把密钥落盘。失败保留 dirty 与错误，解锁后按设置继续尝试。401 最多重新登录一次。
 
@@ -91,6 +107,6 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 - `tests/extension-*.test.mjs`、`tests/server-vault.test.mjs`：纯模块、后台会话、内容脚本、翻译完整性、语言切换、表单缓存和隔离数据库回归。
 - `scripts/test-extension-browser.mjs`：独立浏览器配置的端到端验证，包含介绍、四语界面、服务器草稿与凭据复用。
 
-在根目录运行 `pnpm test:extension` 验证扩展和密文接口，`pnpm test:browser` 运行可选浏览器回归；浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.3.1.zip`。
+在根目录运行 `pnpm test:extension` 验证扩展和密文接口，`node --test tests/lingxi-vault.test.mjs` 验证授权解密、撤销、版本校验和账号隔离；`pnpm test:browser` 运行可选浏览器回归，浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.4.0.zip`。
 
 尚未实现：TOTP、Passkey、团队共享、Chrome CSV 导入、条目自动合并和网页密码自动采集保存。

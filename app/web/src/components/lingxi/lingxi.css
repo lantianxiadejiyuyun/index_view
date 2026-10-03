@@ -1,0 +1,44 @@
+.lingxi-widget{display:flex;flex-direction:column;height:100%;min-height:180px;min-width:0;overflow:hidden;border-radius:22px;color:var(--color-fg)}
+.lingxi-widget-header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:16px 16px 10px;flex-shrink:0}
+.lingxi-widget-heading{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;font-weight:650}
+.lingxi-widget-heading>svg{color:var(--color-brand-500);flex-shrink:0}
+.lingxi-widget-actions{display:flex;align-items:center;gap:3px}
+.lingxi-widget-actions button,.lingxi-icon-button{display:inline-flex;align-items:center;justify-content:center;min-width:32px;min-height:32px;border-radius:9px;transition:background .15s}
+.lingxi-widget-actions button:hover,.lingxi-icon-button:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
+.lingxi-widget-actions button:disabled,.lingxi-icon-button:disabled{opacity:.35;cursor:not-allowed}
+.lingxi-widget-body{min-height:0;min-width:0;flex:1;overflow:auto;padding:0 16px 16px;scrollbar-width:thin}
+.lingxi-empty{display:flex;min-height:125px;height:100%;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;font-size:12px;line-height:1.7;color:color-mix(in srgb,currentColor 60%,transparent);padding:12px}
+.lingxi-link{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:32px;font-size:12px;color:var(--color-brand-500)}
+.lingxi-error{padding:12px 0;font-size:12px;line-height:1.6;overflow-wrap:anywhere;color:var(--color-danger)}
+.lingxi-month-heading{display:flex;justify-content:space-between;align-items:center;gap:5px;margin-bottom:6px;font-size:13px}
+.lingxi-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px}
+.lingxi-weekday{font-size:10px;opacity:.45;text-align:center;padding:7px 0}
+.lingxi-day{position:relative;min-height:31px;border-radius:9px;font-size:12px;transition:background .15s;display:flex;align-items:center;justify-content:center;padding-bottom:3px}
+.lingxi-day:hover{background:color-mix(in srgb,currentColor 7%,transparent)}
+.lingxi-day[data-outside=true]{opacity:.3}.lingxi-day[data-today=true]{font-weight:750;color:var(--color-brand-500)}
+.lingxi-day[data-selected=true]{background:var(--color-brand-500);color:white;opacity:1}
+.lingxi-day[data-events=true]:after{content:'';position:absolute;bottom:4px;left:calc(50% - 2px);width:4px;height:4px;border-radius:100%;background:currentColor}
+.lingxi-day-agenda{border-top:1px solid color-mix(in srgb,currentColor 9%,transparent);margin-top:10px;padding-top:10px}
+.lingxi-day-agenda>h3{font-size:11px;opacity:.55;margin-bottom:7px}
+.lingxi-event{display:flex;width:100%;min-width:0;text-align:left;align-items:flex-start;gap:9px;padding:8px;border-radius:10px;font-size:12px}
+.lingxi-event:hover{background:color-mix(in srgb,currentColor 5%,transparent)}
+.lingxi-event-time{color:var(--color-brand-500);font-size:10px;min-width:34px;padding-top:2px}
+.lingxi-event-title{display:block;overflow-wrap:anywhere;font-weight:550}.lingxi-event-meta{display:block;font-size:10px;opacity:.5;margin-top:3px;overflow-wrap:anywhere}
+.lingxi-list{display:flex;flex-direction:column;gap:5px}.lingxi-task{display:flex;align-items:flex-start;gap:8px;min-width:0;border-radius:12px;padding:8px;background:color-mix(in srgb,currentColor 3%,transparent)}
+.lingxi-task-check{flex-shrink:0;padding:5px;min-height:30px;min-width:28px;color:var(--color-brand-500)}
+.lingxi-task-content{flex:1;min-width:0;text-align:left;padding:4px 0}.lingxi-task[data-done=true] .lingxi-event-title{text-decoration:line-through;opacity:.5}
+.lingxi-priority{display:inline-block;width:5px;height:5px;border-radius:99px;margin:0 5px 1px 0;background:var(--color-brand-500)}
+.lingxi-priority[data-priority='3']{background:#f97316}.lingxi-priority[data-priority='1']{background:#94a3b8}
+.lingxi-filter{display:flex;gap:4px;margin-bottom:12px;font-size:11px}.lingxi-filter button{min-height:30px;padding:3px 10px;border-radius:8px;opacity:.55}.lingxi-filter button[aria-pressed=true]{background:color-mix(in srgb,var(--color-brand-500) 12%,transparent);color:var(--color-brand-500);opacity:1}
+.lingxi-countdown{font-size:16px;font-weight:600;letter-spacing:-.5px;margin:5px 0;color:var(--color-brand-500)}.lingxi-countdown[data-overdue=true]{color:var(--color-danger)}
+.lingxi-deadline{width:100%;text-align:left;padding:12px;border-radius:14px;background:color-mix(in srgb,var(--color-brand-500) 6%,transparent)}
+.lingxi-chat{display:flex;flex-direction:column;min-height:250px;height:100%;gap:9px}.lingxi-chat-toolbar{display:flex;gap:4px;align-items:center}.lingxi-chat-toolbar select{min-height:32px;min-width:0;flex:1;border:1px solid color-mix(in srgb,currentColor 12%,transparent);border-radius:9px;background:transparent;padding:4px 8px;font-size:11px}
+.lingxi-messages{flex:1;min-height:80px;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin;padding:3px 0}.lingxi-message{max-width:95%;font-size:12px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;padding:9px 11px;border-radius:13px;background:color-mix(in srgb,currentColor 5%,transparent)}
+.lingxi-message[data-role=user]{align-self:flex-end;background:var(--color-brand-500);color:white}.lingxi-message[data-role=assistant]{align-self:flex-start}.lingxi-message-label{font-size:9px;opacity:.55;margin-bottom:4px;display:block}
+.lingxi-composer{display:flex;align-items:flex-end;gap:7px;border:1px solid color-mix(in srgb,currentColor 13%,transparent);border-radius:14px;padding:7px;background:color-mix(in srgb,currentColor 3%,transparent)}
+.lingxi-composer textarea{min-width:0;flex:1;resize:none;background:transparent;outline:none;padding:4px;font-size:12px;line-height:1.6;max-height:130px}.lingxi-send{height:32px;width:32px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--color-brand-500);color:white;flex-shrink:0}.lingxi-send:disabled{opacity:.35}
+.lingxi-chat-status{font-size:10px;opacity:.55;min-height:15px}.lingxi-compact .lingxi-widget-header{padding:12px 12px 8px}.lingxi-compact .lingxi-widget-body{padding:0 12px 12px}.lingxi-compact .lingxi-day{min-height:28px}
+.lingxi-workspace{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}.lingxi-workspace-calendar,.lingxi-workspace-schedule{height:470px}.lingxi-workspace-deadline{height:285px}.lingxi-workspace-chat{height:590px}
+@media(min-width:768px){.lingxi-workspace{grid-template-columns:repeat(2,minmax(0,1fr))}.lingxi-workspace-chat{grid-column:2;grid-row:1 / span 2;height:771px}.lingxi-workspace-schedule{height:400px}.lingxi-workspace-calendar{height:470px}.lingxi-workspace-deadline{height:285px}}
+@media(min-width:1200px){.lingxi-workspace{grid-template-columns:repeat(3,minmax(0,1fr))}.lingxi-workspace-chat{grid-column:3;grid-row:1 / span 2;height:771px}.lingxi-workspace-schedule{grid-column:2;grid-row:1 / span 2;height:771px}}
+@media(max-width:420px){.lingxi-widget-header{padding:12px 12px 8px}.lingxi-widget-body{padding:0 12px 12px}.lingxi-day{min-height:30px}}

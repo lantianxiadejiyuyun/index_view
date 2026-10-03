@@ -165,6 +165,9 @@ export function attachSubscriptionRelayWebSocket(server: Pick<EventEmitter, 'on'
     socket.end(`HTTP/1.1 ${status} Rejected\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`)
   }
   function upgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void {
+    // The listener is shared with other authenticated WebSocket features.
+    // Only this path belongs to the subscription relay (queries still fail below).
+    if (request.url?.split('?')[0] !== ENDPOINT) return
     if (stopped) { reject(socket, 503); return }
     // Exact URL matching rejects query-string credentials and prevents the
     // WebSocket adapter from inheriting cookies or browser origin authority.

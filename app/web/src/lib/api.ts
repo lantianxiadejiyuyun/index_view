@@ -162,11 +162,12 @@ export type ApiOptions = {
   signal?: AbortSignal
 }
 
-export async function api<T>(
+/** Authenticated response for streaming endpoints; bearer credentials stay in this module. */
+export async function apiResponse(
   path: string,
   init: RequestInit = {},
   options: ApiOptions = {},
-): Promise<T> {
+): Promise<Response> {
   const { retry = true } = options
   const signal = options.signal ?? init.signal ?? undefined
   signal?.throwIfAborted()
@@ -188,7 +189,7 @@ export async function api<T>(
       ? accessToken !== null
       : await withAbort(refreshSession(), signal)
     signal?.throwIfAborted()
-    if (ok) return api<T>(path, init, { ...options, retry: false })
+    if (ok) return apiResponse(path, init, { ...options, retry: false })
     if (requestTokenVersion === tokenVersion) emitExpired()
   }
 
@@ -197,6 +198,13 @@ export async function api<T>(
     signal?.throwIfAborted()
     throw err
   }
+
+  return res
+}
+
+export async function api<T>(path: string, init: RequestInit = {}, options: ApiOptions = {}): Promise<T> {
+  const signal = options.signal ?? init.signal ?? undefined
+  const res = await apiResponse(path, init, options)
 
   if (res.status === 204 || res.headers.get('content-length') === '0') {
     return undefined as T

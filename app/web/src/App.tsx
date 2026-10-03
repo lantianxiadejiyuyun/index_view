@@ -27,6 +27,7 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage.tsx').then((m) => (
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage.tsx').then((m) => ({ default: m.SubscriptionsPage })))
 const WorkbenchPage = lazy(() => import('./pages/WorkbenchPage.tsx').then((m) => ({ default: m.WorkbenchPage })))
 const DesktopPage = lazy(() => import('./pages/DesktopPage.tsx').then((m) => ({ default: m.DesktopPage })))
+const LingxiPage = lazy(() => import('./pages/LingxiPage.tsx').then((m) => ({ default: m.LingxiPage })))
 
 /**
  * 把设置里的视觉参数写进 CSS 变量。
@@ -248,6 +249,7 @@ export default function App() {
                 }
               />
               <Route path="/subscriptions" element={<RequireAuth><SubscriptionsPage /></RequireAuth>} />
+              <Route path="/lingxi" element={<RequireAuth><LingxiPage /></RequireAuth>} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>

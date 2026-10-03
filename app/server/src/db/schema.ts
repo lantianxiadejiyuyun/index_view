@@ -419,6 +419,41 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 17,
+    name: 'lingxi-account-binding-and-vault-grants',
+    up: `
+      CREATE TABLE lingxi_bindings (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        base_url TEXT NOT NULL,
+        api_token_encrypted TEXT NOT NULL,
+        user_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE lingxi_vault_grants (
+        user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        grant_id TEXT NOT NULL,
+        service_token_hash TEXT,
+        service_token_expires_at INTEGER,
+        snapshot_encrypted TEXT,
+        snapshot_version INTEGER NOT NULL DEFAULT 0,
+        source_version INTEGER NOT NULL DEFAULT 0,
+        item_count INTEGER NOT NULL DEFAULT 0,
+        authorized_at INTEGER,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE UNIQUE INDEX idx_lingxi_vault_token ON lingxi_vault_grants(service_token_hash);
+      CREATE TABLE lingxi_vault_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        action TEXT NOT NULL,
+        item_count INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX idx_lingxi_vault_audit_user ON lingxi_vault_audit(user_id, created_at);
+    `,
+  },
 ]
 export const DEFAULT_SETTINGS: Record<string, string> = {
   site_title: '我的导航',
@@ -443,6 +478,10 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
   show_hitokoto: 'true',
   // 工作台入口小组件。工作台本身是独立页面，这里只控制首页上那颗入口要不要出现
   show_workbench: 'true',
+  show_lingxi_calendar: 'false',
+  show_lingxi_schedule: 'false',
+  show_lingxi_deadline: 'false',
+  show_lingxi_chat: 'false',
   // 压在壁纸上的文字颜色：auto 按壁纸明暗采样，black / white 强制固定
   tone_clock: 'auto',
   tone_heading: 'auto',

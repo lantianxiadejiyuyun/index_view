@@ -18,6 +18,7 @@
       <a href="#settings-overview" class="active"><span class="nav-index" aria-hidden="true">01</span><span data-i18n="概览">概览</span></a>
       <a href="#preferences-section" data-unlocked-nav class="hidden"><span class="nav-index" aria-hidden="true">02</span><span data-i18n="安全与锁定">安全与锁定</span></a>
       <a href="#sync-section" data-unlocked-nav class="hidden"><span class="nav-index" aria-hidden="true">03</span><span data-i18n="服务器与同步">服务器与同步</span></a>
+      <a href="#lingxi-section" data-unlocked-nav class="hidden"><span class="nav-index" aria-hidden="true">AI</span><span data-i18n="灵犀密码读取授权">灵犀密码读取授权</span></a>
       <a href="#master-section" data-unlocked-nav class="hidden"><span class="nav-index" aria-hidden="true">04</span><span data-i18n="主密码">主密码</span></a>
       <a href="#backup-section"><span class="nav-index" aria-hidden="true">05</span><span data-i18n="备份与恢复">备份与恢复</span></a>
     </nav>
@@ -115,6 +116,15 @@
       <div class="actions"><button id="sync-push" data-i18n="上传本机修改">上传本机修改</button><button id="sync-pull" data-i18n="下载并替换本机">下载并替换本机</button><button id="sync-overwrite" class="danger hidden" data-i18n="用本机覆盖服务器">用本机覆盖服务器</button></div>
       <div id="account-msg" class="msg"></div>
       <p class="muted small" data-i18n="下载会替换本机密码库，包括主密码。双方都修改时停止自动上传，由你选择；不会自动合并。">下载会替换本机密码库，包括主密码。双方都修改时停止自动上传，由你选择；不会自动合并。</p>
+    </div>
+    <div class="card" id="lingxi-section">
+      <div class="section-heading"><span class="section-index" aria-hidden="true">AI</span><h2 data-i18n="灵犀密码读取授权">灵犀密码读取授权</h2></div>
+      <p class="muted small" data-i18n="开启后，全部密码条目的授权副本会发送到导航站。后台加密保存并可解密供已绑定的灵犀读取；原密文保险库和主密码保持不变。">开启后，全部密码条目的授权副本会发送到导航站。后台加密保存并可解密供已绑定的灵犀读取；原密文保险库和主密码保持不变。</p>
+      <p id="lingxi-state" class="note" role="status"></p>
+      <label class="check"><input id="lingxi-consent" type="checkbox" /><span data-i18n="我允许后台解密全部密码条目供已绑定的灵犀读取">我允许后台解密全部密码条目供已绑定的灵犀读取</span></label>
+      <div class="actions"><button id="lingxi-authorize" class="primary" data-i18n="授权并同步">授权并同步</button><button id="lingxi-sync" data-i18n="同步授权副本">同步授权副本</button><button id="lingxi-revoke" class="danger" data-i18n="关闭读取并删除副本">关闭读取并删除副本</button></div>
+      <p class="muted small" data-i18n="先在导航站的灵犀设置中开启读取开关，再在这里授权。关闭后立即停止读取；重新开启需要再次确认。">先在导航站的灵犀设置中开启读取开关，再在这里授权。关闭后立即停止读取；重新开启需要再次确认。</p>
+      <div id="lingxi-msg" class="msg"></div>
     </div>
     <div class="card" id="master-section">
       <div class="section-heading"><span class="section-index" aria-hidden="true">03</span><h2 data-i18n="更换主密码">更换主密码</h2></div>

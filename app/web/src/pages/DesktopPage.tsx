@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { createPortal } from 'react-dom'
 import { Link, Navigate } from 'react-router-dom'
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type KeyboardCoordinateGetter } from '@dnd-kit/core'
-import { Check, Command, Folder as FolderIcon, FolderPlus, Grip, Home, LayoutGrid, Loader2, LogIn, Moon, NotebookPen, Pencil, Plus, Rss, Settings2, Sun, Trash2, X } from 'lucide-react'
+import { Check, Command, Folder as FolderIcon, FolderPlus, Grip, Home, LayoutGrid, Loader2, LogIn, MessageCircle, Moon, NotebookPen, Pencil, Plus, Rss, Settings2, Sun, Trash2, X } from 'lucide-react'
 import { api, errorMessage } from '../lib/api.ts'
 import { arrangeDesktop, canvasDropPosition, dropPosition, freePosition, overlaps, parseDesktopLayout, type DesktopItem, type DesktopLayout, type DesktopViewport, type PlacedItem } from '../lib/desktop-layout.ts'
 import { resolveLink, openResolved } from '../lib/link.ts'
@@ -13,6 +13,7 @@ import { toast } from '../store/toast.ts'
 import { Clock } from '../components/Clock.tsx'
 import { FolderSiteIcon } from '../components/FolderCard.tsx'
 import { DesktopCalendar } from '../components/DesktopCalendar.tsx'
+import { LingxiCalendarWidget, LingxiScheduleWidget, LingxiDeadlineWidget, LingxiChatWidget } from '../components/lingxi/LingxiWidgets.tsx'
 import { FolderEditorModal } from '../components/FolderEditor.tsx'
 import { SiteEditorModal } from '../components/SiteEditor.tsx'
 import { SearchBar } from '../components/SearchBar.tsx'
@@ -76,8 +77,8 @@ function DesktopFolderPreview({ folder, sites, width, height, editing, onOpen, o
   </div>
 }
 
-const widgetLabels: Record<string, string> = { clock: '时钟', search: '搜索', weather: '天气', quote: '每日一句', workbench: '工作台', calendar: '日历' }
-const widgetSizes: Record<string, [number, number]> = { clock: [3, 2], search: [5, 1], weather: [4, 2], quote: [5, 1], workbench: [3, 1], calendar: [4, 2] }
+const widgetLabels: Record<string, string> = { clock: '时钟', search: '搜索', weather: '天气', quote: '每日一句', workbench: '工作台', calendar: '日历', 'lingxi-calendar': '灵犀日历', 'lingxi-schedule': '日程与待办', 'lingxi-deadline': '截止倒计时', 'lingxi-chat': '灵犀 AI' }
+const widgetSizes: Record<string, [number, number]> = { clock: [3, 2], search: [5, 1], weather: [4, 2], quote: [5, 1], workbench: [3, 1], calendar: [4, 2], 'lingxi-calendar': [4, 4], 'lingxi-schedule': [4, 4], 'lingxi-deadline': [3, 2], 'lingxi-chat': [5, 4] }
 function placeVisibleItems(items: DesktopItem[], layout: DesktopLayout, view: DesktopViewport, columns: number) {
   const ids = new Set(items.map(item => item.id))
   const reserved = Object.entries(widgetSizes).filter(([name]) => layout[view][`widget:${name}`] && !ids.has(`widget:${name}`)).map(([name, [width, height]]) => ({ id: `widget:${name}`, width: view === 'wide' ? width : 4, height }))
@@ -86,7 +87,7 @@ function placeVisibleItems(items: DesktopItem[], layout: DesktopLayout, view: De
 
 
 export function DesktopPage() {
-  const { sites, folders, categories, settings, rawSettings, canEdit, needsLogin, editMode, setEditMode, saveSettings, setTheme, netMode, registerClick } = useApp()
+  const { sites, folders, categories, settings, rawSettings, user, canEdit, needsLogin, editMode, setEditMode, saveSettings, setTheme, netMode, registerClick } = useApp()
   const dark = useTheme(settings.theme)
   const [layout, setLayout] = useState(() => parseDesktopLayout(rawSettings.desktop_layout))
   const [boardWidth, setBoardWidth] = useState(0)
@@ -138,8 +139,16 @@ export function DesktopPage() {
     const folderIds = new Set(folders.map(f => f.id))
     for (const f of [...folders].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)) result.push({ id: `folder:${f.id}`, kind: 'folder', folder: f, width: Math.min(columns, Math.max(1, f.columns)), height: Math.min(6, Math.max(1, f.rows)) })
     for (const site of [...sites].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)) if (!site.folder_id || !folderIds.has(site.folder_id)) result.push({ id: `site:${site.id}`, kind: 'site', site, width: 1, height: 1 })
+    // New integrations claim remaining space after existing icons, including
+    // before the user has entered edit mode and saved their initial layout.
+    if (user) {
+      if (settings.show_lingxi_calendar) widget('lingxi-calendar', 4, 4)
+      if (settings.show_lingxi_schedule) widget('lingxi-schedule', 4, 4)
+      if (settings.show_lingxi_deadline) widget('lingxi-deadline', 3, 2)
+      if (settings.show_lingxi_chat) widget('lingxi-chat', 5, 4)
+    }
     return result
-  }, [sites, folders, view, columns, settings.desktop_header_mode, settings.show_calendar, settings.show_clock, settings.show_weather, settings.show_hitokoto, settings.show_workbench])
+  }, [sites, folders, view, columns, user, settings.desktop_header_mode, settings.show_calendar, settings.show_clock, settings.show_weather, settings.show_hitokoto, settings.show_workbench, settings.show_lingxi_calendar, settings.show_lingxi_schedule, settings.show_lingxi_deadline, settings.show_lingxi_chat])
   // Preserve saved spaces of hidden widgets when placing newly added items.
   const placed = useMemo(() => placeVisibleItems(items, layout, view, columns), [items, layout, view, columns])
   const boardHeight = Math.max(580, ...placed.map(p => (p.row + p.height) * (rowHeight + gap))) + (editing ? rowHeight * 3 : 0)
@@ -207,7 +216,7 @@ export function DesktopPage() {
     }
   }
   async function changeWidgets(key: string, value: boolean | string) {
-    const widgetKey: Record<string, string> = { show_calendar: 'calendar', show_clock: 'clock', show_weather: 'weather', show_hitokoto: 'quote', show_workbench: 'workbench' }
+    const widgetKey: Record<string, string> = { show_calendar: 'calendar', show_clock: 'clock', show_weather: 'weather', show_hitokoto: 'quote', show_workbench: 'workbench', show_lingxi_calendar: 'lingxi-calendar', show_lingxi_schedule: 'lingxi-schedule', show_lingxi_deadline: 'lingxi-deadline', show_lingxi_chat: 'lingxi-chat' }
     const restore = key === 'desktop_header_mode' && value === 'widgets' ? ['search', ...(settings.show_clock ? ['clock'] : [])] : value === true && widgetKey[key] && !(key === 'show_clock' && settings.desktop_header_mode === 'hero') ? [widgetKey[key]!] : []
     for (const viewport of ['wide', 'compact'] as const) {
       const cols = viewport === 'wide' ? 12 : 4
@@ -291,7 +300,13 @@ export function DesktopPage() {
   const activeSite = sites.find(s => `site:${s.id}` === activeId)
   const looseGroups = categories.filter(c => sites.some(s => s.category_id === c.id && !s.folder_id)).length
   const dockSites = useMemo(() => [...sites].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id).slice(0, 6), [sites])
-  const renderWidget = (name: string) => name === 'clock' ? <Clock /> : name === 'search' ? <SearchBar /> : name === 'calendar' ? <DesktopCalendar now={now} /> : name === 'weather' ? <><WeatherWidget /><span className="desktop-widget-fallback">天气会在连接成功后显示</span></> : name === 'quote' ? <><HitokotoWidget /><span className="desktop-widget-fallback">给今天留一点灵感</span></> : <WorkbenchWidget />
+  const renderWidget = (name: string) => {
+    if (name === 'lingxi-calendar') return <LingxiCalendarWidget compact />
+    if (name === 'lingxi-schedule') return <LingxiScheduleWidget compact />
+    if (name === 'lingxi-deadline') return <LingxiDeadlineWidget compact />
+    if (name === 'lingxi-chat') return <LingxiChatWidget compact />
+    return name === 'clock' ? <Clock /> : name === 'search' ? <SearchBar /> : name === 'calendar' ? <DesktopCalendar now={now} /> : name === 'weather' ? <><WeatherWidget /><span className="desktop-widget-fallback">天气会在连接成功后显示</span></> : name === 'quote' ? <><HitokotoWidget /><span className="desktop-widget-fallback">给今天留一点灵感</span></> : <WorkbenchWidget />
+  }
   function addSite() { void run(async () => { await freezeInitialPositions(); setSiteEditor({ site: null, folderId: null }) }) }
   function addFolder() { void run(async () => { await freezeInitialPositions(); setFolderEditor({ folder: null }) }) }
 
@@ -304,6 +319,7 @@ export function DesktopPage() {
           <Link to="/desktop" className="is-active" aria-current="page" title="桌面"><Home /><span>桌面</span></Link>
           <Link to="/navigation" title="导航主页"><LayoutGrid /><span>导航</span></Link>
           <Link to="/notes" title="笔记"><NotebookPen /><span>笔记</span></Link>
+          {user && <Link to="/lingxi" title="灵犀工作区"><MessageCircle /><span>灵犀</span></Link>}
           {canEdit && <><Link to="/subscriptions" title="订阅中心"><Rss /><span>订阅</span></Link><button type="button" disabled={busy} onClick={addSite} title="添加图标" aria-label="添加图标"><Plus /><span>添加图标</span></button><button type="button" disabled={busy} onClick={addFolder} title="新建文件夹" aria-label="新建文件夹"><FolderPlus /><span>新建文件夹</span></button></>}
         </div>
         <div className="desktop-sidebar-bottom">{canEdit ? <Link to="/settings/appearance" title="外观设置"><Settings2 /><span>设置</span></Link> : <Link to="/login" title="登录"><LogIn /><span>登录</span></Link>}</div>
@@ -331,7 +347,8 @@ export function DesktopPage() {
     {canEdit && <BulkSiteDeleteModal open={bulkDeleteOpen} onClose={() => setBulkDeleteOpen(false)} />}
     <Modal open={optionsOpen} title="桌面选项" onClose={() => !busy && setOptionsOpen(false)}>
       <div className="desktop-options"><p>电脑和手机分别保存位置。拖放吸附网格，目标有组件时保留原位，不自动排列或挪动其他组件。聚焦把手后按空格开始或结束，方向键移动。</p>
-        {([['show_clock', '时钟'], ['show_calendar', '日历'], ['show_weather', '天气'], ['show_hitokoto', '每日一句'], ['show_workbench', '工作台']] as const).map(([key, label]) => <label key={key}>{label}<input type="checkbox" checked={settings[key]} disabled={busy} onChange={event => { const checked = event.target.checked; void run(() => changeWidgets(key, checked)) }} /></label>)}
+        {([['show_clock', '时钟'], ['show_calendar', '日历'], ['show_weather', '天气'], ['show_hitokoto', '每日一句'], ['show_workbench', '工作台'], ['show_lingxi_calendar', '灵犀日历'], ['show_lingxi_schedule', '日程与待办'], ['show_lingxi_deadline', '截止倒计时'], ['show_lingxi_chat', '灵犀 AI 聊天']] as const).map(([key, label]) => <label key={key}>{label}<input type="checkbox" checked={settings[key]} disabled={busy} onChange={event => { const checked = event.target.checked; void run(() => changeWidgets(key, checked)) }} /></label>)}
+        <Link to="/settings/lingxi" className={btnGhost}>管理灵犀账号与密码读取权限</Link>
         <label>时钟与搜索<select aria-label="时钟与搜索位置" value={settings.desktop_header_mode} disabled={busy} onChange={event => { const mode = event.target.value; void run(() => changeWidgets('desktop_header_mode', mode)) }}><option value="hero">居中置顶</option><option value="widgets">可拖动组件</option></select></label>
         <button type="button" className={btnGhost} disabled={busy || settings.home_mode === 'desktop'} onClick={() => void run(async () => { await saveSettings({ home_mode: 'desktop' }); toast.success('已将自由桌面设为首页') })}>{settings.home_mode === 'desktop' ? '当前默认首页：自由桌面' : '将自由桌面设为首页'}</button>
         {looseGroups > 0 && <div className="desktop-collect"><strong>用文件夹收纳已有图标</strong><p>将 {looseGroups} 个原分组的散落图标分别收纳到同名文件夹。已有文件夹保持原样，删除新文件夹可把图标放回桌面。</p><button type="button" className={btnGhost} disabled={busy} onClick={() => void run(async () => { await freezeInitialPositions(); const result = await api<{ created: number; sites: Site[]; folders: Folder[] }>('/api/desktop/collect-groups', { method: 'POST' }); useApp.setState({ sites: result.sites, folders: result.folders }); toast.success(`已收纳到 ${result.created} 个文件夹`) })}>按原分组收纳为文件夹</button></div>}

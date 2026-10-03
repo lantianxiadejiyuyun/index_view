@@ -11,7 +11,7 @@ export function parseDesktopLayout(raw?: string): DesktopLayout {
     const value = JSON.parse(raw ?? '{}')
     for (const view of ['wide', 'compact'] as const) {
       for (const [id, entry] of Object.entries(value[view] ?? {})) {
-        if (!/^(?:site:[1-9]\d*|folder:[1-9]\d*|widget:(?:clock|search|weather|quote|workbench|calendar))$/.test(id)) continue
+        if (!/^(?:site:[1-9]\d*|folder:[1-9]\d*|widget:(?:clock|search|weather|quote|workbench|calendar|lingxi-calendar|lingxi-schedule|lingxi-deadline|lingxi-chat))$/.test(id)) continue
         const p = entry as DesktopPosition
         if (p && Number.isInteger(p.col) && p.col >= 0 && p.col < (view === 'wide' ? 12 : 4) && Number.isInteger(p.row) && p.row >= 0 && p.row <= 10000) result[view][id] = { col: p.col, row: p.row }
       }

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { lazy, Suspense, useCallback, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { Check, FolderPlus, Group, LayoutGrid, Minimize2, Plus, Sparkles } from 'lucide-react'
 import { Clock } from '../components/Clock.tsx'
@@ -13,6 +13,8 @@ import { WidgetRow } from '../components/Widgets.tsx'
 import { useApp } from '../store/app.ts'
 import { useMinimal } from '../store/minimal.ts'
 import type { Category, Folder, Site } from '../lib/types.ts'
+
+const LingxiHomeWidgets = lazy(() => import('../components/lingxi/LingxiWidgets.tsx').then(m => ({ default: m.LingxiHomeWidgets })))
 
 type SiteEditorState = {
   open: boolean
@@ -87,6 +89,7 @@ export function HomePage({ navigationOnly = false }: { navigationOnly?: boolean 
   const editMode = useApp((s) => s.editMode)
   const canEdit = useApp((s) => s.canEdit)
   const user = useApp((s) => s.user)
+  const showLingxi = useApp((s) => s.settings.show_lingxi_calendar || s.settings.show_lingxi_schedule || s.settings.show_lingxi_deadline || s.settings.show_lingxi_chat)
   const appearance = useApp((s) => s.settings.appearance_preset)
   const homeMode = useApp((s) => s.settings.home_mode)
   const minimal = useMinimal((s) => s.minimal)
@@ -165,6 +168,7 @@ export function HomePage({ navigationOnly = false }: { navigationOnly?: boolean 
             <Clock />
             <SearchBar />
             <WidgetRow />
+            {user && showLingxi && <Suspense fallback={null}><LingxiHomeWidgets /></Suspense>}
           </div>
           <div className="home-apps">
             {appearance === 'desktop' && (

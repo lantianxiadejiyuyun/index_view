@@ -84,7 +84,7 @@ async function settings(body = { api_key: 'sk-fixture-private' }, auth = token) 
 }
 
 test('DeepSeek defaults, settings encryption, account isolation and bootstrap exclusion', async () => {
-  assert.equal(h.sql.get('PRAGMA user_version').user_version, 16)
+  assert.equal(h.sql.get('PRAGMA user_version').user_version, 17)
   const initial = await request('/ai/settings')
   assert.equal(initial.headers.get('cache-control'), 'no-store')
   assert.deepEqual((await initial.json()).settings, { provider: 'deepseek', base_url: 'https://api.deepseek.com', model: 'deepseek-flash', has_api_key: false, configured: false })

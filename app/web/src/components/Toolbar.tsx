@@ -9,6 +9,7 @@ import {
   LogOut,
   Minimize2,
   Moon,
+  MessageCircle,
   Monitor,
   PanelsTopLeft,
   MoreHorizontal,
@@ -187,6 +188,7 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
         </Link>
 
         {user && <Link to="/subscriptions" title="订阅中心" aria-label="订阅中心" className="rounded-xl p-2 text-fg/75 transition hover:bg-line/15 hover:text-fg"><Rss className="size-4" aria-hidden /></Link>}
+        {user && <Link to="/lingxi" title="灵犀工作区" aria-label="灵犀工作区" className="rounded-xl p-2 text-fg/75 transition hover:bg-line/15 hover:text-fg"><MessageCircle className="size-4" aria-hidden /></Link>}
         <Link to="/desktop" title="自由桌面" aria-label="自由桌面" className="rounded-xl p-2 text-fg/75 transition hover:bg-line/15 hover:text-fg"><Monitor className="size-4" aria-hidden /></Link>
 
         <Link
@@ -218,6 +220,7 @@ export function Toolbar({ onAddSite, onAddCategory, onAddFolder, onOrganize }: {
           {canEdit && <button type="button" onClick={() => { setMoreOpen(false); setBulkDeleteOpen(true) }} className="flex min-h-16 items-center gap-3 rounded-2xl border border-line/10 bg-line/5 px-4 text-sm text-fg/85 active:bg-line/15"><Trash2 className="size-5 shrink-0 text-rose-500" aria-hidden />批量删除图标</button>}
           {[
             { to: '/desktop', label: '自由桌面', icon: Monitor },
+            ...(user ? [{ to: '/lingxi', label: '灵犀工作区', icon: MessageCircle }] : []),
             { to: '/notes', label: '笔记', icon: NotebookPen },
             { to: '/photos', label: '照片墙', icon: Images },
             { to: '/services', label: '服务对接', icon: Server },

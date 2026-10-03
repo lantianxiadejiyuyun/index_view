@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Link, NavLink, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Bookmark, Database, Info, LayoutGrid, MousePointerClick, Palette, Search, Settings, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowLeft, Bookmark, Database, Info, LayoutGrid, MessageCircle, MousePointerClick, Palette, Search, Settings, ShieldCheck, Sparkles } from 'lucide-react'
 
 /** One catalog powers the overview, navigation, and each settings page heading. */
 export const SETTINGS_SECTIONS = [
@@ -10,6 +10,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'widgets', title: '小组件', icon: LayoutGrid, group: '日常体验', description: '时钟、天气、一言与首页组件' },
   { id: 'behavior', title: '交互与访问', icon: MousePointerClick, group: '日常体验', description: '链接打开方式、访客权限与探针端口' },
   { id: 'ai', title: 'AI 配置', icon: Sparkles, group: '智能与安全', description: '首页图标整理与路由助手的 AI 服务、密钥及连接测试' },
+  { id: 'lingxi', title: '灵犀联动', icon: MessageCircle, group: '智能与安全', description: '连接灵犀账号、日程与聊天组件、插件密码读取授权' },
   { id: 'account', title: '账号与安全', icon: ShieldCheck, group: '智能与安全', description: '登录设备、账号密码与探针令牌' },
   { id: 'backup', title: '数据备份', icon: Database, group: '数据管理', description: '导出导航数据，或从备份文件恢复' },
   { id: 'bookmarks', title: '书签与图标', icon: Bookmark, group: '数据管理', description: '导入浏览器书签，批量删除或清空图标' },

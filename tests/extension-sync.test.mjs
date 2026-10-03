@@ -602,3 +602,91 @@ test('resetting all data invalidates old pages instead of reusing their draft ge
   assert.equal(h.storage.file, undefined)
   assert.equal(h.storage.sync, undefined)
 })
+
+function mockLingxi(h) {
+  const state = { enabled: true, grant_id: 'fixture-grant-1', snapshot_version: 0, item_count: 0, service_connected: true }
+  const uploads = []
+  h.intercept(async request => {
+    if (request.url.pathname === '/api/lingxi/vault/settings') {
+      if (request.method === 'PUT') { state.enabled = request.body.enabled; state.grant_id = null; state.item_count = 0 }
+      return Response.json(state)
+    }
+    if (request.url.pathname === '/api/lingxi/vault/snapshot') {
+      if (!state.enabled) return Response.json({ message: '后台未开启密码读取授权', error: 'grant_disabled' }, { status: 403 })
+      assert.equal(request.body.grant_id, state.grant_id)
+      assert.equal(request.body.base_version, state.snapshot_version)
+      assert.equal(request.body.source_version, h.storage.sync.version)
+      uploads.push(structuredClone(request.body))
+      state.snapshot_version += 1; state.item_count = request.body.items.length
+      return Response.json(state)
+    }
+  })
+  return { state, uploads }
+}
+
+test('Lingxi never receives passwords until extension consent, then only item fields are synchronized', async (t) => {
+  const h = await setup(t), lingxi = mockLingxi(h)
+  await h.ok('create', { password: PASSWORD })
+  await h.ok('save', { item: { id: 'fixture-entry', title: 'Fixture', url: 'https://example.test', username: 'fixture-entry-user', password: 'fixture-entry-password' } })
+  await h.connect()
+  assert.equal(lingxi.uploads.length, 0)
+  assert.equal((await h.send('lingxi-authorize')).code, 'consent_required')
+  assert.equal((await h.send('lingxi-authorize', { consent: true }, h.content('https://example.test'))).code, 'forbidden')
+  await h.ok('lingxi-authorize', { consent: true })
+  assert.equal(lingxi.uploads.length, 1)
+  const snapshot = lingxi.uploads[0]
+  assert.equal(snapshot.items[0].password, 'fixture-entry-password')
+  assert.equal(snapshot.consent, true)
+  for (const secret of [PASSWORD, 'fixture-account-password', 'fixture-token']) assert.ok(!JSON.stringify(snapshot).includes(secret))
+  for (const secret of [PASSWORD, 'fixture-entry-password', 'fixture-account-password', 'fixture-token']) assert.ok(!JSON.stringify(h.storage).includes(secret))
+  await h.ok('save', { item: { id: 'fixture-entry', password: 'fixture-new-password' } })
+  await h.ok('sync-push')
+  assert.equal(lingxi.uploads.at(-1).items[0].password, 'fixture-new-password')
+  assert.equal(lingxi.uploads.at(-1).consent, false)
+  assert.equal((await h.ok('lingxi-status')).authorized, true)
+})
+
+test('backend disable and renewed grants cannot silently reauthorize an extension', async (t) => {
+  const h = await setup(t), lingxi = mockLingxi(h)
+  await h.ok('create', { password: PASSWORD }); await h.connect()
+  await h.ok('lingxi-authorize', { consent: true })
+  lingxi.state.enabled = false; lingxi.state.grant_id = null
+  await h.ok('sync-push')
+  assert.equal(h.storage.lingxiGrant, null)
+  assert.equal(lingxi.uploads.length, 1)
+  lingxi.state.enabled = true; lingxi.state.grant_id = 'renewed-grant'; lingxi.state.snapshot_version = 0
+  await h.ok('sync-push')
+  assert.equal(lingxi.uploads.length, 1)
+  await h.ok('lingxi-authorize', { consent: true })
+  assert.equal(lingxi.uploads.length, 2)
+  await h.ok('lingxi-revoke')
+  assert.equal(lingxi.state.enabled, false); assert.equal(h.storage.lingxiGrant, null)
+  assert.equal((await h.ok('lingxi-status')).authorized, false)
+})
+
+test('extension revocation works while server is awaiting first authorization and unbinding revokes a saved grant', async (t) => {
+  const h = await setup(t), lingxi = mockLingxi(h)
+  await h.ok('create', { password: PASSWORD }); await h.connect()
+  await h.ok('lingxi-revoke')
+  assert.equal(lingxi.state.enabled, false)
+  lingxi.state.enabled = true; lingxi.state.grant_id = 'new-grant'
+  await h.ok('lingxi-authorize', { consent: true })
+  await h.ok('account-forget')
+  assert.equal(lingxi.state.enabled, false); assert.equal(h.storage.lingxiGrant, null)
+})
+
+test('locking cancels a pending password grant upload without retaining local consent', async (t) => {
+  const h = await setup(t), started = deferred(), release = deferred()
+  await h.ok('create', { password: PASSWORD }); await h.connect()
+  h.intercept(async request => {
+    if (request.url.pathname === '/api/lingxi/vault/settings') {
+      started.resolve(); await release.promise
+      return Response.json({ enabled: true, grant_id: 'fixture-grant', snapshot_version: 0 })
+    }
+  })
+  const authorizing = h.send('lingxi-authorize', { consent: true })
+  await started.promise; await h.ok('lock'); release.resolve()
+  assert.equal((await authorizing).ok, false)
+  assert.equal(h.requests.filter(req => req.url.pathname === '/api/lingxi/vault/snapshot').length, 0)
+  assert.ok(!h.storage.lingxiGrant)
+})
