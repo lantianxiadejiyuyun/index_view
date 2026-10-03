@@ -18,6 +18,9 @@ let accountState = null
 let formDraft = null
 let accountInputsReady = false
 let wizardInputsReady = false
+let settingsState = {}
+let savingSettings = false
+let settingsRevision = 0
 const formCache = createServerFormCache({
   send,
   onError: (err) => setMsg($('page-msg'), translateError(err), 'bad'),
@@ -99,6 +102,7 @@ function applyState(st) {
   setDisabled($('export-encrypted'), !hasVault)
   setDisabled($('export-plain'), locked)
   $('lock-now').classList.toggle('hidden', locked)
+  $('disable-persistent-unlock').classList.toggle('hidden', !st.locked || st.settings?.neverAutoLock !== true)
   $('danger-section').classList.toggle('hidden', !hasVault)
   for (const link of document.querySelectorAll('[data-unlocked-nav]')) link.classList.toggle('hidden', locked || !hasVault)
   if (locked) {
@@ -125,7 +129,7 @@ async function refresh() {
   if (!st.hasVault) { showStep(1); return }
   if (st.locked) { show('locked'); $('unlock-password').focus(); return }
   if (!wizardActive) show('main')
-  await renderSettings()
+  if (!savingSettings) renderSettings(st.settings)
   await renderAccount(true)
   await renderLingxi()
 }
@@ -176,22 +180,47 @@ const doUnlock = () => run($('unlock-btn'), $('unlock-msg'), async () => {
 $('unlock-btn').addEventListener('click', doUnlock)
 $('unlock-password').addEventListener('keydown', (e) => { if (e.key === 'Enter') void doUnlock() })
 bind('lock-now', 'page-msg', async () => { await send('lock'); await refresh() })
+bind('disable-persistent-unlock', 'unlock-msg', async () => {
+  await send('settings-set', { settings: { neverAutoLock: false } })
+  setMsg($('unlock-msg'), t('已保存'), 'ok')
+  await refresh()
+})
 
-async function renderSettings() {
-  const st = await send('settings-get')
+const preferenceControls = [['never-auto-lock', 'neverAutoLock'], ['auto-lock', 'autoLockMinutes'], ['lock-on-idle', 'lockOnIdle'], ['auto-push', 'autoPush'], ['prompt-on-match', 'promptOnMatch']]
+function renderSettings(st = settingsState) {
+  settingsState = { ...st }
+  const neverAutoLock = st.neverAutoLock === true
+  $('never-auto-lock').checked = neverAutoLock
   $('auto-lock').value = String(st.autoLockMinutes ?? 10)
   $('lock-on-idle').checked = st.lockOnIdle !== false
   $('auto-push').checked = st.autoPush !== false
   $('prompt-on-match').checked = st.promptOnMatch !== false
+  $('auto-lock-help').classList.toggle('hidden', neverAutoLock)
+  for (const [id] of preferenceControls) {
+    $(id).disabled = savingSettings || (neverAutoLock && (id === 'auto-lock' || id === 'lock-on-idle'))
+  }
 }
-for (const [id, key] of [['auto-lock', 'autoLockMinutes'], ['lock-on-idle', 'lockOnIdle'], ['auto-push', 'autoPush'], ['prompt-on-match', 'promptOnMatch']]) {
+for (const [id, key] of preferenceControls) {
   $(id).addEventListener('change', async () => {
+    if (savingSettings) { renderSettings(); return }
     const el = $(id)
     const value = id === 'auto-lock' ? Number(el.value) : el.checked
-    el.disabled = true
-    try { await send('settings-set', { settings: { [key]: value } }); setMsg($('settings-msg'), t('已保存'), 'ok') }
-    catch (err) { setMsg($('settings-msg'), translateError(err), 'bad'); await renderSettings().catch(() => {}) }
-    finally { el.disabled = false }
+    const previous = settingsState
+    savingSettings = true
+    settingsRevision += 1
+    renderSettings({ ...previous, [key]: value })
+    try {
+      settingsState = await send('settings-set', { settings: { [key]: value } })
+      setMsg($('settings-msg'), t('已保存'), 'ok')
+    } catch (err) {
+      settingsState = previous
+      setMsg($('settings-msg'), translateError(err), 'bad')
+      try { settingsState = await send('settings-get') } catch { /* Restore the last confirmed settings if the worker is unavailable. */ }
+    } finally {
+      savingSettings = false
+      settingsRevision += 1
+      renderSettings()
+    }
   })
 }
 async function renderAccount(fillInputs = false) {
@@ -364,9 +393,15 @@ bind('reset-all', 'page-msg', async () => {
 })
 async function checkState(force = false) {
   if (document.hidden && !force) return
+  const revision = settingsRevision
   const st = await send('status')
+  $('disable-persistent-unlock').classList.toggle('hidden', !st.locked || st.settings?.neverAutoLock !== true)
   if (st.locked !== locked || st.hasVault !== hasVault) await refresh()
-  else if (!st.locked && !wizardActive) { await renderAccount(); await renderLingxi() }
+  else if (!st.locked && !wizardActive) {
+    if (!savingSettings && revision === settingsRevision) renderSettings(st.settings)
+    await renderAccount()
+    await renderLingxi()
+  }
 }
 setInterval(() => void checkState().catch(() => {}), 15_000)
 window.addEventListener('focus', () => void checkState().catch(() => {}))

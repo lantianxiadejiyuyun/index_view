@@ -1,5 +1,13 @@
 /** Source messages stay in Simplified Chinese; values are [English, Traditional Chinese, Japanese]. */
 const rows = [
+["关闭常开模式","Turn off persistent unlock","關閉常開模式","常時ロック解除を無効にする"],
+["浏览器不支持保存本机恢复密钥","This browser cannot store a local recovery key","瀏覽器不支援儲存本機恢復金鑰","このブラウザは端末内の復元キーの保存に対応していません"],
+["本机恢复密钥存储被占用，请关闭其他插件页面后重试","Local recovery key storage is busy. Close other extension pages and try again.","本機恢復金鑰儲存空間忙碌中，請關閉其他擴充功能頁面後重試","端末内の復元キーの保存先が使用中です。他の拡張機能ページを閉じて、もう一度お試しください。"],
+["本机恢复密钥保存失败","Failed to save the local recovery key","本機恢復金鑰儲存失敗","端末内の復元キーを保存できませんでした"],
+["本机恢复密钥无效","The local recovery key is invalid","本機恢復金鑰無效","端末内の復元キーが無効です"],
+["永久关闭自动上锁","Permanently disable automatic locking","永久關閉自動上鎖","自動ロックを常に無効にする"],
+["开启后，计时、闲置、锁屏、后台休眠和重启浏览器均不会自动上锁。","When enabled, the vault stays unlocked through inactivity, screen locking, background suspension and browser restarts.","開啟後，計時、閒置、鎖定螢幕、背景休眠和重新啟動瀏覽器均不會自動上鎖。","有効にすると、タイマー・アイドル状態・画面ロック・バックグラウンドの休止・ブラウザの再起動で自動ロックされません。"],
+["恢复密钥仅保存在当前设备，不同步。手动锁定会清除恢复密钥；下次用主密码解锁后恢复常开。","The recovery key stays on this device and is not synced. Locking manually clears it; unlocking with your master password enables persistent access again.","恢復金鑰僅儲存在目前裝置，不會同步。手動鎖定會清除恢復金鑰；下次以主密碼解鎖後恢復常開。","復元キーはこの端末にのみ保存され、同期されません。手動でロックするとキーが削除され、次にマスターパスワードで解除すると常時ロック解除に戻ります。"],
 ["灵犀密码读取授权","Lingxi password access","靈犀密碼讀取授權","Lingxiのパスワード読み取り許可"],
 ["开启后，全部密码条目的授权副本会发送到导航站。后台加密保存并可解密供已绑定的灵犀读取；原密文保险库和主密码保持不变。","When enabled, an authorized copy of all entries is sent to your dashboard. The server encrypts this copy and can decrypt it for your linked Lingxi account. Your original encrypted vault and master password stay unchanged.","開啟後，全部密碼條目的授權副本會傳送到導航站。後台加密儲存並可解密供已綁定的靈犀讀取；原密文保險庫和主密碼保持不變。","有効にすると全項目の許可されたコピーをダッシュボードへ送信します。サーバーは暗号化して保存し、連携したLingxiのために復号できます。元の保管庫とマスターパスワードは変更しません。"],
 ["我允许后台解密全部密码条目供已绑定的灵犀读取","Allow the server to decrypt all entries for my linked Lingxi account","我允許後台解密全部密碼條目供已綁定的靈犀讀取","連携したLingxiのためにサーバーが全項目を復号することを許可します"],
@@ -1744,10 +1752,10 @@ const rows = [
     "端末内で暗号化して保存"
   ],
   [
-    "用一个主密码守护账号，密钥只在解锁时留在内存。",
-    "Protect your accounts with one master password. The key stays in memory only while unlocked.",
-    "以一個主密碼守護帳號，金鑰只在解鎖時保留於記憶體。",
-    "1つのマスターパスワードでアカウントを守ります。鍵はロック解除中のみメモリに保持されます。"
+    "用一个主密码守护账号。默认仅在解锁时将密钥保留于内存；开启永久关闭自动上锁后，会在本机保存恢复密钥。",
+    "Protect your accounts with one master password. By default, the key stays in memory only while unlocked. Permanently disabling automatic locking saves a recovery key on this device.",
+    "以一個主密碼守護帳號。預設僅在解鎖時將金鑰保留於記憶體；開啟永久關閉自動上鎖後，會在本機儲存恢復金鑰。",
+    "1つのマスターパスワードでアカウントを守ります。通常、鍵はロック解除中のみメモリに保持されます。自動ロックを常に無効にすると、この端末に復元キーを保存します。"
   ],
   [
     "匹配网站，一键填充",

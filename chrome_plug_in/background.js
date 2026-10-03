@@ -10,6 +10,7 @@ import { labelOf, matchItems, matches } from './src/match.js'
 import * as sync from './src/sync.js'
 import { resolveLocale, tForLocale } from './ui/i18n.js'
 import { safeServerForm } from './ui/server-form-cache.js'
+import { readSessionKey, writeSessionKey, clearSessionKey } from './src/session-key.js'
 
 // Content scripts receive a small translated dictionary instead of importing UI code
 // into a website or requesting an additional extension permission.
@@ -27,7 +28,7 @@ function localeFor(language) {
   return resolveLocale(language, chrome.i18n?.getUILanguage?.())
 }
 
-const DEFAULT_SETTINGS = { autoLockMinutes: 10, lockOnIdle: true, autoPush: true, promptOnMatch: true }
+const DEFAULT_SETTINGS = { neverAutoLock: false, autoLockMinutes: 10, lockOnIdle: true, autoPush: true, promptOnMatch: true }
 const DEFAULT_SYNC = {
   base: '', user: '', version: 0, enabled: false, insecure: false,
   lastSyncAt: 0, dirty: false, conflict: false, remoteVersion: null, lastError: '',
@@ -37,6 +38,72 @@ let sessionEpoch = 0
 let lastActivity = Date.now()
 let pushTimer = null
 let work = Promise.resolve()
+let recoveryWork = Promise.resolve()
+
+const recoveryIdentity = (file) => JSON.stringify([file.kdf, file.verifier])
+function queueRecovery(task) {
+  const result = recoveryWork.then(task)
+  recoveryWork = result.catch(() => {})
+  return result
+}
+function revokeRecovery({ allowCleanupFailure = false } = {}) {
+  // Revoke immediately, even if an IndexedDB write is still running. A stale
+  // writer checks the session before publishing its token; its cleanup follows.
+  const invalidated = chrome.storage.local.set({ unlockRecovery: null })
+  const cleared = queueRecovery(clearSessionKey)
+  return Promise.all([invalidated, allowCleanupFailure ? cleared.catch(() => {}) : cleared])
+}
+async function armRecovery(current, file) {
+  return queueRecovery(async () => {
+    active(current)
+    const token = crypto.randomUUID()
+    await writeSessionKey({ token, identity: recoveryIdentity(file), vaultKey: current.vaultKey })
+    active(current)
+    await chrome.storage.local.set({ unlockRecovery: token })
+    active(current)
+  }).catch(async (error) => {
+    // Storage completion may arrive after a manual lock's invalidation.
+    await chrome.storage.local.set({ unlockRecovery: null })
+    throw error
+  })
+}
+async function maintainRecovery(current, file) {
+  const { settings } = await readAll()
+  active(current)
+  if (settings.neverAutoLock !== true) return
+  try { await armRecovery(current, file) } catch (error) {
+    if (current === session) await doLock().catch(() => {})
+    throw error
+  }
+}
+async function restoreSession() {
+  const epoch = sessionEpoch
+  try {
+    const state = await readAll()
+    const { unlockRecovery } = await chrome.storage.local.get(['unlockRecovery'])
+    assertEpoch(epoch)
+    if (state.settings.neverAutoLock !== true || !state.file || !unlockRecovery) {
+      // Retry deletion after a previous storage failure without touching IDB
+      // for browsers that have never stored a recovery marker.
+      if (unlockRecovery !== undefined) await queueRecovery(clearSessionKey).catch(() => {})
+      return
+    }
+    const record = await readSessionKey()
+    assertEpoch(epoch)
+    if (!record || record.token !== unlockRecovery || record.identity !== recoveryIdentity(state.file)
+      || record.vaultKey?.extractable !== false) throw new Error('本机恢复密钥无效')
+    const unlocked = await unlockWithKey(state.file, record.vaultKey)
+    assertEpoch(epoch)
+    session = { ...unlocked, token: null }
+    touch()
+    void notifyState()
+    void schedulePush()
+  } catch {
+    if (epoch === sessionEpoch) await revokeRecovery().catch(() => {})
+  }
+}
+// Register event listeners synchronously below; first requests await recovery.
+const ready = restoreSession()
 
 function failure(message, code) {
   return Object.assign(new Error(message), { code })
@@ -59,7 +126,7 @@ async function readAll() {
   const data = await chrome.storage.local.get(['file', 'settings', 'sync', 'language'])
   return {
     file: data.file ?? null,
-    settings: { ...DEFAULT_SETTINGS, ...(data.settings ?? {}) },
+    settings: { ...DEFAULT_SETTINGS, ...(data.settings ?? {}), neverAutoLock: data.settings?.neverAutoLock === true },
     sync: { ...DEFAULT_SYNC, ...(data.sync ?? {}) },
     language: data.language ?? 'auto',
   }
@@ -262,6 +329,7 @@ async function pullNow({ force = false, password } = {}) {
     active(current)
     current.vault = sealed.vault
     current.vaultKey = unlocked.vaultKey
+    await maintainRecovery(current, sealed.file)
     cancelPush()
     await syncLingxiNow().catch(() => {})
     void notifyState()
@@ -321,12 +389,14 @@ async function revokeLocalLingxiGrant(force = false) {
   await clearLingxiGrant()
 }
 
-function doLock() {
+async function doLock() {
   sessionEpoch += 1
   session = null
   cancelPush()
+  const revoked = revokeRecovery()
   void chrome.action.setBadgeText({ text: '' }).catch(() => {})
   void notifyState()
+  await revoked
   return { locked: true }
 }
 
@@ -357,6 +427,7 @@ const handlers = {
     await chrome.storage.local.set({ file: created.file, sync: { ...DEFAULT_SYNC, dirty: true } })
     assertEpoch(epoch)
     session = { vault: created.vault, vaultKey: created.vaultKey, token: null }
+    await maintainRecovery(session, created.file)
     touch()
     void notifyState()
     return { items: created.vault.items.length }
@@ -367,6 +438,7 @@ const handlers = {
     const unlocked = await unlockFile(state.file, password)
     assertEpoch(epoch)
     session = { ...unlocked, token: null }
+    await maintainRecovery(session, state.file)
     touch()
     void notifyState()
     void schedulePush()
@@ -431,6 +503,7 @@ const handlers = {
       await clearLingxiGrant()
       assertEpoch(epoch)
       session = { ...unlocked, token: null }
+      await maintainRecovery(session, parsed.file)
       touch()
       cancelPush()
       void notifyState()
@@ -443,9 +516,10 @@ const handlers = {
     return { imported: parsed.items.length }
   },
   async 'settings-get'() { return (await readAll()).settings },
-  async 'settings-set'({ settings }) {
+  async 'settings-set'({ settings }, _sender, epoch) {
     if (!settings || typeof settings !== 'object' || Array.isArray(settings)) throw new Error('设置格式无效')
-    const next = { ...(await readAll()).settings }
+    const state = await readAll()
+    const next = { ...state.settings }
     for (const key of Object.keys(DEFAULT_SETTINGS)) {
       if (!Object.hasOwn(settings, key)) continue
       const value = settings[key]
@@ -454,7 +528,22 @@ const handlers = {
       } else if (typeof value !== 'boolean') throw new Error('开关设置必须是布尔值')
       next[key] = value
     }
+    assertEpoch(epoch)
+    if (next.neverAutoLock && !state.settings.neverAutoLock) {
+      const current = active()
+      try { await armRecovery(current, state.file) } catch (error) {
+        await revokeRecovery().catch(() => {})
+        throw error
+      }
+    } else if (!next.neverAutoLock && state.settings.neverAutoLock) {
+      // A broken IndexedDB must not trap users in permanent-unlock mode.
+      // The revoked token plus disabled setting prohibit restoration even when
+      // the inaccessible key store cannot currently finish physical deletion.
+      await revokeRecovery({ allowCleanupFailure: true })
+    }
+    assertEpoch(epoch)
     await chrome.storage.local.set({ settings: next })
+    assertEpoch(epoch)
     if (!next.autoPush) cancelPush()
     else void schedulePush()
     void notifyState()
@@ -565,13 +654,14 @@ const handlers = {
     await chrome.storage.local.set({ file: rekeyed.file, sync: { ...state.sync, dirty: true } })
     assertEpoch(epoch)
     session = { vault: rekeyed.vault, vaultKey: rekeyed.vaultKey, token: null }
+    await maintainRecovery(session, rekeyed.file)
     touch()
     void schedulePush()
     void notifyState()
     return { ok: true }
   },
   async 'reset-all'() {
-    doLock()
+    await doLock()
     await chrome.storage.local.clear()
     const draftRevision = await invalidateServerForm()
     void notifyState()
@@ -594,11 +684,11 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   }
   if (interactions.has(msg.type)) touch()
   const epoch = sessionEpoch
-  const invoke = () => handler(msg, sender, epoch)
+  const invoke = async () => { await ready; return handler(msg, sender, epoch) }
   const result = formMessages.has(msg.type)
     ? enqueue(invoke, null)
-    : msg.type === 'lock' || reads.has(msg.type)
-      ? Promise.resolve().then(invoke) : enqueue(invoke, epoch)
+    : msg.type === 'lock' ? doLock()
+      : reads.has(msg.type) ? invoke() : enqueue(invoke, epoch)
   result.then((data) => respond({ ok: true, data })).catch(async (err) => {
     let message = err?.message ?? String(err)
     // Extension pages translate source errors through their shared UI helper;
@@ -617,28 +707,40 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
 
 chrome.alarms.create('lock-tick', { periodInMinutes: 1 })
 chrome.alarms.onAlarm.addListener(async ({ name }) => {
+  await ready
   if (name === 'vault-push') {
     void enqueue(() => pushNow({ automatic: true })).catch(() => {})
     return
   }
-  if (name !== 'lock-tick' || !session) return
-  const { settings } = await readAll()
-  if (settings.autoLockMinutes > 0 && Date.now() - lastActivity >= settings.autoLockMinutes * 60_000) doLock()
+  if (name !== 'lock-tick') return
+  await enqueue(async () => {
+    if (!session) return
+    const { settings } = await readAll()
+    if (!settings.neverAutoLock && settings.autoLockMinutes > 0
+      && Date.now() - lastActivity >= settings.autoLockMinutes * 60_000) await doLock()
+  }).catch(() => {})
 })
 if (chrome.idle?.onStateChanged) {
   chrome.idle.setDetectionInterval(120)
   chrome.idle.onStateChanged.addListener(async (state) => {
-    if (state !== 'active' && (await readAll()).settings.lockOnIdle) doLock()
+    await ready
+    if (state === 'active') return
+    await enqueue(async () => {
+      const { settings } = await readAll()
+      if (session && !settings.neverAutoLock && settings.lockOnIdle) await doLock()
+    }).catch(() => {})
   })
 }
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  await ready
   const tab = await chrome.tabs.get(tabId).catch(() => null)
   await refreshBadge(tabId, tab?.url ?? '')
 })
-chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
+  await ready
   if (info.status === 'complete' || info.url) void refreshBadge(tabId, tab.url ?? '')
 })
-chrome.runtime.onInstalled.addListener(() => { void notifyState() })
+chrome.runtime.onInstalled.addListener(async () => { await ready; void notifyState() })
 chrome.storage.onChanged?.addListener((changes, area) => {
   if (area === 'local' && Object.hasOwn(changes, 'language')) void notifyState()
 })

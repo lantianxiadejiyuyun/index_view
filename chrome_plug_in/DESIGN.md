@@ -1,15 +1,23 @@
-# 密码管理器设计说明（v0.4.0）
+# 密码管理器设计说明（v0.5.0）
 
 ## 数据与密钥
 
 主密码在本机通过 PBKDF2-SHA256（600,000 次、随机 salt）派生不可导出的 AES-GCM-256 CryptoKey。密文文件 v1 包含公开 KDF 参数、独立 verifier 与 payload。每次加密使用随机 12 字节 IV。
 
 - `chrome.storage.local` 保存密文文件、行为设置、同步状态、语言偏好、介绍已读状态，以及仅含服务器地址和账号的表单草稿；不保存明文密码或派生密钥。
-- 解锁会话保存明文保险库和 CryptoKey。浏览器回收后台或主动锁定后清除会话。
+- 解锁会话保存明文保险库和 CryptoKey。默认只保存在内存，浏览器回收后台或主动锁定后清除会话。
 - 站点同步登录凭据放在保险库的 account 字段里加密保存。access token 仅存在内存。
 - 锁定会增加会话代数；异步密钥派生、登录、同步等返回后必须再次验证会话，不得使已锁定会话复活。
 - 写操作串行化，先校验、加密并成功落盘，再发布内存状态，避免并发编辑丢条目。
 - 导入先校验版本、KDF 范围、base64、IV、密文容量与条目字段。明文追加导入生成新 ID；密文导入停用之前的同步绑定。
+
+### 可选的永久关闭自动上锁
+
+`settings.neverAutoLock` 默认 `false`，仅保存在当前浏览器的 `chrome.storage.local`。用户在已解锁状态显式开启后，扩展在自身 IndexedDB 中持久化不可导出的 CryptoKey，用于后台重启或浏览器重启后解密当前本机保险库。主密码与明文保险库不因此落盘，恢复密钥、设置和访问令牌均不上传或跨设备同步。不可导出限制不阻止本机扩展使用该密钥解密，因此此选项降低了对可访问同一浏览器配置的人的保护。
+
+开启时跳过计时和系统闲置/锁屏触发的自动锁定，但保留原 `autoLockMinutes`、`lockOnIdle` 设置。关闭后清除 IndexedDB 恢复密钥并恢复原自动锁定行为。手动锁定清除内存会话及恢复密钥，不关闭 `neverAutoLock` 偏好；之后必须使用主密码解锁，解锁成功再按该偏好建立恢复。清空本机数据同时清除恢复密钥与所有设置。
+
+创建或解锁保险库、更换主密码、密文导入及下载服务器保险库时，恢复记录必须与当前文件、密钥一致。后台启动的恢复先验证记录与当前保险库，再解密并校验保险库内容；记录丢失、损坏或不匹配时保持锁定。恢复过程和持久化写入均遵守会话代数校验，手动锁定不得被在途恢复或旧密钥写入撤销。
 
 仅运行自动化回归测试不等于完成独立安全审计。网页得到填充字段后，其脚本能够读取这些字段；隔离世界不能阻止目标网站读取用户已决定填入的数据。
 
@@ -66,7 +74,7 @@ POST    /api/lingxi/vault/service/read          仅限权服务令牌，读取�
 
 普通导航登录令牌不能调用服务读取接口；服务令牌也不能调用设置或其他导航 API。密码不自动进入模型对话上下文；灵犀如何提供按需显示应遵循其自己的工具与用户界面协议。插件锁定仅关闭本机会话，不撤销用户此前明确授予的服务端读取权限。
 
-自动上传受 enabled、autoPush、dirty、conflict 共同控制。修改后等待约 5 秒上传，并设置浏览器闹钟兜底；锁定不会为了上传而把密钥落盘。失败保留 dirty 与错误，解锁后按设置继续尝试。401 最多重新登录一次。
+自动上传受 enabled、autoPush、dirty、conflict 共同控制。修改后等待约 5 秒上传，并设置浏览器闹钟兜底；自动上传本身不会启用密钥持久化，手动锁定后也不会为了上传恢复会话。失败保留 dirty 与错误，解锁后按设置继续尝试。401 最多重新登录一次。
 
 ## 界面与本地化
 
@@ -98,6 +106,7 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 
 - `background.js`：消息路由、会话、持久化与同步。
 - `src/crypto.js`、`vault.js`：密码学、加密文件与条目校验。
+- `src/session-key.js`：显式开启后的本机 IndexedDB 恢复密钥存取。
 - `src/sync.js`、`match.js`、`generator.js`：网络协议、站点匹配和密码生成。
 - `content/prompt.js`：页面提示与自动填充。
 - `popup/`、`options/`、`ui/`：界面与交互辅助。
@@ -107,6 +116,6 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 - `tests/extension-*.test.mjs`、`tests/server-vault.test.mjs`：纯模块、后台会话、内容脚本、翻译完整性、语言切换、表单缓存和隔离数据库回归。
 - `scripts/test-extension-browser.mjs`：独立浏览器配置的端到端验证，包含介绍、四语界面、服务器草稿与凭据复用。
 
-在根目录运行 `pnpm test:extension` 验证扩展和密文接口，`node --test tests/lingxi-vault.test.mjs` 验证授权解密、撤销、版本校验和账号隔离；`pnpm test:browser` 运行可选浏览器回归，浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.4.0.zip`。
+在根目录运行 `pnpm test:extension` 验证扩展和密文接口，`node --test tests/lingxi-vault.test.mjs` 验证授权解密、撤销、版本校验和账号隔离；`pnpm test:browser` 运行可选浏览器回归，浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.5.0.zip`。
 
 尚未实现：TOTP、Passkey、团队共享、Chrome CSV 导入、条目自动合并和网页密码自动采集保存。

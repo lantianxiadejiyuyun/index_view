@@ -81,12 +81,17 @@
     <h2 data-i18n="解锁密码库">解锁密码库</h2>
     <p class="muted small" data-i18n="主密码只在本机校验。">主密码只在本机校验。</p>
     <label for="unlock-password" data-i18n="主密码">主密码</label><input id="unlock-password" type="password" autocomplete="current-password" />
-    <div class="actions"><button id="unlock-btn" class="primary" data-i18n="解锁">解锁</button></div>
+    <div class="actions"><button id="unlock-btn" class="primary" data-i18n="解锁">解锁</button><button id="disable-persistent-unlock" class="hidden" data-i18n="关闭常开模式">关闭常开模式</button></div>
     <div id="unlock-msg" class="msg"></div>
   </section>
   <section id="main" class="hidden">
     <div class="card" id="preferences-section">
       <div class="section-heading"><span class="section-index" aria-hidden="true">01</span><h2 data-i18n="锁定与使用习惯">锁定与使用习惯</h2></div>
+      <div class="persistent-unlock-setting">
+        <label class="check"><input id="never-auto-lock" type="checkbox" aria-describedby="never-auto-lock-help never-auto-lock-storage" /><span data-i18n="永久关闭自动上锁">永久关闭自动上锁</span></label>
+        <p id="never-auto-lock-help" class="muted small" data-i18n="开启后，计时、闲置、锁屏、后台休眠和重启浏览器均不会自动上锁。">开启后，计时、闲置、锁屏、后台休眠和重启浏览器均不会自动上锁。</p>
+        <p id="never-auto-lock-storage" class="muted small" data-i18n="恢复密钥仅保存在当前设备，不同步。手动锁定会清除恢复密钥；下次用主密码解锁后恢复常开。">恢复密钥仅保存在当前设备，不同步。手动锁定会清除恢复密钥；下次用主密码解锁后恢复常开。</p>
+      </div>
       <label for="auto-lock" data-i18n="没有操作时自动锁定">没有操作时自动锁定</label>
       <select id="auto-lock"><option value="1" data-i18n="1 分钟">1 分钟</option><option value="5" data-i18n="5 分钟">5 分钟</option><option value="10" data-i18n="10 分钟">10 分钟</option><option value="30" data-i18n="30 分钟">30 分钟</option><option value="0" data-i18n="不按计时锁定">不按计时锁定</option></select>
       <div class="settings-checklist">
@@ -94,7 +99,7 @@
         <label class="check"><input id="auto-push" type="checkbox" /><span data-i18n="修改后自动上传（约 5 秒后）">修改后自动上传（约 5 秒后）</span></label>
         <label class="check"><input id="prompt-on-match" type="checkbox" /><span data-i18n="在匹配的登录页面显示账号提示">在匹配的登录页面显示账号提示</span></label>
       </div>
-      <p class="muted small" data-i18n="浏览器回收扩展后台或重启时也会锁定；解锁后可继续同步未上传的修改。">浏览器回收扩展后台或重启时也会锁定；解锁后可继续同步未上传的修改。</p>
+      <p id="auto-lock-help" class="muted small" data-i18n="浏览器回收扩展后台或重启时也会锁定；解锁后可继续同步未上传的修改。">浏览器回收扩展后台或重启时也会锁定；解锁后可继续同步未上传的修改。</p>
       <div id="settings-msg" class="msg"></div>
     </div>
     <div class="card" id="sync-section">

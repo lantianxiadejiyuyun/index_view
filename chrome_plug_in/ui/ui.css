@@ -200,6 +200,11 @@ button.icon-button { width: 30px; height: 30px; padding: 0; border-radius: 50%; 
 .settings-checklist { padding: 7px 0; }
 .settings-checklist .check { padding: 12px 0; border-bottom: 1px solid var(--line); margin: 0; }
 .settings-checklist .check:last-child { border-bottom: 0; }
+.persistent-unlock-setting { margin-bottom: 22px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 11px; background: var(--soft); }
+.persistent-unlock-setting .check { margin: 0 0 8px; font-size: 14px; font-weight: 650; }
+.persistent-unlock-setting p { margin-left: 24px; line-height: 1.7; }
+#preferences-section select:disabled { color: var(--muted); background: var(--soft); cursor: not-allowed; }
+#preferences-section .check:has(input:disabled) { color: var(--muted); cursor: not-allowed; }
 .settings-note { font-size: 12px; color: var(--muted); padding-top: 10px; }
 .settings-danger { border-color: color-mix(in srgb, var(--danger) 20%, var(--line)); }
 .settings-danger .section-index { background: var(--danger-soft); color: var(--danger); }
