@@ -63,22 +63,22 @@ export function WeatherWidget() {
   const Icon = weatherIcon(data.weather_code, data.is_day)
 
   return (
-    <div className="glass flex items-center gap-3 rounded-2xl px-4 py-2.5 text-fg">
+    <div className="weather-widget glass flex items-center gap-3 rounded-2xl px-4 py-2.5 text-fg">
       <Icon className="size-7 shrink-0 text-warn" aria-hidden />
-      <div className="min-w-0">
-        <div className="flex items-baseline gap-2">
-          <span className="text-lg font-semibold leading-none tabular-nums">
+      <div className="weather-content min-w-0">
+        <div className="weather-main flex items-baseline gap-2">
+          <span className="weather-temperature text-lg font-semibold leading-none tabular-nums">
             {Math.round(data.temperature)}°
           </span>
-          <span className="truncate text-xs text-fg/75">{data.description}</span>
+          <span className="weather-description truncate text-xs text-fg/75">{data.description}</span>
         </div>
-        <div className="mt-1 flex items-center gap-3 text-[11px] text-fg/55">
-          <span className="truncate">{data.city}</span>
-          <span className="flex items-center gap-1">
+        <div className="weather-details mt-1 flex items-center gap-3 text-[11px] text-fg/55">
+          <span className="weather-city truncate">{data.city}</span>
+          <span className="weather-humidity flex items-center gap-1">
             <Droplets className="size-3" aria-hidden />
             {Math.round(data.humidity)}%
           </span>
-          <span className="hidden items-center gap-1 sm:flex">
+          <span className="weather-wind hidden items-center gap-1 sm:flex">
             <Wind className="size-3" aria-hidden />
             {Math.round(data.wind_speed)}km/h
           </span>
@@ -114,11 +114,11 @@ export function HitokotoWidget() {
   const attribution = [data.author, data.source].filter(Boolean).join(' · ')
 
   return (
-    <div className="glass flex max-w-md items-start gap-3 rounded-2xl px-4 py-2.5 text-fg">
+    <div className="quote-widget glass flex max-w-md items-start gap-3 rounded-2xl px-4 py-2.5 text-fg">
       <Quote className="mt-0.5 size-4 shrink-0 text-info" aria-hidden />
-      <div className="min-w-0">
-        <p className="text-xs leading-relaxed text-fg/85">{data.text}</p>
-        {attribution && <p className="mt-1 text-[11px] text-fg/45">— {attribution}</p>}
+      <div className="quote-content min-w-0">
+        <p className="quote-text text-xs leading-relaxed text-fg/85">{data.text}</p>
+        {attribution && <p className="quote-attribution mt-1 text-[11px] text-fg/45">— {attribution}</p>}
       </div>
     </div>
   )
@@ -137,18 +137,18 @@ export function WorkbenchWidget() {
   return (
     <Link
       to="/workbench"
-      className="glass group flex items-center gap-3 rounded-2xl px-4 py-2.5 text-fg transition hover:ring-1 hover:ring-accent/40"
+      className="workbench-widget glass group flex items-center gap-3 rounded-2xl px-4 py-2.5 text-fg transition hover:ring-1 hover:ring-accent/40"
     >
       <Briefcase className="size-6 shrink-0 text-accent" aria-hidden />
       <div className="min-w-0 text-left">
-        <div className="flex items-center gap-1 text-sm font-medium leading-none">
+        <div className="workbench-title flex items-center gap-1 text-sm font-medium leading-none">
           工作台
           <ArrowRight
             className="size-3.5 text-fg/40 transition group-hover:translate-x-0.5 group-hover:text-fg/70"
             aria-hidden
           />
         </div>
-        <p className="mt-1 text-[11px] text-fg/55">后台账号、密码与用途</p>
+        <p className="workbench-description mt-1 text-[11px] text-fg/55">后台账号、密码与用途</p>
       </div>
     </Link>
   )

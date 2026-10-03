@@ -2,9 +2,11 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { createPortal } from 'react-dom'
 import { Link, Navigate } from 'react-router-dom'
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type KeyboardCoordinateGetter } from '@dnd-kit/core'
-import { Check, Command, Folder as FolderIcon, FolderPlus, Grip, Home, LayoutGrid, Loader2, LogIn, MessageCircle, Moon, NotebookPen, Pencil, Plus, Rss, Settings2, Sun, Trash2, X } from 'lucide-react'
+import { Check, Command, Folder as FolderIcon, FolderPlus, Grip, Home, LayoutGrid, Loader2, LogIn, MessageCircle, Maximize2, Moon, NotebookPen, Pencil, Plus, Rss, Settings2, Sun, Trash2, X } from 'lucide-react'
 import { api, errorMessage } from '../lib/api.ts'
-import { arrangeDesktop, canvasDropPosition, dropPosition, freePosition, overlaps, parseDesktopLayout, type DesktopItem, type DesktopLayout, type DesktopViewport, type PlacedItem } from '../lib/desktop-layout.ts'
+import { arrangeDesktop, canvasDropPosition, desktopOccupants, dropPosition, freePosition, overlaps, parseDesktopLayout, widgetResizeError, type DesktopItem, type DesktopLayout, type DesktopViewport, type PlacedItem } from '../lib/desktop-layout.ts'
+import { widgetLabels, widgetSize, type WidgetDimensions } from '../lib/desktop-widgets.ts'
+import { DesktopWidgetSizeDialog } from '../components/DesktopWidgetSizeDialog.tsx'
 import { resolveLink, openResolved } from '../lib/link.ts'
 import type { Folder, Site } from '../lib/types.ts'
 import { useTheme } from '../lib/useTheme.ts'
@@ -21,18 +23,20 @@ import { HitokotoWidget, WeatherWidget, WorkbenchWidget } from '../components/Wi
 import { Modal, btnGhost } from '../components/Modal.tsx'
 import { BulkSiteDeleteModal } from '../components/BulkSiteDelete.tsx'
 import './desktop.css'
+import '../components/desktop-widget-sizes.css'
 
 type Content = { kind: 'site'; site: Site } | { kind: 'folder'; folder: Folder } | { kind: 'widget'; widget: string }
 type Item = DesktopItem & Content
 type SiteEditor = { site: Site | null; folderId: number | null }
 type DragMotion = Pick<DragEndEvent, 'active' | 'over' | 'delta' | 'activatorEvent'>
 
-function DesktopTile({ item, position, cellWidth, gap, rowHeight, editing, disabled, children }: { item: Item; position: PlacedItem; cellWidth: number; gap: number; rowHeight: number; editing: boolean; disabled: boolean; children: ReactNode }) {
+function DesktopTile({ item, position, cellWidth, gap, rowHeight, editing, disabled, onResize, children }: { item: Item; position: PlacedItem; cellWidth: number; gap: number; rowHeight: number; editing: boolean; disabled: boolean; onResize: () => void; children: ReactNode }) {
   const drag = useDraggable({ id: item.id, data: { kind: item.kind }, disabled: disabled || !editing })
   const drop = useDroppable({ id: `drop:${item.id}`, data: item.kind === 'folder' ? { folderId: item.folder.id } : {}, disabled: item.kind !== 'folder' || disabled })
   return <div ref={node => { drag.setNodeRef(node); drop.setNodeRef(node) }} className={`free-desktop-tile desktop-${item.kind === 'widget' ? 'widget-tile' : item.kind}${drag.isDragging ? ' is-dragging' : ''}${drop.isOver ? ' is-drop-target' : ''}`} data-desktop-item={item.id}
     style={{ left: position.col * (cellWidth + gap), top: position.row * (rowHeight + gap), width: item.width * (cellWidth + gap) - gap, height: item.height * (rowHeight + gap) - gap } as CSSProperties}>
     {editing && <button type="button" {...drag.attributes} {...drag.listeners} aria-label={`拖动${item.kind === 'folder' ? '文件夹 ' + item.folder.name : item.kind === 'site' ? '图标 ' + item.site.title : '组件 ' + widgetLabels[item.widget]}`} className="desktop-drag-handle" disabled={disabled}><Grip size={15} aria-hidden /></button>}
+    {editing && item.kind === 'widget' && <button type="button" className="desktop-resize-handle" aria-label={`调整${widgetLabels[item.widget]}尺寸`} title="调整组件尺寸" disabled={disabled} onClick={onResize}><Maximize2 size={14} aria-hidden /><span>{item.width} × {item.height}</span></button>}
     <div className="desktop-tile-content" {...(item.kind !== 'widget' && editing ? { ...drag.attributes, ...drag.listeners, style: { touchAction: 'none' }, role: undefined, tabIndex: undefined } : {})}>{children}</div>
   </div>
 }
@@ -77,12 +81,9 @@ function DesktopFolderPreview({ folder, sites, width, height, editing, onOpen, o
   </div>
 }
 
-const widgetLabels: Record<string, string> = { clock: '时钟', search: '搜索', weather: '天气', quote: '每日一句', workbench: '工作台', calendar: '日历', 'lingxi-calendar': '灵犀日历', 'lingxi-schedule': '日程与待办', 'lingxi-deadline': '截止倒计时', 'lingxi-chat': '灵犀 AI' }
-const widgetSizes: Record<string, [number, number]> = { clock: [3, 2], search: [5, 1], weather: [4, 2], quote: [5, 1], workbench: [3, 1], calendar: [4, 2], 'lingxi-calendar': [4, 4], 'lingxi-schedule': [4, 4], 'lingxi-deadline': [3, 2], 'lingxi-chat': [5, 4] }
-function placeVisibleItems(items: DesktopItem[], layout: DesktopLayout, view: DesktopViewport, columns: number) {
+function placeVisibleItems(items: DesktopItem[], layout: DesktopLayout, view: DesktopViewport) {
   const ids = new Set(items.map(item => item.id))
-  const reserved = Object.entries(widgetSizes).filter(([name]) => layout[view][`widget:${name}`] && !ids.has(`widget:${name}`)).map(([name, [width, height]]) => ({ id: `widget:${name}`, width: view === 'wide' ? width : 4, height }))
-  return arrangeDesktop([...items, ...reserved], layout[view], columns).filter(item => ids.has(item.id))
+  return desktopOccupants(items, layout, view).filter(item => ids.has(item.id))
 }
 
 
@@ -101,6 +102,7 @@ export function DesktopPage() {
   const [openFolderId, setOpenFolderId] = useState<number | null>(null)
   const [siteEditor, setSiteEditor] = useState<SiteEditor | null>(null)
   const [folderEditor, setFolderEditor] = useState<{ folder: Folder | null } | null>(null)
+  const [sizingWidget, setSizingWidget] = useState<string | null>(null)
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const board = useRef<HTMLDivElement | null>(null)
@@ -127,30 +129,32 @@ export function DesktopPage() {
   const folder = folders.find(f => f.id === openFolderId) ?? null
   const items = useMemo<Item[]>(() => {
     const result: Item[] = []
-    const widget = (name: string, wideWidth: number, height: number) => result.push({ id: `widget:${name}`, kind: 'widget', widget: name, width: view === 'wide' ? wideWidth : 4, height })
+    const widget = (name: string) => result.push({ id: `widget:${name}`, kind: 'widget', widget: name, ...widgetSize(name, view, layout[view][`widget:${name}`]) })
     if (settings.desktop_header_mode === 'widgets') {
-      if (settings.show_clock) widget('clock', 3, 2)
-      widget('search', 5, 1)
+      if (settings.show_clock) widget('clock')
+      widget('search')
     }
-    if (settings.show_calendar) widget('calendar', 4, 2)
-    if (settings.show_weather) widget('weather', 4, 2)
-    if (settings.show_hitokoto) widget('quote', 5, 1)
-    if (settings.show_workbench) widget('workbench', 3, 1)
+    if (settings.show_calendar) widget('calendar')
+    if (settings.show_weather) widget('weather')
+    if (settings.show_hitokoto) widget('quote')
+    if (settings.show_workbench) widget('workbench')
     const folderIds = new Set(folders.map(f => f.id))
     for (const f of [...folders].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)) result.push({ id: `folder:${f.id}`, kind: 'folder', folder: f, width: Math.min(columns, Math.max(1, f.columns)), height: Math.min(6, Math.max(1, f.rows)) })
     for (const site of [...sites].sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)) if (!site.folder_id || !folderIds.has(site.folder_id)) result.push({ id: `site:${site.id}`, kind: 'site', site, width: 1, height: 1 })
     // New integrations claim remaining space after existing icons, including
     // before the user has entered edit mode and saved their initial layout.
     if (user) {
-      if (settings.show_lingxi_calendar) widget('lingxi-calendar', 4, 4)
-      if (settings.show_lingxi_schedule) widget('lingxi-schedule', 4, 4)
-      if (settings.show_lingxi_deadline) widget('lingxi-deadline', 3, 2)
-      if (settings.show_lingxi_chat) widget('lingxi-chat', 5, 4)
+      if (settings.show_lingxi_calendar) widget('lingxi-calendar')
+      if (settings.show_lingxi_schedule) widget('lingxi-schedule')
+      if (settings.show_lingxi_deadline) widget('lingxi-deadline')
+      if (settings.show_lingxi_chat) widget('lingxi-chat')
     }
     return result
-  }, [sites, folders, view, columns, user, settings.desktop_header_mode, settings.show_calendar, settings.show_clock, settings.show_weather, settings.show_hitokoto, settings.show_workbench, settings.show_lingxi_calendar, settings.show_lingxi_schedule, settings.show_lingxi_deadline, settings.show_lingxi_chat])
+  }, [sites, folders, view, columns, layout, user, settings.desktop_header_mode, settings.show_calendar, settings.show_clock, settings.show_weather, settings.show_hitokoto, settings.show_workbench, settings.show_lingxi_calendar, settings.show_lingxi_schedule, settings.show_lingxi_deadline, settings.show_lingxi_chat])
   // Preserve saved spaces of hidden widgets when placing newly added items.
-  const placed = useMemo(() => placeVisibleItems(items, layout, view, columns), [items, layout, view, columns])
+  const placed = useMemo(() => placeVisibleItems(items, layout, view), [items, layout, view, columns])
+  const occupied = useMemo(() => desktopOccupants(items, layout, view), [items, layout, view])
+  const sizingItem = placed.find(item => item.id === `widget:${sizingWidget}`)
   const boardHeight = Math.max(580, ...placed.map(p => (p.row + p.height) * (rowHeight + gap))) + (editing ? rowHeight * 3 : 0)
   const keyboardCoordinates: KeyboardCoordinateGetter = (event, { currentCoordinates }) => {
     const direction = { ArrowRight: [cellWidth + gap, 0], ArrowLeft: [-cellWidth - gap, 0], ArrowDown: [0, rowHeight + gap], ArrowUp: [0, -rowHeight - gap] }[event.code]
@@ -220,9 +224,9 @@ export function DesktopPage() {
     const restore = key === 'desktop_header_mode' && value === 'widgets' ? ['search', ...(settings.show_clock ? ['clock'] : [])] : value === true && widgetKey[key] && !(key === 'show_clock' && settings.desktop_header_mode === 'hero') ? [widgetKey[key]!] : []
     for (const viewport of ['wide', 'compact'] as const) {
       const cols = viewport === 'wide' ? 12 : 4
-      const existing = items.map(item => ({ ...item, width: item.kind === 'widget' ? (viewport === 'wide' ? widgetSizes[item.widget]![0] : 4) : item.kind === 'folder' ? Math.min(cols, Math.max(1, item.folder.columns)) : 1 }))
-      const added = restore.filter(name => !existing.some(item => item.id === `widget:${name}`)).map(name => ({ id: `widget:${name}`, width: viewport === 'wide' ? widgetSizes[name]![0] : 4, height: widgetSizes[name]![1] }))
-      const current = viewport === view ? placed : placeVisibleItems(existing, layout, viewport, cols)
+      const existing = items.map(item => ({ ...item, ...(item.kind === 'widget' ? widgetSize(item.widget, viewport, layout[viewport][item.id]) : { width: item.kind === 'folder' ? Math.min(cols, Math.max(1, item.folder.columns)) : 1 }) }))
+      const added = restore.filter(name => !existing.some(item => item.id === `widget:${name}`)).map(name => ({ id: `widget:${name}`, ...widgetSize(name, viewport, layout[viewport][`widget:${name}`]) }))
+      const current = viewport === view ? placed : placeVisibleItems(existing, layout, viewport)
       const positions = { ...layout[viewport], ...Object.fromEntries(current.map(({ id, col, row }) => [id, { col, row }])) }
       const next = arrangeDesktop([...existing, ...added], positions, cols)
       if (added.some(item => { const position = next.find(p => p.id === item.id)!; return next.some(other => other.id !== item.id && overlaps(position, other)) })) {
@@ -231,6 +235,18 @@ export function DesktopPage() {
     }
     await freezeInitialPositions()
     await saveSettings({ [key]: value })
+  }
+  function resizeWidget(size: WidgetDimensions) {
+    if (!sizingItem) return
+    const error = widgetResizeError(sizingItem, size, occupied, columns)
+    if (error) { toast.error(error); return }
+    void run(async () => {
+      await freezeInitialPositions()
+      const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', { method: 'PATCH', body: JSON.stringify({ viewport: view, placements: [{ id: sizingItem.id, col: sizingItem.col, row: sizingItem.row, ...size }] }) })
+      keepLayout(result.layout)
+      setSizingWidget(null)
+      toast.success(`已调整为 ${size.width} × ${size.height} 格`)
+    })
   }
   function openBulkDelete() {
     void run(async () => { await freezeInitialPositions(); setOpenFolderId(null); setBulkDeleteOpen(true) })
@@ -241,7 +257,7 @@ export function DesktopPage() {
   }
   async function moveSite(site: Site, folderId: number | null, target?: { col: number; row: number }) {
     await freezeInitialPositions()
-    const position = target ?? freePosition({ id: `site:${site.id}`, width: 1, height: 1 }, { col: 0, row: 0 }, placed, columns)
+    const position = target ?? freePosition({ id: `site:${site.id}`, width: 1, height: 1 }, { col: 0, row: 0 }, occupied, columns)
     const result = await api<{ layout: DesktopLayout; sites: Site[] }>('/api/desktop/move', { method: 'POST', body: JSON.stringify({ site_id: site.id, folder_id: folderId, viewport: view, position }) })
     keepLayout(result.layout); useApp.setState({ sites: result.sites })
     toast.success(folderId === null ? '已放回桌面' : '已移入文件夹')
@@ -259,10 +275,10 @@ export function DesktopPage() {
     const preview = dragPreview.current?.getBoundingClientRect() ?? event.active.rect.current.translated
     const canvas = board.current?.getBoundingClientRect()
     const position = event.activatorEvent.type === 'keydown' && origin
-      ? dropPosition(item, origin, { x: keyboardSteps.current.col * (cellWidth + gap), y: keyboardSteps.current.row * (rowHeight + gap) }, cellWidth, rowHeight, gap, placed, columns)
+      ? dropPosition(item, origin, { x: keyboardSteps.current.col * (cellWidth + gap), y: keyboardSteps.current.row * (rowHeight + gap) }, cellWidth, rowHeight, gap, occupied, columns)
       : preview && canvas
-      ? canvasDropPosition(item, preview, canvas, cellWidth, rowHeight, gap, placed, columns)
-      : origin ? dropPosition(item, origin, event.delta, cellWidth, rowHeight, gap, placed, columns) : null
+      ? canvasDropPosition(item, preview, canvas, cellWidth, rowHeight, gap, occupied, columns)
+      : origin ? dropPosition(item, origin, event.delta, cellWidth, rowHeight, gap, occupied, columns) : null
     return position ? { id, width: item.width, height: item.height, ...position } : null
   }
   function clearDrag() {
@@ -331,11 +347,11 @@ export function DesktopPage() {
       </header>
       <main className="desktop-workspace" aria-label={settings.site_title}>
         {settings.desktop_header_mode === 'hero' && <div className="desktop-hero">{settings.show_clock && <Clock />}<SearchBar /></div>}
-        {editing && <p className="desktop-edit-hint"><Grip size={15} />拖到空白网格保存，已有组件保持原位</p>}
+        {editing && <p className="desktop-edit-hint"><Grip size={15} />拖到空白网格保存，点击尺寸按钮调整大小</p>}
         <DesktopSurface boardRef={board} height={boardHeight} editing={editing} columns={columns} cellWidth={cellWidth} gap={gap} rowHeight={rowHeight}>
           {activeId && dropPreview && <div className="desktop-drop-preview" aria-hidden="true" data-drop-col={dropPreview.col} data-drop-row={dropPreview.row} style={{ left: dropPreview.col * (cellWidth + gap), top: dropPreview.row * (rowHeight + gap), width: dropPreview.width * (cellWidth + gap) - gap, height: dropPreview.height * (rowHeight + gap) - gap }}><span>松开放置</span></div>}
-          {boardWidth > 0 && items.map(item => <DesktopTile key={item.id} item={item} position={placed.find(p => p.id === item.id)!} cellWidth={cellWidth} gap={gap} rowHeight={rowHeight} editing={editing} disabled={busy}>
-            {item.kind === 'widget' ? <div className="desktop-widget-unit"><div className={`desktop-widget desktop-widget-${item.widget}`}>{renderWidget(item.widget)}</div><span className="desktop-tile-caption">{widgetLabels[item.widget]}</span></div> : item.kind === 'folder' ? <DesktopFolderPreview folder={item.folder} sites={sites.filter(s => s.folder_id === item.folder.id).sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)} width={item.width} height={item.height} editing={editing} onOpen={() => setOpenFolderId(item.folder.id)} onEdit={() => setFolderEditor({ folder: item.folder })} /> : <button type="button" className="desktop-app" onClick={() => editing ? setSiteEditor({ site: item.site, folderId: item.site.folder_id ?? null }) : openSite(item.site)} title={item.site.title}><FolderSiteIcon site={item.site} /><span>{item.site.title}</span></button>}
+          {boardWidth > 0 && items.map(item => <DesktopTile key={item.id} item={item} position={placed.find(p => p.id === item.id)!} cellWidth={cellWidth} gap={gap} rowHeight={rowHeight} editing={editing} disabled={busy} onResize={() => { if (item.kind === 'widget') { setOpenFolderId(null); setSizingWidget(item.widget) } }}>
+            {item.kind === 'widget' ? <div className="desktop-widget-unit"><div className={`desktop-widget desktop-widget-${item.widget}`} data-widget-width={item.width} data-widget-height={item.height}>{renderWidget(item.widget)}</div><span className="desktop-tile-caption">{widgetLabels[item.widget]}</span></div> : item.kind === 'folder' ? <DesktopFolderPreview folder={item.folder} sites={sites.filter(s => s.folder_id === item.folder.id).sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)} width={item.width} height={item.height} editing={editing} onOpen={() => setOpenFolderId(item.folder.id)} onEdit={() => setFolderEditor({ folder: item.folder })} /> : <button type="button" className="desktop-app" onClick={() => editing ? setSiteEditor({ site: item.site, folderId: item.site.folder_id ?? null }) : openSite(item.site)} title={item.site.title}><FolderSiteIcon site={item.site} /><span>{item.site.title}</span></button>}
           </DesktopTile>)}
         </DesktopSurface>
       </main>
@@ -345,9 +361,11 @@ export function DesktopPage() {
     {siteEditor && <SiteEditorModal open foldersOnly site={siteEditor.site} defaultCategoryId={siteEditor.site?.category_id ?? null} defaultFolderId={siteEditor.folderId} onClose={() => setSiteEditor(null)} />}
     {folderEditor && <FolderEditorModal open foldersOnly folder={folderEditor.folder} defaultCategoryId={null} onClose={() => setFolderEditor(null)} />}
     {canEdit && <BulkSiteDeleteModal open={bulkDeleteOpen} onClose={() => setBulkDeleteOpen(false)} />}
+    {sizingWidget && sizingItem && <DesktopWidgetSizeDialog key={`${view}:${sizingWidget}`} name={sizingWidget} viewport={view} item={sizingItem} occupied={occupied} busy={busy} onClose={() => setSizingWidget(null)} onApply={resizeWidget} />}
     <Modal open={optionsOpen} title="桌面选项" onClose={() => !busy && setOptionsOpen(false)}>
-      <div className="desktop-options"><p>电脑和手机分别保存位置。拖放吸附网格，目标有组件时保留原位，不自动排列或挪动其他组件。聚焦把手后按空格开始或结束，方向键移动。</p>
+      <div className="desktop-options"><p>电脑和手机分别保存位置与尺寸。拖放吸附网格，目标有组件时保留原位，不自动排列或挪动其他组件。聚焦把手后按空格开始或结束，方向键移动。</p>
         {([['show_clock', '时钟'], ['show_calendar', '日历'], ['show_weather', '天气'], ['show_hitokoto', '每日一句'], ['show_workbench', '工作台'], ['show_lingxi_calendar', '灵犀日历'], ['show_lingxi_schedule', '日程与待办'], ['show_lingxi_deadline', '截止倒计时'], ['show_lingxi_chat', '灵犀 AI 聊天']] as const).map(([key, label]) => <label key={key}>{label}<input type="checkbox" checked={settings[key]} disabled={busy} onChange={event => { const checked = event.target.checked; void run(() => changeWidgets(key, checked)) }} /></label>)}
+        <div className="desktop-widget-size-list"><strong>组件尺寸</strong><p>每个组件提供小号、标准和大号；也可在编辑桌面时点击组件左上角的尺寸按钮。</p>{items.filter(item => item.kind === 'widget').map(item => <button type="button" key={item.id} disabled={busy} onClick={() => { if (item.kind === 'widget') { setOpenFolderId(null); setOptionsOpen(false); setSizingWidget(item.widget) } }}><span>{item.kind === 'widget' ? widgetLabels[item.widget] : ''}</span><span>{item.width} × {item.height} 格 <Maximize2 size={14} /></span></button>)}{settings.desktop_header_mode === 'hero' && <p>将下方「时钟与搜索」设为「可拖动组件」后，也能调整它们的尺寸。</p>}</div>
         <Link to="/settings/lingxi" className={btnGhost}>管理灵犀账号与密码读取权限</Link>
         <label>时钟与搜索<select aria-label="时钟与搜索位置" value={settings.desktop_header_mode} disabled={busy} onChange={event => { const mode = event.target.value; void run(() => changeWidgets('desktop_header_mode', mode)) }}><option value="hero">居中置顶</option><option value="widgets">可拖动组件</option></select></label>
         <button type="button" className={btnGhost} disabled={busy || settings.home_mode === 'desktop'} onClick={() => void run(async () => { await saveSettings({ home_mode: 'desktop' }); toast.success('已将自由桌面设为首页') })}>{settings.home_mode === 'desktop' ? '当前默认首页：自由桌面' : '将自由桌面设为首页'}</button>

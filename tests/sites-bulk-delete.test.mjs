@@ -54,8 +54,8 @@ beforeEach(() => {
   ).lastInsertRowid)
   h.putSetting('keep-bulk-fixture', 'Other settings survive deletion')
   h.putSetting('desktop_layout', JSON.stringify({ version: 1,
-    wide: { [`site:${ids[0]}`]: { col: 3, row: 2 }, [`site:${ids[1]}`]: { col: 4, row: 2 }, [`site:${ids[2]}`]: { col: 5, row: 2 }, [`folder:${folder}`]: { col: 0, row: 3 }, 'widget:clock': { col: 0, row: 0 } },
-    compact: { [`site:${ids[0]}`]: { col: 0, row: 9 }, [`site:${ids[1]}`]: { col: 1, row: 9 }, [`site:${ids[2]}`]: { col: 2, row: 9 }, [`folder:${folder}`]: { col: 0, row: 5 }, 'widget:clock': { col: 0, row: 0 } },
+    wide: { [`site:${ids[0]}`]: { col: 3, row: 2 }, [`site:${ids[1]}`]: { col: 4, row: 2 }, [`site:${ids[2]}`]: { col: 5, row: 2 }, [`folder:${folder}`]: { col: 0, row: 3 }, 'widget:clock': { col: 0, row: 0, width: 6, height: 2 } },
+    compact: { [`site:${ids[0]}`]: { col: 0, row: 9 }, [`site:${ids[1]}`]: { col: 1, row: 9 }, [`site:${ids[2]}`]: { col: 2, row: 9 }, [`folder:${folder}`]: { col: 0, row: 5 }, 'widget:clock': { col: 0, row: 0, width: 4, height: 3 } },
   }))
 })
 
@@ -100,6 +100,8 @@ test('selected deletion includes folder members and prunes both desktop layouts 
     delete layout[view][`site:${ids[1]}`]
   }
   assert.deepEqual(result.desktop_layout, layout)
+  assert.deepEqual(result.desktop_layout.wide['widget:clock'], { col: 0, row: 0, width: 6, height: 2 })
+  assert.deepEqual(result.desktop_layout.compact['widget:clock'], { col: 0, row: 0, width: 4, height: 3 })
   assert.deepEqual(JSON.parse(h.getSetting('desktop_layout')), layout)
   assert.deepEqual(state().sites, original.sites.slice(2))
   assert.deepEqual(state().folders, original.folders)

@@ -7,7 +7,7 @@ import { allFolders, allSites, categoryReference, NavigationInputError, referenc
 import { requireAuth } from '../middleware/auth.js'
 import type { AppEnv } from '../types.js'
 
-type Position = { col: number; row: number }
+type Position = { col: number; row: number; width?: number; height?: number }
 type Layout = { version: 1; wide: Record<string, Position>; compact: Record<string, Position> }
 const widgets = new Set(['clock', 'search', 'weather', 'quote', 'workbench', 'calendar', 'lingxi-calendar', 'lingxi-schedule', 'lingxi-deadline', 'lingxi-chat'])
 const key = 'desktop_layout'
@@ -34,10 +34,18 @@ function viewport(value: unknown): 'wide' | 'compact' {
   if (value !== 'wide' && value !== 'compact') throw new NavigationInputError('桌面尺寸无效')
   return value
 }
-function position(value: unknown, view: 'wide' | 'compact'): Position {
+function position(value: unknown, view: 'wide' | 'compact', id: string, recoverSize = false): Position {
   const p = value as Position | null
   if (!p || !Number.isInteger(p.col) || p.col < 0 || p.col >= (view === 'wide' ? 12 : 4) || !Number.isInteger(p.row) || p.row < 0 || p.row > 10000) throw new NavigationInputError('桌面位置无效')
-  return { col: p.col, row: p.row }
+  const output: Position = { col: p.col, row: p.row }
+  if (!Object.hasOwn(p, 'width') && !Object.hasOwn(p, 'height')) return output
+  if (!id.startsWith('widget:') || typeof p.width !== 'number' || !Number.isInteger(p.width) || p.width < 1 || p.width > (view === 'wide' ? 12 : 4)
+    || typeof p.height !== 'number' || !Number.isInteger(p.height) || p.height < 1 || p.height > 6) {
+    // A damaged backup must not discard a still-valid position or relocate another widget.
+    if (recoverSize) return output
+    throw new NavigationInputError('仅小组件支持自定义尺寸，宽度与高度必须成对填写且在当前屏幕允许范围内')
+  }
+  return { ...output, width: p.width, height: p.height }
 }
 export function readDesktopLayout(): Layout {
   const clean: Layout = { version: 1, wide: {}, compact: {} }
@@ -46,7 +54,7 @@ export function readDesktopLayout(): Layout {
     for (const view of ['wide', 'compact'] as const) {
       for (const [id, p] of Object.entries(stored[view] ?? {})) {
         if (!itemExists(id)) continue
-        try { clean[view][id] = position(p, view) } catch { /* Ignore obsolete coordinates from backups. */ }
+        try { clean[view][id] = position(p, view, id, true) } catch { /* Ignore obsolete coordinates from backups. */ }
       }
     }
   } catch { /* An empty layout is automatically arranged by the client. */ }
@@ -61,8 +69,8 @@ export function importDesktopLayout(raw: string | undefined, folders: Map<number
       const [kind, id] = oldId.split(':')
       const mapped = kind === 'folder' ? folders.get(Number(id))?.id : kind === 'site' ? sites.get(Number(id)) : undefined
       const newId = mapped ? `${kind}:${mapped}` : kind === 'widget' && widgets.has(id!) ? oldId : null
-      if (!newId || (!replace && kind === 'widget' && output[view][newId])) continue
-      try { output[view][newId] = position(p, view) } catch { /* Invalid old coordinates use automatic placement. */ }
+      if (!newId || !itemExists(newId) || (!replace && kind === 'widget' && output[view][newId])) continue
+      try { output[view][newId] = position(p, view, newId, true) } catch { /* Invalid old coordinates use automatic placement. */ }
     }
   }
   putSetting(key, JSON.stringify(output))
@@ -75,13 +83,14 @@ desktopRoutes.patch('/desktop/layout', async c => {
   if (body.reset !== true && (!Array.isArray(body.placements) || body.placements.length < 1 || body.placements.length > 1000)) throw new NavigationInputError('桌面位置列表无效')
   const changes = body.reset === true ? [] : (body.placements as Array<Record<string, unknown>>).map(item => {
     if (!item || !itemExists(item.id)) throw new NavigationInputError('桌面项目已变更，请刷新后重试')
-    return { id: item.id, position: position(item, view) }
+    return { id: item.id, position: position(item, view, item.id) }
   })
   if (new Set(changes.map(p => p.id)).size !== changes.length) throw new NavigationInputError('桌面项目不能重复')
   const layout = sql.tx(() => {
     const current = readDesktopLayout()
     if (body.reset === true) current[view] = {}
-    for (const p of changes) current[view][p.id] = p.position
+    // Older clients and drag operations only send coordinates; keep explicit widget sizes.
+    for (const p of changes) current[view][p.id] = { ...current[view][p.id], ...p.position }
     putSetting(key, JSON.stringify(current))
     return current
   })
@@ -99,7 +108,7 @@ desktopRoutes.post('/desktop/move', async c => {
   const folder = folderId === null ? null : sql.get<{ id: number; category_id: number | null }>('SELECT id, category_id FROM folders WHERE id = ?', folderId)
   if (folderId !== null && !folder) throw new NavigationInputError('文件夹不存在，请刷新后重试')
   const view = viewport(body.viewport)
-  const target = folderId === null ? position(body.position, view) : null
+  const target = folderId === null ? position(body.position, view, `site:${id}`) : null
   const layout = sql.tx(() => {
     const current = readDesktopLayout()
     const order = sql.get<{ n: number }>('SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM sites WHERE folder_id IS ?', folderId)!.n

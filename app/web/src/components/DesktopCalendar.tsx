@@ -65,7 +65,7 @@ export function DesktopCalendar({ now }: { now?: Date } = {}) {
       <div className="calendar-month-view">
         <div className="calendar-nav">
           <button type="button" aria-label="上个月" onClick={() => moveMonth(-1)}><ChevronLeft size={14} aria-hidden="true" /></button>
-          <span className="calendar-month" aria-live="polite" aria-atomic="true">{monthLabel}</span>
+          <button type="button" className="calendar-month" aria-label={`${monthLabel}，回到今天`} title="回到今天" onClick={() => setBrowsing(null)}><span aria-live="polite" aria-atomic="true">{monthLabel}</span></button>
           <button type="button" aria-label="下个月" onClick={() => moveMonth(1)}><ChevronRight size={14} aria-hidden="true" /></button>
         </div>
         <table className="calendar-grid" aria-label={`${monthLabel}月历`}>

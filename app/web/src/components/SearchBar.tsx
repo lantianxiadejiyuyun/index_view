@@ -124,7 +124,7 @@ export function SearchBar() {
     <div ref={wrapRef} className="home-search relative mx-auto mb-6 w-full max-w-xl sm:mb-8">
       <div
         className={[
-          'glass flex items-center gap-2 rounded-2xl px-3 transition-all duration-300 sm:px-4',
+          'home-search-field glass flex items-center gap-2 rounded-2xl px-3 transition-all duration-300 sm:px-4',
           // 聚焦时用品牌色描边 + 一圈柔光，让页面唯一的主动作有明确的反馈
           focused
             ? 'ring-2 ring-accent/60 shadow-[0_0_0_6px_rgb(var(--accent-rgb)/0.12)]'
@@ -152,16 +152,17 @@ export function SearchBar() {
         />
 
         {/* 引擎选择器 */}
-        <div className="relative shrink-0">
+        <div className="home-search-engine relative shrink-0">
           <button
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => setEngineOpen((v) => !v)}
-            className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-fg/80 transition hover:bg-line/15"
+            className="home-search-engine-button flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-medium text-fg/80 transition hover:bg-line/15"
             aria-label="切换搜索引擎"
+            title={`当前：${engine.name}，切换搜索引擎`}
             aria-expanded={engineOpen}
           >
-            {engine.name}
+            <span className="home-search-engine-name">{engine.name}</span>
             <CornerDownLeft className="size-3 opacity-60" aria-hidden />
           </button>
 
@@ -195,7 +196,7 @@ export function SearchBar() {
       {/* 输入了前缀才提示会走哪个引擎，避免用户以为搜索坏了。
           没有提示时整块不渲染 —— 之前用固定高度占位，白白吃掉 24px 首屏高度。 */}
       {hint && (
-        <div className="mt-2 text-center text-[11px] text-fg/50">
+        <div className="home-search-hint mt-2 text-center text-[11px] text-fg/50">
           {`将用「${hint.engine.name}」搜索：${hint.query}`}
         </div>
       )}

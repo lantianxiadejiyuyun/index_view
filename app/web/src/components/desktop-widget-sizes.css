@@ -1,0 +1,173 @@
+/* Desktop cards adapt to their own width; these rules never affect the home hero or workspace. */
+.desktop-widget {
+  container: desktop-widget / inline-size;
+  min-width: 0;
+}
+.desktop-widget :where(.weather-content, .quote-content, .home-clock, .home-search) { min-width: 0; }
+.desktop-widget :where(.quote-content, .lingxi-widget-body, .weather-widget) {
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* Clock: a short, single-line date leaves room for the time in a one-row card. */
+.desktop-widget-clock { padding: 14px; }
+.desktop-widget-clock .home-clock { width: 100%; max-height: 100%; overflow: auto; scrollbar-width: thin; }
+.desktop-widget-clock .home-clock-time { font-size: clamp(32px, 23cqi, 76px); line-height: 1.05; }
+.desktop-widget-clock .home-clock .home-clock-date { margin-top: 8px; font-size: 12px; line-height: 1.5; }
+.desktop-widget-clock .home-clock-subtitle { font-size: 12px; overflow-wrap: anywhere; }
+.desktop-widget-clock[data-widget-height='1'] { padding: 7px 10px; }
+.desktop-widget-clock[data-widget-height='1'] .home-clock-time { font-size: clamp(28px, 22cqi, 38px); }
+.desktop-widget-clock[data-widget-height='1'] .home-clock .home-clock-date { margin-top: 3px; font-size: 11px; }
+.desktop-widget-clock[data-widget-height='1'] .home-clock-date-short { display: inline; }
+.desktop-widget-clock[data-widget-height='1'] .home-clock-date-full {
+  position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
+}
+.desktop-widget-clock[data-widget-height='1'] .home-clock-subtitle { display: none; }
+
+/* The input remains usable at two columns; menus and prefix hints float outside the row. */
+.desktop-widget-search { padding: 10px 12px; }
+.desktop-widget-search .home-search-field { min-width: 0; gap: 6px; }
+.desktop-widget-search .home-search input { min-height: 40px; padding-block: 8px; }
+.desktop-widget-search .home-search-engine-button { min-height: 36px; max-width: 116px; padding-inline: 8px; }
+.desktop-widget-search .home-search-engine-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.desktop-widget-search .home-search .glass-pop {
+  width: min(240px, 100cqi); max-height: min(360px, 55dvh);
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
+}
+.desktop-widget-search .glass-pop button { min-height: 40px; gap: 8px; overflow-wrap: anywhere; }
+.desktop-widget-search .glass-pop button > span:first-child { min-width: 0; }
+.desktop-widget-search .home-search-hint {
+  position: absolute; top: 100%; left: 0; z-index: 29; width: 100%; max-height: 96px;
+  overflow: auto; overflow-wrap: anywhere; border-radius: 10px; padding: 8px 10px;
+  background: rgb(var(--surface-rgb) / .98); color: rgb(var(--fg-rgb) / .75);
+  box-shadow: 0 5px 16px #0002; font-size: 12px; text-align: left;
+}
+
+/* Weather scales the primary reading and wraps its secondary measurements. */
+.desktop-widget-weather { padding: 16px; }
+.desktop-widget-weather > .weather-widget {
+  width: 100%; min-height: 0; max-height: 100%; overflow: auto; align-items: center; gap: 12px;
+}
+.desktop-widget-weather .weather-content { flex: 1; }
+.desktop-widget-weather .weather-main { flex-wrap: wrap; gap: 4px 9px; }
+.desktop-widget-weather .weather-temperature { font-size: clamp(32px, 13cqi, 54px); }
+.desktop-widget-weather .weather-description { font-size: 13px; white-space: normal; overflow-wrap: anywhere; }
+.desktop-widget-weather .weather-details { flex-wrap: wrap; gap: 5px 12px; margin-top: 10px; font-size: 12px; }
+.desktop-widget-weather .weather-details > span { max-width: 100%; }
+.desktop-widget-weather .weather-wind { display: flex; }
+.desktop-widget-weather[data-widget-height='1'] { padding: 8px 10px; }
+.desktop-widget-weather[data-widget-height='1'] > .weather-widget { gap: 8px; }
+.desktop-widget-weather[data-widget-height='1'] > .weather-widget > svg { width: 28px; height: 28px; }
+.desktop-widget-weather[data-widget-height='1'] .weather-temperature { font-size: 29px; }
+.desktop-widget-weather[data-widget-height='1'] .weather-description { font-size: 12px; }
+.desktop-widget-weather[data-widget-height='1'] .weather-details { margin-top: 4px; font-size: 11px; }
+.desktop-widget-weather[data-widget-height='1'] :is(.weather-humidity, .weather-wind) { display: none; }
+.desktop-widget-weather[data-widget-height='3'] > .weather-widget { flex-direction: column; text-align: center; gap: 14px; }
+.desktop-widget-weather[data-widget-height='3'] > .weather-widget > svg { width: 56px; height: 56px; }
+.desktop-widget-weather[data-widget-height='3'] :is(.weather-main, .weather-details) { justify-content: center; }
+
+/* Quotes are readable in full, rather than being permanently line-clamped. */
+.desktop-widget.desktop-widget-quote { padding: 12px; }
+.desktop-widget-quote > .quote-widget { width: 100%; height: 100%; min-height: 0; max-height: 100%; gap: 9px; }
+.desktop-widget-quote .quote-content { max-height: 100%; overflow: auto; padding-right: 3px; }
+.desktop-widget-quote .quote-widget .quote-text,
+.desktop-widget-quote .quote-widget .quote-attribution {
+  display: block; overflow: visible; -webkit-line-clamp: unset; overflow-wrap: anywhere; line-height: 1.75;
+}
+.desktop-widget-quote .quote-widget .quote-text { font-size: 13px; }
+.desktop-widget-quote .quote-widget .quote-attribution { font-size: 12px; margin-top: 6px; }
+.desktop-widget-quote[data-widget-height='2'] .quote-widget .quote-text { font-size: 15px; }
+
+.desktop-widget-workbench { padding: 10px 12px; }
+.desktop-widget-workbench > .workbench-widget { min-width: 0; gap: 9px; }
+.desktop-widget-workbench .workbench-title { font-size: 14px; line-height: 1.4; }
+.desktop-widget-workbench > .workbench-widget .workbench-description { font-size: 12px; overflow-wrap: anywhere; }
+.desktop-widget-workbench[data-widget-height='2'] > .workbench-widget { flex-direction: column; gap: 12px; }
+.desktop-widget-workbench[data-widget-height='2'] > .workbench-widget > svg { width: 48px; height: 48px; padding: 10px; border-radius: 14px; }
+.desktop-widget-workbench[data-widget-height='2'] .workbench-title { font-size: 16px; }
+
+/* Month controls remain available when the decorative date summary is hidden. */
+.desktop-widget-calendar > .desktop-calendar { grid-template-columns: minmax(65px, .8fr) minmax(0, 2fr); gap: 10px; padding: 10px; }
+.desktop-widget-calendar .calendar-month-view { display: grid; grid-template-rows: 32px minmax(0, 1fr); height: 100%; gap: 0; }
+.desktop-widget-calendar .calendar-nav { gap: 2px; }
+.desktop-widget-calendar .calendar-nav button { width: 32px; height: 32px; }
+.desktop-widget-calendar .calendar-nav .calendar-month { width: auto; min-width: 0; font-size: 12px; }
+.desktop-widget-calendar .calendar-grid { height: 100%; font-size: 12px; }
+.desktop-widget-calendar .calendar-week-header { height: 18px; font-size: 11px; }
+.desktop-widget-calendar .calendar-day { height: auto; font-size: 12px; }
+.desktop-widget-calendar .calendar-day time { width: min(100%, 24px); height: 17px; }
+.desktop-widget-calendar .calendar-day-number { font-size: clamp(36px, 15cqi, 70px); }
+.desktop-widget-calendar .calendar-summary-month { font-size: 11px; }
+.desktop-widget-calendar .calendar-today { min-height: 32px; font-size: 12px; }
+.desktop-widget-calendar[data-widget-height='2'] > .desktop-calendar { padding: 8px; }
+.desktop-widget-calendar[data-widget-height='3'] .calendar-month-view { grid-template-rows: 40px minmax(0, 1fr); }
+.desktop-widget-calendar[data-widget-height='3'] .calendar-nav button { height: 40px; }
+.desktop-widget-calendar[data-widget-height='3'] .calendar-day time { height: 26px; width: min(100%, 28px); font-size: 13px; }
+
+/* Lingxi cards keep their own scrolling region and all create/edit/chat actions. */
+.desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-widget { min-width: 0; min-height: 0; border-radius: inherit; }
+.desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-widget-header { gap: 6px; padding: 10px 12px 8px; }
+.desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-widget-heading { gap: 7px; font-size: 13px; }
+.desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-widget-body { padding: 0 12px 12px; }
+.desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-empty { min-height: 100px; height: auto; padding: 10px 4px; gap: 8px; }
+.desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-event { gap: 7px; padding: 8px; }
+.desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-task { gap: 3px; padding: 6px; }
+.desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-deadline { padding: 11px; }
+.desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-countdown { font-size: 20px; }
+.desktop-widget-lingxi-calendar .lingxi-month-heading { font-size: 13px; margin-bottom: 6px; }
+.desktop-widget-lingxi-calendar .lingxi-calendar-grid { gap: 2px; }
+.desktop-widget-lingxi-calendar .lingxi-weekday { padding-block: 5px; }
+.desktop-widget-lingxi-calendar .lingxi-day-agenda { margin-top: 10px; padding-top: 9px; }
+.desktop-widget-lingxi-schedule .lingxi-schedule-toolbar { gap: 4px; margin-bottom: 9px; }
+.desktop-widget-lingxi-schedule .lingxi-filter { flex: 1; }
+.desktop-widget-lingxi-schedule .lingxi-filter button { flex: 1; padding-inline: 7px; }
+.desktop-widget-lingxi-chat .lingxi-chat { min-height: 220px; gap: 6px; }
+.desktop-widget-lingxi-chat .lingxi-chat > :not(.lingxi-messages) { flex-shrink: 0; }
+.desktop-widget-lingxi-chat .lingxi-chat-toolbar { gap: 4px; padding-bottom: 5px; }
+.desktop-widget-lingxi-chat .lingxi-chat-toolbar select { min-height: 38px; padding: 5px 8px; }
+.desktop-widget-lingxi-chat .lingxi-chat-toolbar > button { min-width: 36px; min-height: 36px; padding: 6px; }
+.desktop-widget-lingxi-chat .lingxi-chat-status:empty { display: none; }
+.desktop-widget-lingxi-chat .lingxi-messages { min-height: 54px; gap: 10px; }
+.desktop-widget-lingxi-chat .lingxi-message { padding: 9px 10px; max-width: 96%; }
+.desktop-widget-lingxi-chat .lingxi-composer { padding: 6px; gap: 5px; }
+.desktop-widget-lingxi-chat .lingxi-composer textarea { padding: 2px; line-height: 1.5; }
+
+@container desktop-widget (max-width: 320px) {
+  .desktop-widget-calendar > .desktop-calendar { grid-template-columns: minmax(0, 1fr); }
+  .desktop-widget-calendar .calendar-summary { display: none; }
+  .desktop-widget-calendar .calendar-month-view { max-width: 100%; }
+  .desktop-widget-calendar .calendar-nav .calendar-month { font-size: 13px; }
+}
+@container desktop-widget (max-width: 280px) {
+  .desktop-widget-search .home-search-field > svg { display: none; }
+  .desktop-widget-search .home-search-engine-button { max-width: 72px; gap: 4px; padding-inline: 6px; }
+  .desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-widget-body { padding-inline: 10px; }
+  .desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-event-title { font-size: 13px; }
+}
+@container desktop-widget (max-width: 220px) {
+  .desktop-widget-search .home-search-engine-name { display: none; }
+  .desktop-widget-search .home-search-engine-button { width: 36px; justify-content: center; }
+  .desktop-widget-workbench .workbench-description { display: none; }
+  .desktop-widget-weather .weather-main { gap: 3px 6px; }
+  .desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-widget-header { padding-inline: 10px; }
+  .desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-widget-heading > svg { display: none; }
+  .desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-deadline { padding: 9px; }
+  .desktop-widget[class*='desktop-widget-lingxi-'] .lingxi-countdown { font-size: 17px; }
+}
+@container desktop-widget (max-width: 420px) {
+  .desktop-widget-lingxi-chat .lingxi-chat-toolbar > button:first-of-type > span { display: none; }
+}
+@container desktop-widget (min-width: 421px) {
+  .desktop-widget-lingxi-chat .lingxi-chat-toolbar select { width: 0; flex: 1 1 120px; }
+}
+@media (pointer: coarse) {
+  .desktop-widget-search .home-search-engine-button { min-height: 44px; min-width: 40px; }
+  .desktop-widget-search .glass-pop button { min-height: 44px; }
+  .desktop-widget-lingxi-chat .lingxi-chat-toolbar select { min-height: 44px; }
+  .desktop-widget-lingxi-chat .lingxi-chat-toolbar > button { min-width: 44px; min-height: 44px; }
+}
+@media (max-width: 700px) {
+  .desktop-widget-search .home-search input,
+  .desktop-widget-lingxi-chat .lingxi-chat :is(input, select, textarea) { font-size: 16px; }
+}

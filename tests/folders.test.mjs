@@ -504,3 +504,149 @@ test('desktop header and calendar preferences preserve coordinates and reject in
   assert.deepEqual(state(), original)
   assert.deepEqual(await json('/settings'), before)
 })
+
+const desktopWidgetNames = ['clock', 'search', 'weather', 'quote', 'workbench', 'calendar', 'lingxi-calendar', 'lingxi-schedule', 'lingxi-deadline', 'lingxi-chat']
+const widgetPlacements = viewport => desktopWidgetNames.map((name, index) => ({
+  id: `widget:${name}`, col: 0, row: index * 7,
+  width: viewport === 'wide' ? [1, 4, 8, 12][index % 4] : [1, 2, 3, 4][index % 4],
+  height: index % 6 + 1,
+}))
+const positionsOf = placements => Object.fromEntries(placements.map(({ id, ...position }) => [id, position]))
+
+test('all ten desktop widgets persist custom dimensions independently across screen sizes', async () => {
+  const { sites } = await fixture()
+  for (const viewport of ['wide', 'compact']) await json('/desktop/layout', { viewport, reset: true }, 'PATCH')
+  const pinnedSite = { id: `site:${sites[0]}`, col: 9, row: 99 }
+  await json('/desktop/layout', { viewport: 'wide', placements: [pinnedSite] }, 'PATCH')
+  for (const viewport of ['wide', 'compact']) {
+    const placements = widgetPlacements(viewport)
+    const result = await json('/desktop/layout', { viewport, placements }, 'PATCH')
+    assert.deepEqual(result.layout[viewport], { ...(viewport === 'wide' ? positionsOf([pinnedSite]) : {}), ...positionsOf(placements) })
+  }
+  const { layout } = await json('/desktop/layout')
+  assert.deepEqual(layout.wide, { ...positionsOf([pinnedSite]), ...positionsOf(widgetPlacements('wide')) })
+  assert.deepEqual(layout.compact, positionsOf(widgetPlacements('compact')))
+  assert.deepEqual(JSON.parse(h.sql.get("SELECT value FROM settings WHERE key = 'desktop_layout'").value), layout)
+  assert.deepEqual(JSON.parse((await json('/bootstrap')).settings.desktop_layout), layout)
+})
+
+test('coordinate-only widget moves retain dimensions and resizing never moves another widget', async () => {
+  await fixture()
+  for (const viewport of ['wide', 'compact']) {
+    await json('/desktop/layout', { viewport, reset: true }, 'PATCH')
+    await json('/desktop/layout', { viewport, placements: widgetPlacements(viewport) }, 'PATCH')
+  }
+  const before = (await json('/desktop/layout')).layout
+  for (const viewport of ['wide', 'compact']) {
+    const moved = desktopWidgetNames.map((name, index) => ({ id: `widget:${name}`, col: 0, row: 100 + index * 7 }))
+    const result = await json('/desktop/layout', { viewport, placements: moved }, 'PATCH')
+    for (const { id, col, row } of moved) assert.deepEqual(result.layout[viewport][id], { ...before[viewport][id], col, row })
+    const other = viewport === 'wide' ? 'compact' : 'wide'
+    if (viewport === 'wide') assert.deepEqual(result.layout[other], before[other])
+  }
+  const moved = (await json('/desktop/layout')).layout
+  const resized = { col: 0, row: 100, width: 12, height: 6 }
+  const result = await json('/desktop/layout', { viewport: 'wide', placements: [{ id: 'widget:clock', ...resized }] }, 'PATCH')
+  assert.deepEqual(result.layout, { ...moved, wide: { ...moved.wide, 'widget:clock': resized } })
+  await json('/desktop/layout', { viewport: 'compact', reset: true }, 'PATCH')
+  const legacy = await json('/desktop/layout', { viewport: 'compact', placements: [{ id: 'widget:search', col: 1, row: 3 }] }, 'PATCH')
+  assert.deepEqual(legacy.layout.compact['widget:search'], { col: 1, row: 3 })
+  assert.deepEqual(legacy.layout.wide, result.layout.wide)
+})
+
+test('invalid widget sizes and sizes on icons or folders reject the whole placement batch', async () => {
+  const { a, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Sized folder', category_id: a, columns: 3, rows: 2, site_ids: [sites[0]] }, 'POST', 201)
+  for (const viewport of ['wide', 'compact']) await json('/desktop/layout', { viewport, placements: [{ id: 'widget:clock', col: 0, row: 0, width: 2, height: 2 }] }, 'PATCH')
+  const before = await json('/desktop/layout')
+  const stored = h.sql.get("SELECT value FROM settings WHERE key = 'desktop_layout'").value
+  const invalid = [
+    { width: 2 }, { height: 2 }, { width: 0, height: 2 }, { width: -1, height: 2 },
+    { width: 13, height: 2 }, { width: 2.5, height: 2 }, { width: '2', height: 2 },
+    { width: null, height: 2 }, { width: true, height: 2 }, { width: {}, height: 2 },
+    { width: 2, height: 0 }, { width: 2, height: -1 }, { width: 2, height: 7 },
+    { width: 2, height: 1.5 }, { width: 2, height: '2' }, { width: 2, height: null },
+  ]
+  for (const viewport of ['wide', 'compact']) {
+    for (const dimensions of [...invalid, ...(viewport === 'compact' ? [{ width: 5, height: 2 }] : [])]) {
+      await json('/desktop/layout', { viewport, placements: [
+        { id: 'widget:clock', col: 1, row: 22, width: 1, height: 1 },
+        { id: 'widget:weather', col: 0, row: 0, ...dimensions },
+      ] }, 'PATCH', 400)
+      assert.deepEqual(await json('/desktop/layout'), before)
+      assert.equal(h.sql.get("SELECT value FROM settings WHERE key = 'desktop_layout'").value, stored)
+    }
+    for (const id of [`site:${sites[0]}`, `folder:${folder.id}`]) {
+      await json('/desktop/layout', { viewport, placements: [{ id, col: 0, row: 0, width: 2, height: 2 }] }, 'PATCH', 400)
+      assert.deepEqual(await json('/desktop/layout'), before)
+    }
+  }
+  const membership = site(sites[0])
+  await json('/desktop/move', { site_id: sites[0], folder_id: null, viewport: 'wide', position: { col: 0, row: 0, width: 2, height: 2 } }, 'POST', 400)
+  assert.deepEqual(site(sites[0]), membership)
+  assert.deepEqual(await json('/desktop/layout'), before)
+})
+
+test('widget sizes survive backup export, replacement, and merge without changing existing widget preferences', async () => {
+  await fixture()
+  for (const viewport of ['wide', 'compact']) {
+    await json('/desktop/layout', { viewport, reset: true }, 'PATCH')
+    await json('/desktop/layout', { viewport, placements: widgetPlacements(viewport) }, 'PATCH')
+  }
+  const original = (await json('/desktop/layout')).layout
+  const backup = await json('/export')
+  assert.deepEqual(JSON.parse(backup.settings.desktop_layout), original)
+  for (const viewport of ['wide', 'compact']) await json('/desktop/layout', { viewport, reset: true }, 'PATCH')
+  await json('/import', { ...backup, mode: 'replace' })
+  assert.deepEqual((await json('/desktop/layout')).layout, original)
+
+  const currentClock = { col: 1, row: 99, width: 2, height: 6 }
+  for (const viewport of ['wide', 'compact']) {
+    await json('/desktop/layout', { viewport, reset: true }, 'PATCH')
+    await json('/desktop/layout', { viewport, placements: [{ id: 'widget:clock', ...currentClock }] }, 'PATCH')
+  }
+  await json('/import', { ...backup, mode: 'merge' })
+  const expected = { version: 1, wide: { ...original.wide, 'widget:clock': currentClock }, compact: { ...original.compact, 'widget:clock': currentClock } }
+  assert.deepEqual((await json('/desktop/layout')).layout, expected)
+  // Generic settings updates cannot bypass dimension validation or erase the saved layout.
+  const settings = await json('/settings', { desktop_layout: JSON.stringify({ version: 1, wide: {}, compact: {} }) }, 'PUT')
+  assert.ok(settings.ignored.includes('desktop_layout'))
+  assert.deepEqual((await json('/desktop/layout')).layout, expected)
+})
+
+test('damaged stored or imported dimensions fall back to default sizes at the original valid coordinates', async () => {
+  const { a, sites } = await fixture()
+  const { folder } = await json('/folders', { name: 'Damaged layout folder', category_id: a, columns: 3, rows: 2, site_ids: [sites[0]] }, 'POST', 201)
+  const raw = { version: 1, wide: {
+    'widget:clock': { col: 1, row: 2, width: 4 },
+    'widget:weather': { col: 3, row: 7, width: 0, height: 2 },
+    'widget:calendar': { col: 0, row: 15, width: 8, height: 6 },
+    'widget:search': { col: 2, row: 23 },
+    'widget:quote': { col: 12, row: 0, width: 1, height: 1 },
+    'widget:clock:invalid': { col: 0, row: 30, width: 2, height: 1 },
+    [`site:${sites[1]}`]: { col: 9, row: 40, width: 2, height: 2 },
+    [`folder:${folder.id}`]: { col: 5, row: 42, width: 3, height: 2 },
+  }, compact: {
+    'widget:calendar': { col: 0, row: 5, width: 12, height: 6 },
+    'widget:lingxi-chat': { col: 0, row: 12, width: 4, height: 6 },
+  } }
+  h.sql.run("INSERT INTO settings(key, value) VALUES ('desktop_layout', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", JSON.stringify(raw))
+  const expectedWide = {
+    'widget:clock': { col: 1, row: 2 }, 'widget:weather': { col: 3, row: 7 },
+    'widget:calendar': { col: 0, row: 15, width: 8, height: 6 }, 'widget:search': { col: 2, row: 23 },
+  }
+  const expectedCompact = { 'widget:calendar': { col: 0, row: 5 }, 'widget:lingxi-chat': { col: 0, row: 12, width: 4, height: 6 } }
+  assert.deepEqual((await json('/desktop/layout')).layout, { version: 1, wide: {
+    ...expectedWide, [`site:${sites[1]}`]: { col: 9, row: 40 }, [`folder:${folder.id}`]: { col: 5, row: 42 },
+  }, compact: expectedCompact })
+  const backup = await json('/export')
+  await json('/import', { ...backup, mode: 'replace' })
+  const current = await json('/bootstrap')
+  const restoredFolder = current.folders.find(item => item.name === folder.name)
+  const restoredSite = current.sites.find(item => item.title === 'Site 1')
+  assert.deepEqual((await json('/desktop/layout')).layout, { version: 1, wide: {
+    ...expectedWide, [`site:${restoredSite.id}`]: { col: 9, row: 40 }, [`folder:${restoredFolder.id}`]: { col: 5, row: 42 },
+  }, compact: expectedCompact })
+  assert.equal(restoredFolder.columns, 3)
+  assert.equal(restoredFolder.rows, 2)
+})

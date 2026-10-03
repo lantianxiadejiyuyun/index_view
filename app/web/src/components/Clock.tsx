@@ -53,7 +53,7 @@ export function Clock() {
       className="home-clock mb-6 text-center text-wp sm:mb-8"
     >
       {showGreeting && (
-        <p className="text-shadow-soft mb-2 text-base font-semibold tracking-wide text-wp/85 sm:text-lg">
+        <p className="home-clock-greeting text-shadow-soft mb-2 text-base font-semibold tracking-wide text-wp/85 sm:text-lg">
           {greetingOf(hour)}
           {title ? ` · ${title}` : ''}
         </p>
@@ -66,15 +66,15 @@ export function Clock() {
               {pad(hour)}:{pad(now.getMinutes())}
             </span>
           </div>
-          <p className="text-shadow-soft mt-3 text-base font-medium text-wp/80 sm:text-lg">
-            {now.getFullYear()} 年 {now.getMonth() + 1} 月 {now.getDate()} 日 ·{' '}
-            {WEEKDAYS[now.getDay()]}
+          <p className="home-clock-date text-shadow-soft mt-3 text-base font-medium text-wp/80 sm:text-lg">
+            <span className="home-clock-date-full">{now.getFullYear()} 年 {now.getMonth() + 1} 月 {now.getDate()} 日 · {WEEKDAYS[now.getDay()]}</span>
+            <span className="home-clock-date-short hidden" aria-hidden="true">{now.getMonth() + 1} 月 {now.getDate()} 日 · {WEEKDAYS[now.getDay()]}</span>
           </p>
         </>
       )}
 
       {subtitle && (
-        <p className="text-shadow-soft mt-2 text-sm text-wp/75 sm:text-base">{subtitle}</p>
+        <p className="home-clock-subtitle text-shadow-soft mt-2 text-sm text-wp/75 sm:text-base">{subtitle}</p>
       )}
     </header>
   )
