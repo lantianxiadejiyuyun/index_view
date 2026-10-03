@@ -24,6 +24,7 @@ import './desktop.css'
 type Content = { kind: 'site'; site: Site } | { kind: 'folder'; folder: Folder } | { kind: 'widget'; widget: string }
 type Item = DesktopItem & Content
 type SiteEditor = { site: Site | null; folderId: number | null }
+type DragMotion = Pick<DragEndEvent, 'active' | 'over' | 'delta' | 'activatorEvent'>
 
 function DesktopTile({ item, position, cellWidth, gap, rowHeight, editing, disabled, children }: { item: Item; position: PlacedItem; cellWidth: number; gap: number; rowHeight: number; editing: boolean; disabled: boolean; children: ReactNode }) {
   const drag = useDraggable({ id: item.id, data: { kind: item.kind }, disabled: disabled || !editing })
@@ -92,6 +93,10 @@ export function DesktopPage() {
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [dropPreview, setDropPreview] = useState<PlacedItem | null>(null)
+  const liveDrag = useRef<DragMotion | null>(null)
+  const lastDropPreview = useRef<PlacedItem | null>(null)
+  const resolveDropPreview = useRef<() => PlacedItem | null>(() => null)
   const [openFolderId, setOpenFolderId] = useState<number | null>(null)
   const [siteEditor, setSiteEditor] = useState<SiteEditor | null>(null)
   const [folderEditor, setFolderEditor] = useState<{ folder: Folder | null } | null>(null)
@@ -159,6 +164,24 @@ export function DesktopPage() {
     })
     return hits.sort((a, b) => Number(b.id === 'desktop-folder-window') - Number(a.id === 'desktop-folder-window') || Number(a.id === 'desktop-surface') - Number(b.id === 'desktop-surface')).map(hit => ({ id: hit.id }))
   }
+  resolveDropPreview.current = () => liveDrag.current ? canvasTarget(liveDrag.current) : null
+  useEffect(() => {
+    if (!activeId) return
+    let frame: number
+    const update = () => {
+      // Measure the drawn overlay after layout, including scrolling while the
+      // pointer stays still. Only a changed grid target needs a React update.
+      const next = resolveDropPreview.current()
+      const previous = lastDropPreview.current
+      if (next?.id !== previous?.id || next?.col !== previous?.col || next?.row !== previous?.row || next?.width !== previous?.width || next?.height !== previous?.height) {
+        lastDropPreview.current = next
+        setDropPreview(next)
+      }
+      frame = requestAnimationFrame(update)
+    }
+    frame = requestAnimationFrame(update)
+    return () => cancelAnimationFrame(frame)
+  }, [activeId])
 
   function keepLayout(value: DesktopLayout) {
     setLayout(value)
@@ -214,10 +237,36 @@ export function DesktopPage() {
     keepLayout(result.layout); useApp.setState({ sites: result.sites })
     toast.success(folderId === null ? '已放回桌面' : '已移入文件夹')
   }
-  function endDrag(event: DragEndEvent) {
-    const previewRect = dragPreview.current?.getBoundingClientRect()
+  // Shared by the live frame and the final drop, so the white outline is
+  // exactly where the item will be saved, with the same collision checks.
+  function canvasTarget(event: DragMotion): PlacedItem | null {
+    if (event.over?.id !== 'desktop-surface') return null
+    const id = String(event.active.id)
+    const rootItem = items.find(item => item.id === id)
+    const site = rootItem ? undefined : sites.find(s => `site:${s.id}` === id)
+    const item = rootItem ?? (site?.folder_id ? { id, width: 1, height: 1 } : null)
+    if (!item) return null
+    const origin = placed.find(p => p.id === id)
+    const preview = dragPreview.current?.getBoundingClientRect() ?? event.active.rect.current.translated
+    const canvas = board.current?.getBoundingClientRect()
+    const position = event.activatorEvent.type === 'keydown' && origin
+      ? dropPosition(item, origin, { x: keyboardSteps.current.col * (cellWidth + gap), y: keyboardSteps.current.row * (rowHeight + gap) }, cellWidth, rowHeight, gap, placed, columns)
+      : preview && canvas
+      ? canvasDropPosition(item, preview, canvas, cellWidth, rowHeight, gap, placed, columns)
+      : origin ? dropPosition(item, origin, event.delta, cellWidth, rowHeight, gap, placed, columns) : null
+    return position ? { id, width: item.width, height: item.height, ...position } : null
+  }
+  function clearDrag() {
+    liveDrag.current = null
+    lastDropPreview.current = null
+    setDropPreview(null)
     setActiveId(null)
-    const { active, over, delta } = event
+  }
+  function trackDrag(event: DragMotion) { liveDrag.current = event }
+  function endDrag(event: DragEndEvent) {
+    const target = canvasTarget(event)
+    clearDrag()
+    const { active, over } = event
     if (!over || busyRef.current) return
     const id = String(active.id)
     const site = id.startsWith('site:') ? sites.find(s => `site:${s.id}` === id) : undefined
@@ -226,30 +275,14 @@ export function DesktopPage() {
       return
     }
     if (over.id !== 'desktop-surface') return
-    const item = items.find(i => i.id === id)
-    let target: { col: number; row: number } | null
-    if (!item && site?.folder_id) {
-      const rect = previewRect ?? active.rect.current.translated
-      const area = board.current?.getBoundingClientRect()
-      if (!rect || !area) return
-      target = canvasDropPosition({ id, width: 1, height: 1 }, rect, area, cellWidth, rowHeight, gap, placed, columns)
-      if (!target) { toast.error('这里已有组件，请选择空白网格'); return }
-      const destination = target
-      void run(() => moveSite(site, null, destination)); return
-    }
-    if (!item) return
-    const translated = previewRect ?? active.rect.current.translated
-    const canvas = board.current?.getBoundingClientRect()
-    target = event.activatorEvent.type === 'keydown'
-      ? dropPosition(item, placed.find(p => p.id === id)!, { x: keyboardSteps.current.col * (cellWidth + gap), y: keyboardSteps.current.row * (rowHeight + gap) }, cellWidth, rowHeight, gap, placed, columns)
-      : translated && canvas
-      ? canvasDropPosition(item, translated, canvas, cellWidth, rowHeight, gap, placed, columns)
-      : dropPosition(item, placed.find(p => p.id === id)!, delta, cellWidth, rowHeight, gap, placed, columns)
     if (!target) { toast.error('这里已有组件，已保留原位'); return }
-    const destination = target
+    const { col, row } = target
+    if (!items.some(item => item.id === id) && site?.folder_id) {
+      void run(() => moveSite(site, null, { col, row })); return
+    }
     void run(async () => {
       await freezeInitialPositions()
-      const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', { method: 'PATCH', body: JSON.stringify({ viewport: view, placements: [{ id, col: destination.col, row: destination.row }] }) })
+      const result = await api<{ layout: DesktopLayout }>('/api/desktop/layout', { method: 'PATCH', body: JSON.stringify({ viewport: view, placements: [{ id, col, row }] }) })
       keepLayout(result.layout)
     })
   }
@@ -263,7 +296,7 @@ export function DesktopPage() {
   function addFolder() { void run(async () => { await freezeInitialPositions(); setFolderEditor({ folder: null }) }) }
 
   if (needsLogin) return <Navigate to="/login" replace />
-  return <DndContext sensors={sensors} collisionDetection={collision} onDragStart={event => { keyboardSteps.current = { col: 0, row: 0 }; setActiveId(String(event.active.id)) }} onDragCancel={() => setActiveId(null)} onDragEnd={endDrag}>
+  return <DndContext sensors={sensors} collisionDetection={collision} onDragStart={event => { keyboardSteps.current = { col: 0, row: 0 }; liveDrag.current = { ...event, over: null, delta: { x: 0, y: 0 } }; setActiveId(String(event.active.id)) }} onDragMove={trackDrag} onDragOver={trackDrag} onDragCancel={clearDrag} onDragEnd={endDrag}>
     <div className={`free-desktop${editing ? ' desktop-editing' : ''}`}>
       <nav className="desktop-sidebar" aria-label="桌面导航">
         <Link to="/desktop" className="desktop-sidebar-brand" title={settings.site_title} aria-label={settings.site_title}><Command size={24} /><span>{settings.site_title}</span></Link>
@@ -284,6 +317,7 @@ export function DesktopPage() {
         {settings.desktop_header_mode === 'hero' && <div className="desktop-hero">{settings.show_clock && <Clock />}<SearchBar /></div>}
         {editing && <p className="desktop-edit-hint"><Grip size={15} />拖到空白网格保存，已有组件保持原位</p>}
         <DesktopSurface boardRef={board} height={boardHeight} editing={editing} columns={columns} cellWidth={cellWidth} gap={gap} rowHeight={rowHeight}>
+          {activeId && dropPreview && <div className="desktop-drop-preview" aria-hidden="true" data-drop-col={dropPreview.col} data-drop-row={dropPreview.row} style={{ left: dropPreview.col * (cellWidth + gap), top: dropPreview.row * (rowHeight + gap), width: dropPreview.width * (cellWidth + gap) - gap, height: dropPreview.height * (rowHeight + gap) - gap }}><span>松开放置</span></div>}
           {boardWidth > 0 && items.map(item => <DesktopTile key={item.id} item={item} position={placed.find(p => p.id === item.id)!} cellWidth={cellWidth} gap={gap} rowHeight={rowHeight} editing={editing} disabled={busy}>
             {item.kind === 'widget' ? <div className="desktop-widget-unit"><div className={`desktop-widget desktop-widget-${item.widget}`}>{renderWidget(item.widget)}</div><span className="desktop-tile-caption">{widgetLabels[item.widget]}</span></div> : item.kind === 'folder' ? <DesktopFolderPreview folder={item.folder} sites={sites.filter(s => s.folder_id === item.folder.id).sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)} width={item.width} height={item.height} editing={editing} onOpen={() => setOpenFolderId(item.folder.id)} onEdit={() => setFolderEditor({ folder: item.folder })} /> : <button type="button" className="desktop-app" onClick={() => editing ? setSiteEditor({ site: item.site, folderId: item.site.folder_id ?? null }) : openSite(item.site)} title={item.site.title}><FolderSiteIcon site={item.site} /><span>{item.site.title}</span></button>}
           </DesktopTile>)}

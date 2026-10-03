@@ -116,6 +116,27 @@
   background-size: var(--desktop-cell) var(--desktop-row);
   background-position: 0 0;
 }
+.desktop-drop-preview {
+  position: absolute;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  border: 2px solid #fff;
+  border-radius: 18px;
+  background: rgb(255 255 255 / .32);
+  box-shadow: 0 0 0 1px rgb(51 65 85 / .14), 0 8px 24px rgb(15 23 42 / .1), inset 0 0 20px rgb(255 255 255 / .18);
+}
+.desktop-drop-preview > span {
+  padding: 5px 9px;
+  border-radius: 8px;
+  color: #334155;
+  background: rgb(255 255 255 / .88);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.dark .desktop-drop-preview { background: rgb(255 255 255 / .12); }
 .free-desktop-tile { position: absolute; min-width: 0; border-radius: 15px; transition: left .18s ease, top .18s ease; }
 .free-desktop-tile.is-dragging,
 .desktop-member.is-dragging { opacity: .22; }
@@ -213,7 +234,8 @@
 .desktop-folder-unit[data-rows="1"] .desktop-folder-more { max-width: 24px; border-radius: 6px; font-size: 8px; }
 .desktop-folder-unit[data-columns="1"][data-rows="1"] .desktop-folder-more { max-width: 22px; }
 .desktop-folder-config { position: absolute; bottom: 28px; right: 6px; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: rgb(var(--surface-rgb) / .92); color: rgb(var(--fg-rgb)); box-shadow: 0 2px 6px #0001; }
-.is-drop-target { outline: 3px solid rgb(var(--accent-rgb)) !important; outline-offset: 3px; }
+.free-desktop-tile.is-drop-target,
+.desktop-folder-window.is-drop-target { outline: 2px solid #fff !important; outline-offset: 3px; box-shadow: 0 0 0 6px rgb(51 65 85 / .12), 0 0 24px rgb(255 255 255 / .25); }
 .desktop-widget {
   display: flex;
   flex-direction: column;
