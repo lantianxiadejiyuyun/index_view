@@ -6,11 +6,41 @@ import vm from 'node:vm'
 const extensionRoot = new URL('../chrome_plug_in/', import.meta.url)
 const source = await readFile(new URL('content/shopping-theme.js', extensionRoot), 'utf8')
 const manifest = JSON.parse(await readFile(new URL('manifest.json', extensionRoot), 'utf8'))
+const accountRoutes = JSON.parse(await readFile(new URL('fixtures/taobao-appearance-routes.json', import.meta.url), 'utf8'))
+const accountHosts = [
+  'i.taobao.com', 'cart.taobao.com', 'buyertrade.taobao.com', 'item-paimai.taobao.com',
+  'rate.taobao.com', 'refund2.taobao.com', 'rights.taobao.com', 'jubao.taobao.com',
+]
+const shoppingHosts = [
+  'taobao.com', 'www.taobao.com', 's.taobao.com', 'item.taobao.com', 'detail.tmall.com',
+  ...accountHosts, 'goofish.com', 'www.goofish.com',
+]
+const expectedSite = hostname => hostname.includes('goofish') ? 'goofish' : 'taobao'
+const preferenceKey = hostname => `${expectedSite(hostname)}Theme`
 const themeAttribute = 'data-hd-pm-shopping-theme'
+const expectedPage = hostname => accountHosts.includes(hostname) ? 'taobao-account' : ({ 's.taobao.com': 'taobao-search', 'item.taobao.com': 'taobao-detail', 'detail.tmall.com': 'taobao-detail' })[hostname] ?? null
+const pageAttribute = 'data-hd-pm-shopping-page'
+
+function cssRuleSelectors(css) {
+  const rules = css.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+)\{[^{}]*\}/g)
+  const selectors = []
+  for (const [, selectorList] of rules) {
+    let depth = 0
+    let start = 0
+    for (let i = 0; i < selectorList.length; i++) {
+      const character = selectorList[i]
+      if (character === '(' || character === '[') depth++
+      if (character === ')' || character === ']') depth--
+      if (character === ',' && depth === 0) { selectors.push(selectorList.slice(start, i).trim()); start = i + 1 }
+    }
+    selectors.push(selectorList.slice(start).trim())
+  }
+  return selectors
+}
 
 // Observe content-script effects without a browser profile, network, credentials,
 // or application storage. Unsupported extension APIs deliberately throw.
-function page({ hostname = 'www.taobao.com', dark = true, stored = {}, deferStorage = false, rejectStorage = false, subframe = false } = {}) {
+function page({ hostname = 'www.taobao.com', url, dark = true, stored = {}, deferStorage = false, rejectStorage = false, subframe = false } = {}) {
   const mediaListeners = []
   const storageListeners = []
   const listeners = new Map()
@@ -126,7 +156,7 @@ function page({ hostname = 'www.taobao.com', dark = true, stored = {}, deferStor
   Object.defineProperty(chrome, 'runtime', { get() { throw new Error('Appearance scripts must not access vault messaging') } })
   const context = {
     document, chrome, console, URL, Element, HTMLElement: Element, Node: { ELEMENT_NODE: 1 },
-    location: new URL(`https://${hostname}/`),
+    location: new URL(url ?? `https://${hostname}/`),
     addEventListener: listen,
     matchMedia(query) { assert.equal(query, '(prefers-color-scheme: dark)'); return media },
     MutationObserver: class {
@@ -165,51 +195,56 @@ function page({ hostname = 'www.taobao.com', dark = true, stored = {}, deferStor
   }
 }
 
-test('shopping theme is installed only on the Taobao and Goofish main hosts in the top isolated frame', () => {
+test('shopping theme is installed only on the 15 exact approved hosts in the top isolated frame', () => {
   const entry = manifest.content_scripts.find((entry) => entry.js.includes('content/shopping-theme.js'))
   assert.ok(entry)
   assert.equal(entry.world ?? 'ISOLATED', 'ISOLATED')
   assert.equal(entry.all_frames ?? false, false)
   assert.equal(entry.run_at, 'document_start')
-  const hosts = entry.matches.map((match) => {
-    const parsed = match.match(/^(?:\*|https?):\/\/((?:www\.)?(?:taobao|goofish)\.com)\/\*$/)
-    assert.ok(parsed, `Unexpected shopping host scope: ${match}`)
-    return parsed[1]
-  })
-  assert.deepEqual([...new Set(hosts)].sort(), ['goofish.com', 'taobao.com', 'www.goofish.com', 'www.taobao.com'])
-  assert.ok(entry.css.includes('content/shopping-theme.css'))
+  assert.deepEqual([...entry.matches].sort(), shoppingHosts.map((host) => `*://${host}/*`).sort())
+  assert.deepEqual(entry.js, ['content/shopping-theme.js', 'content/shopping-account-theme.js'])
+  assert.deepEqual(entry.css, [
+    'content/shopping-theme.css', 'content/shopping-detail-theme.css',
+    'content/shopping-account-theme.css', 'content/shopping-account-adaptive.css',
+  ])
 })
 
 test('every shopping CSS rule is scoped so removing the dark marker restores native styles', async () => {
-  const css = (await readFile(new URL('content/shopping-theme.css', extensionRoot), 'utf8')).replace(/\/\*[\s\S]*?\*\//g, '')
-  const rules = [...css.matchAll(/([^{}]+)\{[^{}]*\}/g)]
-  assert.ok(rules.length > 0)
-  for (const [, selectorList] of rules) {
-    let depth = 0
-    let start = 0
-    const selectors = []
-    for (let i = 0; i < selectorList.length; i++) {
-      const character = selectorList[i]
-      if (character === '(' || character === '[') depth++
-      if (character === ')' || character === ']') depth--
-      if (character === ',' && depth === 0) { selectors.push(selectorList.slice(start, i)); start = i + 1 }
-    }
-    selectors.push(selectorList.slice(start))
-    for (const selector of selectors) {
-      assert.match(selector.trim(), /^html\[data-hd-pm-shopping-theme=["']dark["']\]/, selector)
-      assert.match(selector, /\[data-hd-pm-shopping-site=["'](?:taobao|goofish)["']\]/, selector)
-    }
+  const css = await readFile(new URL('content/shopping-theme.css', extensionRoot), 'utf8')
+  const selectors = cssRuleSelectors(css)
+  assert.ok(selectors.length > 0)
+  for (const selector of selectors) {
+    assert.match(selector, /^html\[data-hd-pm-shopping-theme=["']dark["']\]/, selector)
+    assert.match(selector, /\[data-hd-pm-shopping-site=["'](?:taobao|goofish)["']\]/, selector)
   }
   assert.doesNotMatch(css, /\b(?:filter|backdrop-filter)\s*:/i, 'Media must not be recolored by a page-wide filter')
 })
 
-test('both shopping sites default to browser-following dark and revert in light mode', async () => {
-  for (const hostname of ['taobao.com', 'www.taobao.com', 'goofish.com', 'www.goofish.com']) {
+test('Taobao search card, filter, and pagination styles cannot leak into the homepages', async () => {
+  const css = await readFile(new URL('content/shopping-theme.css', extensionRoot), 'utf8')
+  const selectors = cssRuleSelectors(css)
+  const searchFeatures = ['doubleCardWrapperAdapt--', 'filterBoxWrapper--', '.next-pagination']
+  const seen = new Set()
+  let searchRules = 0
+  for (const selector of selectors) {
+    const features = searchFeatures.filter((feature) => selector.includes(feature))
+    if (!features.length && !/\[data-hd-pm-shopping-page=["']taobao-search["']\]/.test(selector)) continue
+    searchRules++
+    assert.match(selector, /^html\[data-hd-pm-shopping-theme=["']dark["']\]\[data-hd-pm-shopping-site=["']taobao["']\]\[data-hd-pm-shopping-page=["']taobao-search["']\]/, selector)
+    for (const feature of features) seen.add(feature)
+  }
+  assert.ok(searchRules > 0, 'Search-specific CSS must be present')
+  assert.deepEqual([...seen].sort(), [...searchFeatures].sort())
+})
+
+test('all approved shopping hosts default to browser-following dark and revert in light mode', async () => {
+  for (const hostname of shoppingHosts) {
     const p = page({ hostname })
     p.start()
     await p.flush()
     assert.equal(p.root.getAttribute(themeAttribute), 'dark', hostname)
-    assert.equal(p.root.getAttribute('data-hd-pm-shopping-site'), hostname.includes('taobao') ? 'taobao' : 'goofish')
+    assert.equal(p.root.getAttribute('data-hd-pm-shopping-site'), expectedSite(hostname))
+    assert.equal(p.root.getAttribute(pageAttribute), expectedPage(hostname))
     p.systemTheme(false)
     await p.flush()
     assert.equal(p.root.getAttribute(themeAttribute), null, hostname)
@@ -223,27 +258,33 @@ test('both shopping sites default to browser-following dark and revert in light 
 })
 
 test('a light browser never forces dark mode and a late document root is handled after loading', async () => {
-  const light = page({ dark: false })
-  light.start()
-  await light.flush()
-  assert.equal(light.root.getAttribute(themeAttribute), null)
-  const p = page()
-  p.document.documentElement = null
-  p.document.head = null
-  p.document.readyState = 'loading'
-  p.start()
-  await p.flush()
-  assert.equal(p.root.getAttribute(themeAttribute), null)
-  p.document.documentElement = p.root
-  p.document.head = p.head
-  p.document.readyState = 'interactive'
-  p.event('DOMContentLoaded')
-  await p.flush()
-  assert.equal(p.root.getAttribute(themeAttribute), 'dark')
+  for (const hostname of shoppingHosts) {
+    const light = page({ hostname, dark: false })
+    light.start()
+    await light.flush()
+    assert.equal(light.root.getAttribute(themeAttribute), null)
+    assert.equal(light.root.getAttribute(pageAttribute), expectedPage(hostname))
+    const p = page({ hostname })
+    p.document.documentElement = null
+    p.document.head = null
+    p.document.readyState = 'loading'
+    p.start()
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), null)
+    p.document.documentElement = p.root
+    p.document.head = p.head
+    p.document.readyState = 'interactive'
+    p.event('DOMContentLoaded')
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), 'dark')
+    assert.equal(p.root.getAttribute(pageAttribute), expectedPage(hostname))
+  }
 })
 
 test('each shopping site uses its own preference without interference from the other site', async () => {
-  for (const [hostname, key, other] of [['www.taobao.com', 'taobaoTheme', 'goofishTheme'], ['www.goofish.com', 'goofishTheme', 'taobaoTheme']]) {
+  for (const hostname of shoppingHosts) {
+    const key = preferenceKey(hostname)
+    const other = key === 'taobaoTheme' ? 'goofishTheme' : 'taobaoTheme'
     const p = page({ hostname, stored: { websiteAppearance: { [key]: 'off', [other]: 'system' } } })
     p.start()
     await p.flush()
@@ -261,21 +302,61 @@ test('each shopping site uses its own preference without interference from the o
   }
 })
 
+test('all 20 account menu routes share taobaoTheme, account scope, and the top-frame boundary', async () => {
+  assert.equal(accountRoutes.length, 20)
+  assert.equal(new Set(accountRoutes.map(({ url }) => url)).size, 20)
+  assert.deepEqual([...new Set(accountRoutes.map(({ url }) => new URL(url).hostname))].sort(), [...accountHosts].sort())
+  for (const { label, url } of accountRoutes) {
+    const p = page({ url, stored: { websiteAppearance: { taobaoTheme: 'off', goofishTheme: 'system' } } })
+    p.start()
+    await p.flush()
+    assert.equal(p.root.getAttribute('data-hd-pm-shopping-site'), 'taobao', label)
+    assert.equal(p.root.getAttribute(pageAttribute), 'taobao-account', label)
+    assert.equal(p.root.getAttribute(themeAttribute), null, label)
+    p.storageChange({ websiteAppearance: { newValue: { taobaoTheme: 'system', goofishTheme: 'off' } } })
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), 'dark', label)
+    p.systemTheme(false)
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), null, label)
+    p.systemTheme(true)
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), 'dark', label)
+    p.storageChange({ websiteAppearance: { newValue: { taobaoTheme: 'off', goofishTheme: 'system' } } })
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), null, label)
+    assert.equal(p.root.getAttribute(pageAttribute), 'taobao-account', label)
+    assert.deepEqual(p.storageWrites, [], label)
+    assert.deepEqual(p.cookieWrites, [], label)
+
+    const embedded = page({ url, subframe: true })
+    const before = embedded.mutations.length
+    embedded.start()
+    await embedded.flush()
+    assert.equal(embedded.mutations.length, before, label)
+    assert.deepEqual(embedded.reads, [], label)
+  }
+})
+
 test('shopping settings ignore unrelated storage updates and reject stale startup reads', async () => {
-  const p = page({ deferStorage: true })
-  p.start()
-  p.storageChange({ websiteAppearance: { newValue: { taobaoTheme: 'off' } } })
-  await p.flush()
-  p.resolveStorage({ websiteAppearance: { taobaoTheme: 'system' } })
-  await p.flush()
-  assert.equal(p.root.getAttribute(themeAttribute), null)
-  p.storageChange({ websiteAppearance: { newValue: { taobaoTheme: 'system' } } }, 'sync')
-  p.storageChange({ file: { newValue: { vault: 'fixture' } } })
-  await p.flush()
-  assert.equal(p.root.getAttribute(themeAttribute), null)
-  p.storageChange({ websiteAppearance: { newValue: { taobaoTheme: 'system' } } })
-  await p.flush()
-  assert.equal(p.root.getAttribute(themeAttribute), 'dark')
+  for (const hostname of shoppingHosts) {
+    const key = preferenceKey(hostname)
+    const p = page({ hostname, deferStorage: true })
+    p.start()
+    p.storageChange({ websiteAppearance: { newValue: { [key]: 'off' } } })
+    await p.flush()
+    p.resolveStorage({ websiteAppearance: { [key]: 'system' } })
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), null)
+    p.storageChange({ websiteAppearance: { newValue: { [key]: 'system' } } }, 'sync')
+    p.storageChange({ file: { newValue: { vault: 'fixture' } } })
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), null)
+    p.storageChange({ websiteAppearance: { newValue: { [key]: 'system' } } })
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), 'dark')
+    assert.equal(p.root.getAttribute(pageAttribute), expectedPage(hostname))
+  }
 })
 
 test('missing or malformed shopping preferences fall back to system mode', async () => {
@@ -290,67 +371,104 @@ test('missing or malformed shopping preferences fall back to system mode', async
 })
 
 test('unavailable preference storage leaves the shopping site appearance alone', async () => {
-  const p = page({ rejectStorage: true })
-  p.start()
-  await p.flush()
-  assert.equal(p.root.getAttribute(themeAttribute), null)
-  assert.deepEqual(p.cookieWrites, [])
-  assert.deepEqual(p.storageWrites, [])
+  for (const hostname of shoppingHosts) {
+    const p = page({ hostname, rejectStorage: true })
+    p.start()
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), null)
+    assert.deepEqual(p.cookieWrites, [])
+    assert.deepEqual(p.storageWrites, [])
+  }
 })
 
 test('shopping host boundaries reject unadapted subdomains, lookalikes, unrelated sites, and embedded frames', async () => {
   for (const options of [
     { hostname: 'taobao.com.evil.test' }, { hostname: 'eviltaobao.com' },
     { hostname: 'goofish.com.evil.test' }, { hostname: 'evilgoofish.com' },
-    { hostname: 'item.taobao.com' }, { hostname: 'login.taobao.com' }, { hostname: 'pay.taobao.com' },
-    { hostname: 'cart.taobao.com' }, { hostname: 'buy.taobao.com' }, { hostname: 'sub.www.taobao.com' },
+    { hostname: 's.taobao.com.evil.test' }, { hostname: 's.eviltaobao.com' }, { hostname: 's.taobao.evil.test' },
+    { hostname: 'sub.s.taobao.com' }, { hostname: 'www.s.taobao.com' }, { hostname: 's.goofish.com' },
+    { hostname: 'item.taobao.com.evil.test' }, { hostname: 'sub.item.taobao.com' },
+    { hostname: 'detail.tmall.com.evil.test' }, { hostname: 'sub.detail.tmall.com' }, { hostname: 'detail.evil-tmall.com' },
+    { hostname: 'tmall.com' }, { hostname: 'www.tmall.com' }, { hostname: 'login.taobao.com' }, { hostname: 'pay.taobao.com' },
+    { hostname: 'buy.taobao.com' }, { hostname: 'sub.www.taobao.com' },
     { hostname: 'item.goofish.com' }, { hostname: 'login.goofish.com' }, { hostname: 'pay.goofish.com' },
     { hostname: 'passport.goofish.com' }, { hostname: 'sub.www.goofish.com' },
     { hostname: 'example.test' }, { hostname: 'alipay.com' },
-    { hostname: 'www.taobao.com', subframe: true }, { hostname: 'www.goofish.com', subframe: true },
+    ...accountHosts.flatMap((hostname) => [
+      { hostname: `${hostname}.evil.test` }, { hostname: `sub.${hostname}` },
+      { hostname: hostname.replace('.taobao.com', '.eviltaobao.com') },
+    ]),
+    ...shoppingHosts.map((hostname) => ({ hostname, subframe: true })),
   ]) {
     const p = page(options)
     const before = p.mutations.length
     p.start()
     await p.flush()
     assert.equal(p.root.getAttribute(themeAttribute), null)
+    assert.equal(p.root.getAttribute('data-hd-pm-shopping-site'), null)
+    assert.equal(p.root.getAttribute(pageAttribute), null)
     assert.equal(p.mutations.length, before)
     assert.deepEqual(p.reads, [])
   }
 })
 
 test('dark mode and disabling preserve original site theme, media, and payment content', async () => {
-  const p = page()
-  p.root.className = 'site-native-theme'
-  p.root.setAttribute('data-theme', 'native-value')
-  p.root.style.colorScheme = 'light'
-  const image = new p.Element('img')
-  image.setAttribute('src', 'https://fixture.test/product.png')
-  const video = new p.Element('video')
-  video.setAttribute('src', 'https://fixture.test/product.mp4')
-  const payment = new p.Element('iframe')
-  payment.setAttribute('src', 'https://www.alipay.com/payment-fixture')
-  p.body.append(image, video, payment)
-  p.start()
-  await p.flush()
-  assert.equal(p.root.getAttribute(themeAttribute), 'dark')
-  p.storageChange({ websiteAppearance: { newValue: { taobaoTheme: 'off' } } })
-  await p.flush()
-  assert.equal(p.root.getAttribute(themeAttribute), null)
-  assert.equal(p.root.className, 'site-native-theme')
-  assert.equal(p.root.getAttribute('data-theme'), 'native-value')
-  assert.equal(p.root.style.colorScheme, 'light')
-  for (const element of [image, video, payment]) {
-    assert.equal(element.isConnected, true)
-    assert.equal(element.style.filter, undefined)
-    assert.equal(element.style.background, undefined)
+  for (const hostname of shoppingHosts) {
+    const p = page({ hostname })
+    p.root.className = 'site-native-theme'
+    p.root.setAttribute('data-theme', 'native-value')
+    p.root.style.colorScheme = 'light'
+    const image = new p.Element('img')
+    image.setAttribute('src', 'https://fixture.test/product.png')
+    const video = new p.Element('video')
+    video.setAttribute('src', 'https://fixture.test/product.mp4')
+    const payment = new p.Element('iframe')
+    payment.setAttribute('src', 'https://www.alipay.com/payment-fixture')
+    p.body.append(image, video, payment)
+    p.start()
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), 'dark')
+    p.storageChange({ websiteAppearance: { newValue: { [preferenceKey(hostname)]: 'off' } } })
+    await p.flush()
+    assert.equal(p.root.getAttribute(themeAttribute), null)
+    assert.equal(p.root.className, 'site-native-theme')
+    assert.equal(p.root.getAttribute('data-theme'), 'native-value')
+    assert.equal(p.root.style.colorScheme, 'light')
+    for (const element of [image, video, payment]) {
+      assert.equal(element.isConnected, true)
+      assert.equal(element.style.filter, undefined)
+      assert.equal(element.style.background, undefined)
+    }
+    assert.equal(image.getAttribute('src'), 'https://fixture.test/product.png')
+    assert.equal(video.getAttribute('src'), 'https://fixture.test/product.mp4')
+    assert.equal(payment.getAttribute('src'), 'https://www.alipay.com/payment-fixture')
+    assert.deepEqual(p.cookieWrites, [])
+    assert.deepEqual(p.storageWrites, [])
+    const settled = p.mutations.length
+    for (let i = 0; i < 5; i++) { p.event('pageshow'); await p.flush() }
+    assert.equal(p.mutations.length, settled, 'Repeated lifecycle events must settle without redundant DOM writes')
   }
-  assert.equal(image.getAttribute('src'), 'https://fixture.test/product.png')
-  assert.equal(video.getAttribute('src'), 'https://fixture.test/product.mp4')
-  assert.equal(payment.getAttribute('src'), 'https://www.alipay.com/payment-fixture')
-  assert.deepEqual(p.cookieWrites, [])
-  assert.deepEqual(p.storageWrites, [])
-  const settled = p.mutations.length
-  for (let i = 0; i < 5; i++) { p.event('pageshow'); await p.flush() }
-  assert.equal(p.mutations.length, settled, 'Repeated lifecycle events must settle without redundant DOM writes')
+})
+
+
+test('product detail CSS is confined to detail pages and preserves product media', async () => {
+  const css = await readFile(new URL('content/shopping-detail-theme.css', extensionRoot), 'utf8')
+  const selectors = cssRuleSelectors(css)
+  assert.ok(selectors.length > 0)
+  for (const selector of selectors) {
+    assert.match(selector, /^html\[data-hd-pm-shopping-theme=["']dark["']\]\[data-hd-pm-shopping-site=["']taobao["']\]\[data-hd-pm-shopping-page=["']taobao-detail["']\]/, selector)
+  }
+  assert.doesNotMatch(css, /\b(?:filter|backdrop-filter)\s*:/i)
+})
+
+test('account component and adaptive CSS require dark mode, Taobao, and account scope for every rule', async () => {
+  for (const filename of ['shopping-account-theme.css', 'shopping-account-adaptive.css']) {
+    const css = await readFile(new URL(`content/${filename}`, extensionRoot), 'utf8')
+    const selectors = cssRuleSelectors(css)
+    assert.ok(selectors.length > 0, filename)
+    for (const selector of selectors) {
+      assert.match(selector, /^html\[data-hd-pm-shopping-theme=["']dark["']\]\[data-hd-pm-shopping-site=["']taobao["']\]\[data-hd-pm-shopping-page=["']taobao-account["']\]/, `${filename}: ${selector}`)
+    }
+    assert.doesNotMatch(css, /\b(?:filter|backdrop-filter)\s*:/i, filename)
+  }
 })

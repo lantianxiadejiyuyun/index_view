@@ -221,7 +221,7 @@ test('all appearance controls are available outside vault sections and have four
   assert.ok(optionsHtml.indexOf('</section>', optionsHtml.indexOf('<section id="main"')) < optionsHtml.indexOf('<section id="website-appearance-section"'))
   assert.doesNotMatch(section, /class="[^"\n]*hidden/)
   for (const id of controlIds) assert.ok(section.includes(`id="${id}"`))
-  for (const label of ['淘宝深色模式', '闲鱼深色模式', '隐藏 Bilibili 广告拦截提示', '网站外观设置无效']) {
+  for (const label of ['淘宝 / 天猫深色模式', '闲鱼深色模式', '隐藏 Bilibili 广告拦截提示', '网站外观设置无效']) {
     for (const locale of ['en', 'zh-TW', 'ja']) assert.notEqual(tForLocale(locale, label), label)
     assert.equal(tForLocale('zh-CN', label), label)
   }

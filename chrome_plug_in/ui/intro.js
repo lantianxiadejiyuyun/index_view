@@ -21,7 +21,7 @@ export async function initIntro({ surface = 'popup' } = {}) {
       <h2 id="intro-title" data-i18n="把密码，留在你手里">把密码，留在你手里</h2>
       <p id="intro-description" data-i18n="从保存到填充，让每一次登录都更从容。">从保存到填充，让每一次登录都更从容。</p>
       <div class="intro-features">
-        <div class="intro-feature"><span class="feature-number">01</span><div><h3 data-i18n="本机加密保存">本机加密保存</h3><p data-i18n="用一个主密码守护账号，密钥只在解锁时留在内存。">用一个主密码守护账号，密钥只在解锁时留在内存。</p></div></div>
+        <div class="intro-feature"><span class="feature-number">01</span><div><h3 data-i18n="本机加密保存">本机加密保存</h3><p data-i18n="用一个主密码守护账号。默认仅在解锁时将密钥保留于内存；开启永久关闭自动上锁后，会在本机保存恢复密钥。">用一个主密码守护账号。默认仅在解锁时将密钥保留于内存；开启永久关闭自动上锁后，会在本机保存恢复密钥。</p></div></div>
         <div class="intro-feature"><span class="feature-number">02</span><div><h3 data-i18n="匹配网站，一键填充">匹配网站，一键填充</h3><p data-i18n="保存网站与账号，在登录表单旁选择要填入的账号。">保存网站与账号，在登录表单旁选择要填入的账号。</p></div></div>
         <div class="intro-feature"><span class="feature-number">03</span><div><h3 data-i18n="同步，由你决定">同步，由你决定</h3><p data-i18n="仅在本机使用，或连接自己的服务器同步密文。">仅在本机使用，或连接自己的服务器同步密文。</p></div></div>
       </div>

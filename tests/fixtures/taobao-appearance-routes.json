@@ -1,0 +1,82 @@
+[
+  {
+    "label": "我的淘宝",
+    "url": "https://i.taobao.com/my_itaobao"
+  },
+  {
+    "label": "我的购物车",
+    "url": "https://cart.taobao.com/cart.htm"
+  },
+  {
+    "label": "我的拍卖",
+    "url": "https://item-paimai.taobao.com/myauctions/myAuctions"
+  },
+  {
+    "label": "官方集运",
+    "url": "https://i.taobao.com/my_itaobao/consolidation"
+  },
+  {
+    "label": "我的卡券包",
+    "url": "https://i.taobao.com/my_itaobao/coupon"
+  },
+  {
+    "label": "宝贝收藏",
+    "url": "https://i.taobao.com/my_itaobao/itao-tool/collect"
+  },
+  {
+    "label": "关注店铺",
+    "url": "https://i.taobao.com/my_itaobao/subscription"
+  },
+  {
+    "label": "我的足迹",
+    "url": "https://i.taobao.com/my_itaobao/itao-tool/footMark"
+  },
+  {
+    "label": "购买过的店铺",
+    "url": "https://i.taobao.com/my_itaobao/boughtshops"
+  },
+  {
+    "label": "全部发票",
+    "url": "https://i.taobao.com/my_itaobao/invoice"
+  },
+  {
+    "label": "批量开票",
+    "url": "https://i.taobao.com/my_itaobao/pricelist/batchInvoice"
+  },
+  {
+    "label": "评价管理",
+    "url": "https://rate.taobao.com/myRate.htm"
+  },
+  {
+    "label": "退款管理",
+    "url": "https://refund2.taobao.com/dispute/buyerDisputeList.htm"
+  },
+  {
+    "label": "投诉管理",
+    "url": "https://rights.taobao.com/complaint/buyerList.htm"
+  },
+  {
+    "label": "举报管理",
+    "url": "https://jubao.taobao.com/"
+  },
+  {
+    "label": "我的报价单",
+    "url": "https://i.taobao.com/my_itaobao/pricelist"
+  },
+  {
+    "label": "先采后付",
+    "url": "https://i.taobao.com/my_itaobao/payLater"
+  },
+  {
+    "label": "我的合同",
+    "url": "https://i.taobao.com/my_itaobao/myContract"
+  },
+  {
+    "label": "采购报表",
+    "url": "https://i.taobao.com/my_itaobao/purchaseReport"
+  },
+  {
+    "label": "已买到的宝贝",
+    "url": "https://buyertrade.taobao.com/trade/itemlist/list_bought_items.htm"
+  }
+]

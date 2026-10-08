@@ -1,0 +1,160 @@
+/* Account-area neutral components only. The next-icestark navigation structure
+ * comes from the supplied real menu markup. Standard next-* component names are
+ * verified against the public @alifd/next 1.27.21 distribution; next-icestark-* is
+ * its namespaced shell counterpart. Authenticated business pages were not read.
+ * All rules require the account-page marker. Media, embedded documents, colored
+ * status text, primary/warning buttons and checked controls retain native colors.
+ * Container foregrounds are handled by the adaptive script, so it can recover
+ * native inherited text when a child has a bright branded background.
+ */
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-icestark-menu,
+  .next-icestark-menu-sub-menu,
+  .next-icestark-nav,
+  .next-menu,
+  .next-menu-sub-menu,
+  .next-nav,
+  .next-card,
+  .next-card-head,
+  .next-card-body,
+  .next-dialog,
+  .next-dialog-header,
+  .next-dialog-body,
+  .next-dialog-footer,
+  .next-balloon,
+  .next-select-menu,
+  .next-table,
+  .next-table-body,
+  .next-icestark-card,
+  .next-icestark-card-head,
+  .next-icestark-card-body,
+  .next-icestark-dialog,
+  .next-icestark-dialog-header,
+  .next-icestark-dialog-body,
+  .next-icestark-dialog-footer,
+  .next-icestark-balloon,
+  .next-icestark-select-menu,
+  .next-icestark-table,
+  .next-icestark-table-body
+) {
+  background-color: var(--hd-pm-shopping-surface) !important;
+  border-color: var(--hd-pm-shopping-border) !important;
+}
+
+/* Menu text selectors stop at the link itself: badges inside a link keep their
+ * own status color. Highlighted rows retain the site's orange theme token. */
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-icestark-menu-item:not(.next-icestark-selected):not(.next-icestark-disabled),
+  .next-menu-item:not(.next-selected):not(.next-disabled)
+) {
+  background-color: transparent !important;
+}
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-icestark-menu-item:not(.next-icestark-selected):not(.next-icestark-disabled) > .next-icestark-menu-item-inner > .next-icestark-menu-item-text,
+  .next-icestark-menu-item:not(.next-icestark-selected):not(.next-icestark-disabled) > .next-icestark-menu-item-inner > .next-icestark-menu-item-text > a,
+  .next-menu-item:not(.next-selected):not(.next-disabled) > .next-menu-item-inner > .next-menu-item-text,
+  .next-menu-item:not(.next-selected):not(.next-disabled) > .next-menu-item-inner > .next-menu-item-text > a
+) {
+  color: var(--hd-pm-shopping-text) !important;
+}
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-icestark-menu-item:not(.next-icestark-disabled):hover,
+  .next-menu-item:not(.next-disabled):hover
+) {
+  background-color: var(--hd-pm-shopping-hover) !important;
+}
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-icestark-menu-item.next-icestark-selected,
+  .next-menu-item.next-selected
+) {
+  background-color: var(--hd-pm-shopping-raised) !important;
+  color: var(--tbpc-primary-theme-color, #ff5000) !important;
+}
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-icestark-menu-item.next-icestark-selected > .next-icestark-menu-item-inner > .next-icestark-menu-item-text,
+  .next-icestark-menu-item.next-icestark-selected > .next-icestark-menu-item-inner > .next-icestark-menu-item-text > a,
+  .next-menu-item.next-selected > .next-menu-item-inner > .next-menu-item-text,
+  .next-menu-item.next-selected > .next-menu-item-inner > .next-menu-item-text > a
+) {
+  color: var(--tbpc-primary-theme-color, #ff5000) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-table th,
+  .next-table-header,
+  .next-icestark-table th,
+  .next-icestark-table-header
+) {
+  background-color: var(--hd-pm-shopping-raised) !important;
+  border-color: var(--hd-pm-shopping-border) !important;
+}
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-table td,
+  .next-icestark-table td,
+  .next-card-head,
+  .next-icestark-card-head,
+  .next-tabs-bar,
+  .next-icestark-tabs-bar
+) {
+  border-color: var(--hd-pm-shopping-border) !important;
+}
+
+/* Neutral field chrome is recolored without removing error/success borders or
+ * changing the colors of primary, warning and danger actions. */
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-input,
+  .next-select-single,
+  .next-select-multiple,
+  .next-icestark-input,
+  .next-icestark-select-single,
+  .next-icestark-select-multiple
+) {
+  background-color: var(--hd-pm-shopping-raised) !important;
+}
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-input,
+  .next-select-single,
+  .next-select-multiple,
+  .next-icestark-input,
+  .next-icestark-select-single,
+  .next-icestark-select-multiple
+):not(.next-error):not(.next-warning):not(.next-success):not(.next-icestark-error):not(.next-icestark-warning):not(.next-icestark-success) {
+  border-color: var(--hd-pm-shopping-border) !important;
+}
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-input input:not(:disabled),
+  .next-input textarea:not(:disabled),
+  .next-select-values,
+  .next-icestark-input input:not(:disabled),
+  .next-icestark-input textarea:not(:disabled),
+  .next-icestark-select-values
+) {
+  background-color: transparent !important;
+  color: var(--hd-pm-shopping-text) !important;
+}
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-btn.next-btn-normal:not(.next-btn-warning):not(.next-btn-primary):not(.disabled):not(.next-disabled):not([disabled]),
+  .next-icestark-btn.next-icestark-btn-normal:not(.next-icestark-btn-warning):not(.next-icestark-btn-primary):not(.disabled):not(.next-icestark-disabled):not([disabled])
+) {
+  background-color: var(--hd-pm-shopping-raised) !important;
+  color: var(--hd-pm-shopping-text) !important;
+  border-color: var(--hd-pm-shopping-border) !important;
+}
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-card-title,
+  .next-icestark-card-title,
+  .next-checkbox-wrapper:not(.disabled):not(.next-disabled) .next-checkbox-label,
+  .next-radio-wrapper:not(.disabled):not(.next-disabled) .next-radio-label,
+  .next-icestark-checkbox-wrapper:not(.disabled):not(.next-icestark-disabled) .next-icestark-checkbox-label,
+  .next-icestark-radio-wrapper:not(.disabled):not(.next-icestark-disabled) .next-icestark-radio-label
+) {
+  color: var(--hd-pm-shopping-text) !important;
+}
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] :is(
+  .next-form-item-label,
+  .next-icestark-form-item-label,
+  .next-card-subtitle,
+  .next-icestark-card-subtitle
+) {
+  color: var(--hd-pm-shopping-muted) !important;
+}

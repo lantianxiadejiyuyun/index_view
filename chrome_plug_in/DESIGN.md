@@ -1,4 +1,4 @@
-# 密码管理器设计说明（v0.7.0）
+# 密码管理器设计说明（v0.8.0）
 
 ## 数据与密钥
 
@@ -92,7 +92,7 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 
 ### 三站网站外观与 Bilibili 提示隐藏
 
-0.6.0 引入独立的「网站外观」分区与 Bilibili 官方主题适配；0.7.0 新增淘宝、闲鱼深色样式和 Bilibili 广告拦截提示隐藏。分区与导航入口位于密码库解锁控制区之外。`websiteAppearance` 是 `chrome.storage.local` 的独立键，包含以下偏好：
+0.6.0 引入独立的「网站外观」分区与 Bilibili 官方主题适配；0.7.0 新增淘宝、闲鱼深色样式和 Bilibili 广告拦截提示隐藏；0.8.0 补充淘宝搜索、淘宝 / 天猫商品详情和个人中心菜单的全部页面入口。分区与导航入口位于密码库解锁控制区之外。`websiteAppearance` 是 `chrome.storage.local` 的独立键，包含以下偏好：
 
 | 字段 | 有效值 | 默认值 |
 | --- | --- | --- |
@@ -111,7 +111,7 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 
 该偏好不属于密码库的 `settings`、明文保险库或密文文件，不参与备份与服务器同步，也不依赖主密码、恢复密钥、后台会话或密码库是否已经创建、解锁。网页外观切换不会触发解锁或密码数据处理。
 
-所有外观 content script 仅在顶层网页运行；Bilibili 限定 `bilibili.com` 及其子域名，购物站仅限定 `taobao.com`、`www.taobao.com`、`goofish.com`、`www.goofish.com` 四个主机，不适配 `login`、`item`、`pay` 等其他子站。清单限定上述站点且关闭 `all_frames`，脚本再次检查域名和 `window.top`。内容脚本只读取 `websiteAppearance`，监听本机偏好变化及 `matchMedia('(prefers-color-scheme: dark)')`。浏览器浅色/深色指的是网页可读取的配色偏好，不保证与工具栏皮肤一致。
+所有外观 content script 仅在顶层网页运行；Bilibili 限定 `bilibili.com` 及其子域名。购物站限定首页、搜索、详情五个主机（`taobao.com`、`www.taobao.com`、`s.taobao.com`、`item.taobao.com`、`detail.tmall.com`）、八个个人中心业务主机（`i.taobao.com`、`cart.taobao.com`、`buyertrade.taobao.com`、`item-paimai.taobao.com`、`rate.taobao.com`、`refund2.taobao.com`、`rights.taobao.com`、`jubao.taobao.com`），以及 `goofish.com`、`www.goofish.com`，共 15 个精确主机，不扩展到其他子域。清单关闭 `all_frames`，脚本再次检查域名和 `window.top`。主题控制脚本只读取 `websiteAppearance`，监听本机偏好变化及 `matchMedia('(prefers-color-scheme: dark)')`。浏览器浅色/深色指的是网页可读取的配色偏好，不保证与工具栏皮肤一致。
 
 `content/bilibili-theme.js` 在隔离世界把 `dark`、`light` 或 `off` 写入根节点的专用主题属性。`content/bilibili-theme-page.js` 在 MAIN 世界读取该属性，调用可识别的 Bilibili 官方主题控制器，或切换已存在的官方主题样式表。MAIN 脚本没有扩展 API，DOM 属性不承载凭据或保险库数据。
 
@@ -119,7 +119,9 @@ Bilibili 主题只接管具备可识别官方主题控制器或官方样式表�
 
 Bilibili 提示隐藏由独立根节点属性启用 `content/bilibili-theme.css` 中仅匹配 `.adblock-tips` 的规则，与主题模式无关。CSS 同样覆盖动态出现的提示，不删除 DOM、不改动页面其他提示；关闭开关即移除根节点标记，恢复网站的原有显示规则。
 
-`content/shopping-theme.js` 在上述四个主站主机为淘宝和闲鱼选择各自偏好，只有 `system` 且浏览器偏好深色时才设置专用的根节点深色属性。`content/shopping-theme.css` 使用该属性和站点标记限定站点专用样式，调整背景、文字、边框、卡片和表单；浅色偏好或 `off` 会撤去扩展深色样式，不写入网站自身的主题存储。嵌入的第三方登录与支付框不接管；图片、视频和二维码保留原色，不使用整页反色滤镜或远程代码。
+`content/shopping-theme.js` 为淘宝和闲鱼选择各自偏好，只有 `system` 且浏览器偏好深色时才设置专用的根节点深色属性。搜索、商品详情、个人中心主机分别设置 `data-hd-pm-shopping-page` 为 `taobao-search`、`taobao-detail`、`taobao-account`，均共用 `taobaoTheme`。`content/shopping-theme.css` 使用深色属性和站点标记限定站点专用样式，搜索页附加规则同时要求页面标记。商品详情与个人中心分别加载 `shopping-detail-theme.css`、`shopping-account-theme.css`，各条规则均要求深色、淘宝站点和对应页面三个标记。
+
+`shopping-account-theme.js` 仅在八个个人中心主机运行，不使用扩展消息、网络或存储。它读取根节点标记与计算样式，为专用 CSS 未覆盖的中性浅色背景、边框及深色文字添加扩展自有属性，由 `shopping-account-adaptive.css` 着色；不修改原有 inline style 或表单值。动态 DOM 和 class/style 变动分批处理，不轮询全页面。品牌色背景、状态文字、媒体、二维码/验证码及带背景图片的子树保留。停止接管后 CSS 立即失效，并移除自有标记。所有外观在浅色偏好或 `off` 时恢复，不写网站主题存储，不接管第三方登录与支付框，不使用整页反色滤镜或远程代码。
 
 ## 权限
 
@@ -143,6 +145,8 @@ Bilibili 提示隐藏由独立根节点属性启用 `content/bilibili-theme.css`
 - `content/prompt.js`：页面提示与自动填充。
 - `content/bilibili-theme.js`、`content/bilibili-theme-page.js`、`content/bilibili-theme.css`：Bilibili 官方主题适配、停止接管后的恢复及广告拦截提示隐藏。
 - `content/shopping-theme.js`、`content/shopping-theme.css`：淘宝和闲鱼的浏览器配色监听与站点专用深色样式。
+- `content/shopping-detail-theme.css`：淘宝 / 天猫详情的中性商品信息、规格、评论和弹窗样式。
+- `content/shopping-account-theme.js`、`content/shopping-account-theme.css`、`content/shopping-account-adaptive.css`：个人中心中性组件和动态内容适配。
 - `popup/`、`options/`、`ui/`：界面与交互辅助。
 - `ui/i18n.js`、`ui/translations.js`、`_locales/`：界面语言、翻译词典与 Chrome 清单本地化。
 - `ui/intro.js`、`ui/server-form-cache.js`：首次介绍及非密码连接草稿。
@@ -150,6 +154,6 @@ Bilibili 提示隐藏由独立根节点属性启用 `content/bilibili-theme.css`
 - `tests/extension-*.test.mjs`、`tests/server-vault.test.mjs`：纯模块、后台会话、内容脚本、翻译完整性、语言切换、表单缓存和隔离数据库回归。
 - `scripts/test-extension-browser.mjs`：独立浏览器配置的端到端验证，包含介绍、四语界面、服务器草稿与凭据复用。
 
-在根目录运行 `pnpm test:extension` 验证扩展、三站外观、Bilibili 提示隐藏、外观设置并发合并和消息权限，以及密文接口；`node --test tests/lingxi-vault.test.mjs` 验证授权解密、撤销、版本校验和账号隔离；`pnpm test:browser` 运行可选浏览器回归，浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.7.0.zip`。
+在根目录运行 `pnpm test:extension` 验证扩展、三站外观、Bilibili 提示隐藏、外观设置并发合并和消息权限，以及密文接口；个人中心的 20 个入口回归来自 `tests/fixtures/taobao-appearance-routes.json`。`node --test tests/lingxi-vault.test.mjs` 验证授权解密、撤销、版本校验和账号隔离；`pnpm test:browser` 运行可选浏览器回归，浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.8.0.zip`。
 
 尚未实现：TOTP、Passkey、团队共享、Chrome CSV 导入、条目自动合并和网页密码自动采集保存。

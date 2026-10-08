@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
   "minimum_chrome_version": "116",
@@ -41,9 +41,9 @@
       "all_frames": false
     },
     {
-      "matches": ["*://taobao.com/*", "*://www.taobao.com/*", "*://goofish.com/*", "*://www.goofish.com/*"],
-      "js": ["content/shopping-theme.js"],
-      "css": ["content/shopping-theme.css"],
+      "matches": ["*://taobao.com/*", "*://www.taobao.com/*", "*://s.taobao.com/*", "*://item.taobao.com/*", "*://detail.tmall.com/*", "*://i.taobao.com/*", "*://cart.taobao.com/*", "*://buyertrade.taobao.com/*", "*://item-paimai.taobao.com/*", "*://rate.taobao.com/*", "*://refund2.taobao.com/*", "*://rights.taobao.com/*", "*://jubao.taobao.com/*", "*://goofish.com/*", "*://www.goofish.com/*"],
+      "js": ["content/shopping-theme.js", "content/shopping-account-theme.js"],
+      "css": ["content/shopping-theme.css", "content/shopping-detail-theme.css", "content/shopping-account-theme.css", "content/shopping-account-adaptive.css"],
       "run_at": "document_start",
       "all_frames": false
     },

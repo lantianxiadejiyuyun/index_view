@@ -2,7 +2,7 @@
 const rows = [
 ["网站外观","Website appearance","網站外觀","ウェブサイトの表示"],
 ["Bilibili 深色模式","Bilibili dark mode","Bilibili 深色模式","Bilibiliのダークモード"],
-["淘宝深色模式","Taobao dark mode","淘寶深色模式","タオバオのダークモード"],
+["淘宝 / 天猫深色模式","Taobao / Tmall dark mode","淘寶 / 天貓深色模式","タオバオ / Tmallのダークモード"],
 ["闲鱼深色模式","Goofish dark mode","閒魚深色模式","閑魚のダークモード"],
 ["隐藏 Bilibili 广告拦截提示","Hide Bilibili ad blocker notices","隱藏 Bilibili 廣告攔截提示","Bilibiliの広告ブロック通知を非表示"],
 ["网站外观设置无效","Invalid website appearance settings","網站外觀設定無效","ウェブサイトの表示設定が無効です"],

@@ -185,7 +185,7 @@ test('localize changes only marked application text and attributes, leaving user
 test('manifest metadata resolves in every Chrome locale and has no new permissions', async () => {
   const manifest = JSON.parse(await fs.readFile(path.join(ROOT, 'chrome_plug_in/manifest.json'), 'utf8'))
   assert.equal(manifest.default_locale, 'en')
-  assert.equal(manifest.version, '0.7.0')
+  assert.equal(manifest.version, '0.8.0')
   assert.deepEqual(manifest.permissions, ['storage', 'alarms', 'idle', 'clipboardWrite'])
   const references = [...JSON.stringify(manifest).matchAll(/__MSG_(\w+)__/g)].map((match) => match[1])
   for (const locale of ['en', 'zh_CN', 'zh_TW', 'ja']) {

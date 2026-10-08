@@ -1,0 +1,46 @@
+/* Only markers owned by shopping-account-theme.js. Removing the root dark
+ * marker restores the site's original declarations without changing inline CSS. */
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body[data-hd-pm-account-bg="surface"],
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body [data-hd-pm-account-bg="surface"] {
+  background-color: #1d2127 !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body[data-hd-pm-account-bg="raised"],
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body [data-hd-pm-account-bg="raised"] {
+  background-color: #252b33 !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body[data-hd-pm-account-fg="text"],
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body [data-hd-pm-account-fg="text"] {
+  color: #e9edf2 !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body[data-hd-pm-account-fg="muted"],
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body [data-hd-pm-account-fg="muted"] {
+  color: #b3bdc9 !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body[data-hd-pm-account-fg="ink"],
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body [data-hd-pm-account-fg="ink"] {
+  color: #1f1f1f !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body[data-hd-pm-account-border-top],
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body [data-hd-pm-account-border-top] {
+  border-top-color: #3c4653 !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body[data-hd-pm-account-border-right],
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body [data-hd-pm-account-border-right] {
+  border-right-color: #3c4653 !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body[data-hd-pm-account-border-bottom],
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body [data-hd-pm-account-border-bottom] {
+  border-bottom-color: #3c4653 !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body[data-hd-pm-account-border-left],
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"][data-hd-pm-shopping-page="taobao-account"] body [data-hd-pm-account-border-left] {
+  border-left-color: #3c4653 !important;
+}
