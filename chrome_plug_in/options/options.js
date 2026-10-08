@@ -4,6 +4,7 @@ import { t, initI18n, localize, onLanguageChange, getLanguagePreference, getLoca
 import { initIntro } from '../ui/intro.js'
 import { createServerFormCache, selectServerForm } from '../ui/server-form-cache.js'
 import { normalizeServer } from '../src/sync.js'
+import { normalizeAppearance } from '../src/appearance.js'
 
 await initI18n()
 localize()
@@ -12,65 +13,112 @@ await initIntro({ surface: 'options' })
 
 // Website appearance belongs to this browser, independently of the vault and sync.
 function initWebsiteAppearance() {
-  const select = $('bilibili-theme')
+  const controls = [
+    ['bilibiliTheme', $('bilibili-theme')],
+    ['taobaoTheme', $('taobao-theme')],
+    ['goofishTheme', $('goofish-theme')],
+    ['hideBilibiliAdblockTips', $('hide-bilibili-adblock-tips')],
+  ]
   const message = $('website-appearance-msg')
-  const themeFrom = (value) => value && typeof value === 'object' && !Array.isArray(value)
-    && Object.hasOwn(value, 'bilibiliTheme') && value.bilibiliTheme === 'off' ? 'off' : 'system'
-  let confirmedTheme = 'system'
-  let loading = true
+  const retry = $('website-appearance-retry')
+  let confirmed = null
+  let available = false
+  let loading = false
   let saving = false
   let revision = 0
   let messageKey = ''
   let messageKind = ''
+  let messageError = null
   const render = () => {
-    select.value = confirmedTheme
-    select.disabled = loading || saving
+    for (const [key, control] of controls) {
+      if (control.type === 'checkbox') {
+        control.checked = confirmed?.[key] ?? false
+        control.indeterminate = confirmed === null
+      } else control.value = confirmed?.[key] ?? ''
+      control.disabled = !available || loading || saving
+    }
+    retry.classList.toggle('hidden', available)
+    retry.disabled = loading || saving
   }
-  const showMessage = (key = '', kind = '') => {
+  const renderMessage = () => setMsg(message, messageKey ? t(messageKey, {
+    reason: messageError ? translateError(messageError).replace(/\s+/g, ' ').slice(0, 160) : '',
+  }) : '', messageKind)
+  const showMessage = (key = '', kind = '', error = null) => {
     messageKey = key
     messageKind = kind
-    setMsg(message, key ? t(key) : '', kind)
+    messageError = error
+    renderMessage()
   }
-  onLanguageChange(() => setMsg(message, messageKey ? t(messageKey) : '', messageKind))
+  const connectionError = (error) => {
+    if (error?.code === 'unknown_message') return '扩展后台尚未支持网站外观设置。请在扩展管理页重新加载扩展，再关闭并重新打开设置页。'
+    const reason = error?.message ?? ''
+    if (/extension context invalidated/i.test(reason)) return '此设置页的扩展连接已失效。请在扩展管理页重新加载扩展，再关闭并重新打开设置页。'
+    if (error?.code === 'worker_unavailable' || /receiving end does not exist|could not establish connection|message (?:port|channel).*closed|channel closed before a response/i.test(reason)) {
+      return '未收到扩展后台的响应。请在扩展管理页重新加载扩展，再关闭并重新打开设置页。'
+    }
+    return ''
+  }
+  const request = async (type, payload) => {
+    let timer
+    try {
+      return await Promise.race([
+        send(type, payload),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(Object.assign(new Error('扩展后台未响应'), { code: 'worker_unavailable' })), 10000)
+        }),
+      ])
+    } finally { clearTimeout(timer) }
+  }
+  onLanguageChange(renderMessage)
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || !Object.hasOwn(changes, 'websiteAppearance')) return
     revision += 1
-    confirmedTheme = themeFrom(changes.websiteAppearance.newValue)
+    confirmed = normalizeAppearance(changes.websiteAppearance.newValue)
     render()
-    showMessage()
+    if (available) showMessage()
   })
-  select.addEventListener('change', async () => {
-    if (loading || saving) { render(); return }
-    const nextTheme = select.value === 'off' ? 'off' : 'system'
+  for (const [key, control] of controls) control.addEventListener('change', async () => {
+    if (!available || loading || saving) { render(); return }
+    const nextValue = control.type === 'checkbox' ? control.checked : control.value === 'off' ? 'off' : 'system'
     const startedAt = revision
     saving = true
-    select.disabled = true
+    for (const [, peer] of controls) peer.disabled = true
     showMessage()
     try {
-      await chrome.storage.local.set({ websiteAppearance: { bilibiliTheme: nextTheme } })
-      if (startedAt === revision) confirmedTheme = nextTheme
+      const saved = await request('appearance-set', { appearance: { [key]: nextValue } })
+      if (startedAt === revision) confirmed = normalizeAppearance(saved)
       showMessage('已保存', 'ok')
-    } catch {
+    } catch (error) {
       // Keep the last confirmed value, including newer changes from another settings page.
-      showMessage('网站外观保存失败，请重试。', 'bad')
+      const recovery = connectionError(error)
+      if (recovery) available = false
+      showMessage(recovery || '网站外观保存失败：{reason}', 'bad', error)
     } finally {
       saving = false
       render()
     }
   })
-  render()
-  const startedAt = revision
-  void (async () => {
+  async function load() {
+    if (loading || saving) return
+    loading = true
+    available = false
+    const startedAt = revision
+    showMessage('读取中…')
+    render()
     try {
-      const stored = await chrome.storage.local.get('websiteAppearance')
-      if (startedAt === revision) confirmedTheme = themeFrom(stored.websiteAppearance)
-    } catch {
-      if (startedAt === revision) showMessage('无法读取网站外观设置。', 'bad')
+      const stored = await request('appearance-get')
+      if (startedAt === revision) confirmed = normalizeAppearance(stored)
+      available = true
+      showMessage()
+    } catch (error) {
+      showMessage(connectionError(error) || '无法读取网站外观设置：{reason}', 'bad', error)
     } finally {
       loading = false
       render()
     }
-  })()
+  }
+  retry.addEventListener('click', load)
+  void load()
 }
 
 let hasVault = false

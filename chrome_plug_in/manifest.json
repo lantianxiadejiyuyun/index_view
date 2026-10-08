@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extensionName__",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "__MSG_extensionDescription__",
   "default_locale": "en",
   "minimum_chrome_version": "116",
@@ -36,6 +36,14 @@
     {
       "matches": ["*://*.bilibili.com/*"],
       "js": ["content/bilibili-theme.js"],
+      "css": ["content/bilibili-theme.css"],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": ["*://taobao.com/*", "*://www.taobao.com/*", "*://goofish.com/*", "*://www.goofish.com/*"],
+      "js": ["content/shopping-theme.js"],
+      "css": ["content/shopping-theme.css"],
       "run_at": "document_start",
       "all_frames": false
     },

@@ -200,6 +200,12 @@ button.icon-button { width: 30px; height: 30px; padding: 0; border-radius: 50%; 
 .settings-checklist { padding: 7px 0; }
 .settings-checklist .check { padding: 12px 0; border-bottom: 1px solid var(--line); margin: 0; }
 .settings-checklist .check:last-child { border-bottom: 0; }
+.website-appearance-settings { display: grid; gap: 20px; margin-top: 18px; }
+.website-appearance-row { min-width: 0; }
+.website-appearance-row label { margin-bottom: 8px; }
+.website-appearance-toggle { padding-top: 18px; border-top: 1px solid var(--line); }
+.website-appearance-toggle .check { margin: 0; align-items: flex-start; line-height: 1.65; }
+.website-appearance-toggle input { margin-top: 3px; }
 .persistent-unlock-setting { margin-bottom: 22px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 11px; background: var(--soft); }
 .persistent-unlock-setting .check { margin: 0 0 8px; font-size: 14px; font-weight: 650; }
 .persistent-unlock-setting p { margin-left: 24px; line-height: 1.7; }

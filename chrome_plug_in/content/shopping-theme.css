@@ -1,0 +1,501 @@
+/* Neutral shopping surfaces only. Removing the root marker restores site CSS.
+ * The public Taobao/Goofish styles use CSS modules; match their readable prefixes
+ * instead of deployment hashes. Product media, QR codes and brand colors remain
+ * under site control. In particular, Taobao's mixed-use white token is preserved.
+ */
+html[data-hd-pm-shopping-theme="dark"]:is([data-hd-pm-shopping-site="taobao"], [data-hd-pm-shopping-site="goofish"]) {
+  color-scheme: dark !important;
+  --hd-pm-shopping-bg: #14171b;
+  --hd-pm-shopping-surface: #1d2127;
+  --hd-pm-shopping-raised: #252b33;
+  --hd-pm-shopping-hover: #303741;
+  --hd-pm-shopping-text: #e9edf2;
+  --hd-pm-shopping-muted: #b3bdc9;
+  --hd-pm-shopping-faint: #949fad;
+  --hd-pm-shopping-border: #3c4653;
+  background-color: var(--hd-pm-shopping-bg) !important;
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"]:is([data-hd-pm-shopping-site="taobao"], [data-hd-pm-shopping-site="goofish"]) body {
+  background-color: var(--hd-pm-shopping-bg) !important;
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+/* Taobao neutral tokens. Keep orange price/brand tokens and white-on-brand text. */
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] {
+  --tbpc-primary-color: var(--hd-pm-shopping-text) !important;
+  --tbpc-secondary-color: var(--hd-pm-shopping-muted) !important;
+  --tbpc-tertiary-color: var(--hd-pm-shopping-faint) !important;
+  --tbpc-disable-color: #788391 !important;
+  --tbpc-border-color: var(--hd-pm-shopping-border) !important;
+  --tbpc-divider-color: #333c47 !important;
+  --tbpc-bg1-color: var(--hd-pm-shopping-raised) !important;
+  --tbpc-bg2-color: var(--hd-pm-shopping-surface) !important;
+  --tbpc-bg3-color: #20262d !important;
+  --tbpc-primary-alpha-color: rgba(233, 237, 242, .92) !important;
+  --tbpc-secondary-alpha-color: rgba(233, 237, 242, .72) !important;
+  --tbpc-tertiary-alpha-color: rgba(233, 237, 242, .62) !important;
+  --tbpc-disable-alpha-color: rgba(233, 237, 242, .35) !important;
+  --tbpc-border-alpha-color: rgba(233, 237, 242, .22) !important;
+  --tbpc-divider-alpha-color: rgba(233, 237, 242, .14) !important;
+  --tbpc-bg1-alpha-color: rgba(233, 237, 242, .08) !important;
+  --tbpc-bg2-alpha-color: rgba(233, 237, 242, .06) !important;
+  --tbpc-bg3-alpha-color: rgba(233, 237, 242, .04) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  #ice-container,
+  .wrap-fixed .top,
+  .site-nav,
+  .site-nav .site-nav-bd
+) {
+  background-color: var(--hd-pm-shopping-bg) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .tb-pick-content-item,
+  .business-entry-item-card-item-bg,
+  #toast-coin-wrapper .tb-toast-container,
+  .tips-content,
+  .site-nav .site-nav-menu-bd-panel,
+  .site-nav .mini-cart .mini-cart-ft,
+  .hyper-popup-content,
+  .hyper-center-popup-content,
+  .search-suggest,
+  .search-suggest-menu,
+  .search-suggest-tabs,
+  .search-suggest-menu-history-item,
+  .search-suggest-menu-history-item-line-end,
+  .image-search-context-wrapper,
+  .image-search-context-wrapper-inner,
+  .image-search-success-wrapper,
+  .dislike-reason-item,
+  [data-sg-type="tab"],
+  [class*="channelDrawerContainer--"],
+  [class*="tabWrapper--"],
+  [class*="sec-cate-container--"],
+  [class*="scrollArrow--"]
+) {
+  background-color: var(--hd-pm-shopping-surface) !important;
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+/* Search/category popovers have orange outlines; retain those brand borders. */
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .site-nav .site-nav-menu-bd-panel,
+  .search-suggest:not(:hover),
+  .search-suggest-menu-history-item:not(:hover),
+  .search-suggest-menu-history-item-line-end,
+  [class*="scrollArrow--"]
+) {
+  border-color: var(--hd-pm-shopping-border) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .search-suggest-combobox > input,
+  [data-sg-type="combobox"] > input
+) {
+  background-color: var(--hd-pm-shopping-surface) !important;
+  color: var(--hd-pm-shopping-text) !important;
+  caret-color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .search-suggest-combobox > input,
+  [data-sg-type="combobox"] > input
+)::placeholder {
+  color: var(--hd-pm-shopping-faint) !important;
+  opacity: 1 !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .tb-pick-content-item .info-wrapper-title,
+  .tb-pick-resource-card .resource-card-title,
+  .bbs-entry-bbs-card-content .bbs-entry-bbs-card-content-desc:not(:hover),
+  #toast-coin-wrapper .tb-toast-text,
+  .tips-content .tip-text,
+  .tb-pick-header-tab:not(.tb-pick-header-tab-selected):not(:hover) .tb-pick-header-tab-title,
+  .newnav .nav-all-channel,
+  .search-suggest-menu-item,
+  .search-suggest-menu-item .text,
+  .search-suggest-menu-history-item:not(:hover),
+  .search-suggest-tabs-tab:not(:hover),
+  .image-search-context-header-wrapper .title-text,
+  .dislike-reason-item,
+  [class*="channelDrawerHeaderTitle--"],
+  [class*="tabSectionTitle--"],
+  [class*="channelName--"],
+  [class*="tabItem--"]:not([class*="active--"]):not(:hover),
+  [class*="client-home-taocoin-enter-title--"]
+) {
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .tb-pick-content-item .month-sale,
+  .tb-pick-content-item:not(:hover) .search-same-item-btn,
+  .tb-pick-resource-card .resource-card-subtitle,
+  .tb-pick-header-tab:not(.tb-pick-header-tab-selected):not(:hover) .tb-pick-header-tab-subtitle,
+  .search-suggest-menu-history-title,
+  .search-suggest-menu-history-clean-text:not(:hover),
+  .search-suggest-menu-content .titleWrapper .title,
+  .search-suggest-menu-content .fresh-text,
+  [class*="channelDrawerHeaderSubtitle--"],
+  [class*="emptyState--"]
+) {
+  color: var(--hd-pm-shopping-muted) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .site-nav .site-nav-menu-hd a:not(.h):not(:hover),
+  .site-nav .site-nav-menu-bd-panel a:not(.h):not(:hover),
+  .site-nav .site-nav-menu-hd,
+  .site-nav .site-nav-pipe
+) {
+  color: var(--hd-pm-shopping-muted) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .site-nav .site-nav-menu-hover .site-nav-menu-hd,
+  .site-nav .site-nav-menu-bd-panel a:hover,
+  .search-suggest-menu-item:hover,
+  .search-suggest-menu-item.active,
+  .search-suggest-menu-history-item-line-end:hover,
+  [class*="service2024--"] [class*="cate--"]:hover,
+  [class*="scrollArrow--"]:hover,
+  [class*="channelItem--"]:hover
+) {
+  background-color: var(--hd-pm-shopping-hover) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  [class*="ClientHomeTaocoinEnter--"],
+  .tb-pick-header-tab:not(.tb-pick-header-tab-selected):not(:hover) .tb-pick-header-tab-icon,
+  [class*="channelImageFallback--"]
+) {
+  background-color: var(--hd-pm-shopping-raised) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .tb-pick-header-tab-devider,
+  .search-suggest-menu-history-clean-divider
+) {
+  background-color: var(--hd-pm-shopping-border) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] [class*="scrollShadowLeft--"] {
+  background-image: linear-gradient(90deg, var(--hd-pm-shopping-surface) 44%, transparent) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] [class*="scrollShadowRight--"] {
+  background-image: linear-gradient(270deg, var(--hd-pm-shopping-surface) 44%, transparent) !important;
+}
+
+/* Homepage activity cards receive inline cardColor values. Replace their solid
+ * surfaces while retaining cardBackground images and the separate promo banner. */
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .business-entry-bbs-card,
+  .business-entry-live-card,
+  .business-entry-item-card,
+  .tbh-user,
+  .tb-pick-header,
+  .smallTabListWrapper
+) {
+  background-color: var(--hd-pm-shopping-surface) !important;
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .business-entry-title-card-top-title,
+  .business-entry-live-card-top-title,
+  .business-entry-item-card-content-title,
+  .newnav .nav-bd .txt-nav,
+  .newnav .nav-bd .txt-nav > a,
+  [class*="HomeTaocoinEnter--"] [class*="title--"],
+  .smallTabWrapper:not(.smallTabWrapperSelected):not(:hover) .smallTabTitle,
+  .tab-actions .toggle-text
+) {
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .tb-pick-header,
+  .smallTabListWrapper
+) .arrow-container-left {
+  background-image: linear-gradient(90deg, var(--hd-pm-shopping-surface), var(--hd-pm-shopping-surface) 70%, transparent) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .tb-pick-header,
+  .smallTabListWrapper
+) .arrow-container-right {
+  background-image: linear-gradient(270deg, var(--hd-pm-shopping-surface), var(--hd-pm-shopping-surface) 70%, transparent) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .tb-pick-header,
+  .smallTabListWrapper
+) :is(.tab-arrow, .action-button) {
+  background-color: var(--hd-pm-shopping-raised) !important;
+  border-color: var(--hd-pm-shopping-border) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .tb-pick-header,
+  .smallTabListWrapper
+) :is(.tab-arrow, .action-button):hover {
+  background-color: var(--hd-pm-shopping-hover) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] .smallTabWrapperSelected {
+  background-color: rgba(255, 80, 0, .14) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .smallTabDivider,
+  .tbh-user .member-bd .divider
+) {
+  background-color: var(--hd-pm-shopping-border) !important;
+}
+
+/* The account panel is lazy-loaded (official CSS chunks 643 and 954).
+ * Target its neutral subpanels and text, preserving avatars, payment buttons,
+ * shopping badges, prices, privilege logos and external-link artwork. */
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] .tbh-user {
+  /* The outer seasonal decoration is a panel background, not account media. */
+  background-image: none !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] .tbh-user :is(
+  .personal-exclusive-rights,
+  .user-order-main,
+  .user-order-skeleton,
+  .user-orderMain
+) {
+  background-color: var(--hd-pm-shopping-raised) !important;
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] .tbh-user :is(
+  .member-nick-info strong,
+  .member-bd .btn-open:not(:hover),
+  .member-bd .btn-register:not(:hover),
+  .login-guide-title,
+  .mytao-content a:not(:hover),
+  .mytao-content a:not(:hover) p,
+  .member-login a:not(:hover),
+  .member-login a:not(:hover) strong,
+  .user-externalLink-item:not(:hover) .user-externalLink-item-text,
+  .right-item:not(:hover) .right-item-detail,
+  .right-item:not(:hover) .right-item-desc,
+  .user-order-title,
+  .user-order .order-detail h2
+) {
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] .tbh-user :is(
+  .member-login-days,
+  .login-guide-desc,
+  .user-tip p
+) {
+  color: var(--hd-pm-shopping-muted) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .tb-toolkit-new,
+  .tb-toolkit-new .toolkit-item-pop,
+  .tb-toolkit-new .toolkit-item-more-btn-list,
+  #J_SiteNavLoginPanel .site-nav-user-privilege
+) {
+  background-color: var(--hd-pm-shopping-surface) !important;
+  border-color: var(--hd-pm-shopping-border) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .tb-toolkit-new .toolkit-label,
+  .tb-toolkit-new .tk-theme-option,
+  .tb-toolkit-new .tk-qr-tips,
+  #J_SiteNavLoginPanel .site-nav-user-nick,
+  #J_SiteNavLoginPanel .site-nav-user-operate,
+  #J_SiteNavLoginPanel .site-nav-user-operate a:not(:hover),
+  #J_SiteNavLoginPanel .level-info:not(.super),
+  #J_SiteNavLoginPanel .site-nav-user-privilege:not(:hover)
+) {
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] :is(
+  .tb-toolkit-new .toolkit-item-new:hover,
+  .tb-toolkit-new .tk-theme-option:hover
+) {
+  background-color: var(--hd-pm-shopping-hover) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="taobao"] .tb-toolkit-new .back-btn::before {
+  background-color: var(--hd-pm-shopping-surface) !important;
+}
+
+/* Goofish leaves its yellow header and CTA colors intact. Its neutral page
+ * components mostly use fixed colors rather than application-wide tokens. */
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] {
+  --bg-primary: var(--hd-pm-shopping-bg) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] :is(#ice-container, #content) {
+  background-color: var(--hd-pm-shopping-bg) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] :is(
+  #header,
+  [class*="header-container--"]
+) {
+  color: var(--header-font-color, #1f1f1f) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] :is(
+  main,
+  [class*="feeds-item-wrap--"],
+  [class*="search-history--"],
+  [class*="cate-item-sub-container--"],
+  [class*="hover-code-container--"],
+  [class*="hover-code-container-withsub--"],
+  [class*="sidebar-container--"],
+  [class*="service-panel--"],
+  [class*="service-header--"],
+  [class*="announcementWrap--"],
+  [class*="loginCon--"],
+  [class*="user-order-container--"] [class*="select--"],
+  [class*="select--"][class*="container--"]
+) {
+  background-color: var(--hd-pm-shopping-surface) !important;
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] [class*="feeds-item-wrap--"]:hover {
+  border-color: var(--hd-pm-shopping-raised) !important;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .35) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] :is(
+  [class*="cate-card-container--"],
+  [class*="mid-card-container--"],
+  [class*="right-card-main--"],
+  [class*="hover-container--"] .ant-popover-inner,
+  [class*="refresh--"]
+) {
+  background-color: var(--hd-pm-shopping-raised) !important;
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] [class*="search-input--"] {
+  --search-input-border-color: var(--hd-pm-shopping-border) !important;
+  background-color: var(--hd-pm-shopping-surface) !important;
+  color: var(--hd-pm-shopping-text) !important;
+  caret-color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] [class*="search-input--"]::placeholder {
+  color: var(--hd-pm-shopping-faint) !important;
+  opacity: 1 !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] :is(
+  [class*="main-title--"],
+  [class*="empty-title--"],
+  [class*="feeds-list-empty--"],
+  [class*="option--"],
+  [class*="hover-code-title--"],
+  [class*="sidebar-item-text-container--"],
+  [class*="service-title--"],
+  [class*="announcementWrap--"] [class*="text--"],
+  [class*="select--"] [class*="text--"],
+  [class*="hover-container--"] [class*="nick--"],
+  [class*="hover-container--"] [class*="label--"],
+  [class*="cate-item-container--"] > a:not(:hover),
+  [class*="cate-item-title-divider--"],
+  [class*="cate-item-sub-item-cate2--"] > a:not(:hover)
+) {
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] :is(
+  [class*="seller-text--"],
+  [class*="cpv--"],
+  [class*="origin-price--"],
+  [class*="history-label--"],
+  [class*="hover-code-subtitle--"],
+  [class*="qr-modal-sub-title--"],
+  [class*="hover-container--"] [class*="follow--"],
+  [class*="hover-container--"] [class*="value--"],
+  [class*="cate-item-sub-item-cate3--"] > a:not(:hover)
+) {
+  color: var(--hd-pm-shopping-muted) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] :is(
+  [class*="history-item--"]:hover,
+  [class*="history-item--"][class*="active--"],
+  [class*="option--"]:hover,
+  [class*="closeIconBg--"]:hover,
+  [class*="service-close--"]:hover
+) {
+  background-color: var(--hd-pm-shopping-hover) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] [class*="hover-container--"] [class*="item--"] {
+  background-color: var(--hd-pm-shopping-surface) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] [class*="filter-tab--"]:not([class*="filter-tab-checked--"]):not(:hover):not(:active) {
+  background-color: var(--hd-pm-shopping-raised) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] [class*="filter-tab--"]:not([class*="filter-tab-checked--"]):not(:hover):not(:active) :is(
+  [class*="filter-tab-normal--"],
+  [class*="filter-tab-bold--"]
+) {
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] [class*="cpv-line--"] {
+  background-color: var(--hd-pm-shopping-border) !important;
+}
+
+/* Portalled Ant Design containers used by Goofish. Leave masks, image preview
+ * media, QR canvases, primary buttons and cross-origin frames untouched. */
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] :is(
+  .ant-modal-content,
+  .ant-modal-header,
+  .ant-popover-inner,
+  .ant-dropdown-menu,
+  .ant-select-dropdown,
+  .ant-message-notice-content
+) {
+  background-color: var(--hd-pm-shopping-surface) !important;
+  color: var(--hd-pm-shopping-text) !important;
+  border-color: var(--hd-pm-shopping-border) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] :is(
+  .ant-modal-title,
+  .ant-modal-close,
+  .ant-popover-title,
+  .ant-popover-inner-content,
+  .ant-dropdown-menu-item,
+  .ant-select-item
+) {
+  color: var(--hd-pm-shopping-text) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] :is(
+  .ant-dropdown-menu-item:hover,
+  .ant-select-item-option-active
+) {
+  background-color: var(--hd-pm-shopping-hover) !important;
+}
+
+html[data-hd-pm-shopping-theme="dark"][data-hd-pm-shopping-site="goofish"] .ant-popover-arrow {
+  --antd-arrow-background-color: var(--hd-pm-shopping-surface) !important;
+}

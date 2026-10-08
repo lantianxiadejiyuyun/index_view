@@ -6,8 +6,10 @@ import vm from 'node:vm'
 const extensionRoot = new URL('../chrome_plug_in/', import.meta.url)
 const isolatedSource = await readFile(new URL('content/bilibili-theme.js', extensionRoot), 'utf8')
 const pageSource = await readFile(new URL('content/bilibili-theme-page.js', extensionRoot), 'utf8')
+const appearanceCss = await readFile(new URL('content/bilibili-theme.css', extensionRoot), 'utf8')
 const manifest = JSON.parse(await readFile(new URL('manifest.json', extensionRoot), 'utf8'))
 const preferenceAttribute = 'data-hd-pm-bilibili-theme'
+const hideTipsAttribute = 'data-hd-pm-hide-bilibili-tips'
 const officialLight = 'https://s1.hdslb.com/bfs/static/jinkela/long/laputa-css/light.css'
 const officialDark = officialLight.replace('/light.css', '/dark.css')
 
@@ -304,6 +306,70 @@ test('missing settings default to system theme, stay live, and access only appea
   assert.equal(p.root.getAttribute(preferenceAttribute), 'light')
   assert.deepEqual(p.reads.map((keys) => typeof keys === 'string' ? [keys] : Array.from(keys)), [['websiteAppearance']])
   assert.deepEqual(p.writes, [])
+})
+
+test('adblock notices are hidden by default independently of the Bilibili theme', async () => {
+  const p = page({ stored: { websiteAppearance: { bilibiliTheme: 'off' } } })
+  const notice = new p.Element('div')
+  notice.className = 'adblock-tips'
+  notice.textContent = 'Adblock notice fixture'
+  const ordinary = new p.Element('div')
+  ordinary.className = 'ordinary-tips'
+  p.body.append(notice, ordinary)
+  p.startIsolated()
+  await p.flush()
+  assert.equal(p.root.getAttribute(preferenceAttribute), 'off')
+  assert.equal(p.root.getAttribute(hideTipsAttribute), 'true')
+  const entry = manifest.content_scripts.find((entry) => entry.js.includes('content/bilibili-theme.js'))
+  assert.ok(entry.css.includes('content/bilibili-theme.css'))
+  assert.match(appearanceCss, /html\[data-hd-pm-hide-bilibili-tips=["']?true["']?\]\s+\.adblock-tips\s*\{\s*display:\s*none\s*!important\s*;?\s*\}/, 'The notice rule must be gated by the dedicated setting')
+  assert.equal(notice.isConnected, true, 'Hiding must preserve the original notice DOM')
+  assert.equal(notice.textContent, 'Adblock notice fixture')
+  assert.equal(ordinary.isConnected, true)
+  assert.equal(notice.style.display, undefined, 'Do not leave inline styles that survive disabling')
+  assert.equal(p.cookieWrites.length, 0)
+  assert.deepEqual(p.writes, [])
+})
+
+test('the adblock notice preference changes live and remains independent from system theme changes', async () => {
+  const p = page({ stored: { websiteAppearance: { bilibiliTheme: 'system', hideBilibiliAdblockTips: false } } })
+  p.startIsolated()
+  await p.flush()
+  assert.equal(p.root.getAttribute(hideTipsAttribute), null)
+  assert.equal(p.root.getAttribute(preferenceAttribute), 'dark')
+  p.storageChange({ websiteAppearance: { newValue: { bilibiliTheme: 'off', hideBilibiliAdblockTips: true } } })
+  await p.flush()
+  assert.equal(p.root.getAttribute(hideTipsAttribute), 'true')
+  p.systemTheme(false)
+  await p.flush()
+  assert.equal(p.root.getAttribute(hideTipsAttribute), 'true')
+  assert.equal(p.root.getAttribute(preferenceAttribute), 'off')
+  const lateNotice = new p.Element('div')
+  lateNotice.className = 'adblock-tips'
+  p.body.append(lateNotice)
+  await p.flush()
+  assert.equal(lateNotice.isConnected, true, 'Dynamically mounted notices remain reversible')
+  p.storageChange({ websiteAppearance: { newValue: { bilibiliTheme: 'off', hideBilibiliAdblockTips: false } } })
+  await p.flush()
+  assert.equal(p.root.getAttribute(hideTipsAttribute), null)
+  assert.equal(lateNotice.isConnected, true)
+  assert.equal(lateNotice.style.display, undefined)
+  assert.equal(p.root.getAttribute(preferenceAttribute), 'off')
+  p.storageChange({ websiteAppearance: { newValue: undefined } })
+  await p.flush()
+  assert.equal(p.root.getAttribute(hideTipsAttribute), 'true')
+  assert.equal(p.root.getAttribute(preferenceAttribute), 'light')
+})
+
+test('a late initial settings result cannot re-enable adblock notice hiding after it was disabled', async () => {
+  const p = page({ deferStorage: true })
+  p.startIsolated()
+  p.storageChange({ websiteAppearance: { newValue: { bilibiliTheme: 'off', hideBilibiliAdblockTips: false } } })
+  await p.flush()
+  p.resolveStorage({ websiteAppearance: { bilibiliTheme: 'system', hideBilibiliAdblockTips: true } })
+  await p.flush()
+  assert.equal(p.root.getAttribute(hideTipsAttribute), null)
+  assert.equal(p.root.getAttribute(preferenceAttribute), 'off')
 })
 
 test('local preference changes toggle system following and ignore unrelated storage areas and keys', async () => {

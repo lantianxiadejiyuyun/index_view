@@ -6,7 +6,7 @@ export async function send(type, payload = {}) {
   const res = await chrome.runtime.sendMessage({ type, ...payload })
   if (!res?.ok) {
     const err = new Error(res?.error ?? t('操作失败，请重试'))
-    Object.assign(err, { badPassword: res?.badPassword, code: res?.code, status: res?.status })
+    Object.assign(err, { badPassword: res?.badPassword, code: res?.code ?? (!res ? 'worker_unavailable' : undefined), status: res?.status })
     throw err
   }
   return res.data

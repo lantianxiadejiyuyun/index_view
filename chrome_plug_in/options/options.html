@@ -157,13 +157,38 @@
   </section>
   <section id="website-appearance-section" class="card">
     <div class="section-heading"><span class="section-index" aria-hidden="true">05</span><h2 data-i18n="网站外观">网站外观</h2></div>
-    <label for="bilibili-theme" data-i18n="Bilibili 深色模式">Bilibili 深色模式</label>
-    <select id="bilibili-theme" aria-describedby="bilibili-theme-help">
-      <option value="system" data-i18n="跟随浏览器">跟随浏览器</option>
-      <option value="off" data-i18n="不接管">不接管</option>
-    </select>
     <p id="bilibili-theme-help" class="muted small" data-i18n="随浏览器向网页提供的深浅色偏好切换，仅当前设备生效。">随浏览器向网页提供的深浅色偏好切换，仅当前设备生效。</p>
+    <div class="website-appearance-settings">
+      <div class="website-appearance-row">
+        <label for="bilibili-theme" data-i18n="Bilibili 深色模式">Bilibili 深色模式</label>
+        <select id="bilibili-theme" aria-describedby="bilibili-theme-help" disabled>
+          <option value="" disabled data-i18n="尚未读取设置">尚未读取设置</option>
+          <option value="system" data-i18n="跟随浏览器">跟随浏览器</option>
+          <option value="off" data-i18n="不接管">不接管</option>
+        </select>
+      </div>
+      <div class="website-appearance-row">
+        <label for="taobao-theme" data-i18n="淘宝深色模式">淘宝深色模式</label>
+        <select id="taobao-theme" aria-describedby="bilibili-theme-help" disabled>
+          <option value="" disabled data-i18n="尚未读取设置">尚未读取设置</option>
+          <option value="system" data-i18n="跟随浏览器">跟随浏览器</option>
+          <option value="off" data-i18n="不接管">不接管</option>
+        </select>
+      </div>
+      <div class="website-appearance-row">
+        <label for="goofish-theme" data-i18n="闲鱼深色模式">闲鱼深色模式</label>
+        <select id="goofish-theme" aria-describedby="bilibili-theme-help" disabled>
+          <option value="" disabled data-i18n="尚未读取设置">尚未读取设置</option>
+          <option value="system" data-i18n="跟随浏览器">跟随浏览器</option>
+          <option value="off" data-i18n="不接管">不接管</option>
+        </select>
+      </div>
+      <div class="website-appearance-toggle">
+        <label class="check"><input id="hide-bilibili-adblock-tips" type="checkbox" disabled /><span data-i18n="隐藏 Bilibili 广告拦截提示">隐藏 Bilibili 广告拦截提示</span></label>
+      </div>
+    </div>
     <div id="website-appearance-msg" class="msg" role="status"></div>
+    <div class="actions"><button id="website-appearance-retry" disabled data-i18n="重新读取设置">重新读取设置</button></div>
   </section>
   <section id="danger-section" class="card settings-danger hidden">
     <div class="section-heading"><span class="section-index" aria-hidden="true">!</span><h2 data-i18n="清除本机数据">清除本机数据</h2></div>

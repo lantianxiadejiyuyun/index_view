@@ -1,4 +1,4 @@
-# 密码管理器设计说明（v0.6.0）
+# 密码管理器设计说明（v0.7.0）
 
 ## 数据与密钥
 
@@ -23,7 +23,7 @@
 
 ## 消息边界和填充
 
-扩展页面可管理密码库。密码填充 content script 只可调用 match/fill；后台按 Chrome 提供的 sender.url 校验目标，不相信消息自报的网址。网站外观脚本不调用这些消息，也不读取密码库。
+扩展页面可管理密码库。密码填充 content script 只可调用 match/fill；后台按 Chrome 提供的 sender.url 校验目标，不相信消息自报的网址。网站外观脚本不调用这些消息，也不读取密码库。外观设置的 `appearance-get` / `appearance-set` 仅允许扩展自身 ID 且 URL 属于本扩展的可信页面调用，网页内容脚本无权调用。
 
 match 仅返回标题、用户名和条目 ID 等摘要。只有用户触发的 fill 返回密码。默认精确匹配主机名，不猜测公共后缀或注册域；显式 `*.example.com` 只匹配子域。
 
@@ -90,22 +90,43 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 
 `ui/intro.js` 提供首次使用介绍，可从弹窗或设置页重新打开。关闭时保存 `introSeenVersion`；使用原生 dialog 支持键盘关闭、焦点恢复和语言更新。介绍状态与密码库分离，清空本机数据时一起清除。
 
-### Bilibili 网站外观
+### 三站网站外观与 Bilibili 提示隐藏
 
-0.6.0 在设置页新增独立的「网站外观」分区及导航入口，位于密码库解锁控制区之外。`websiteAppearance` 是 `chrome.storage.local` 的独立键，值为 `{ bilibiliTheme: 'system' | 'off' }`；缺失或非法偏好回退 `system`。设置页直接读写该键，监听 `storage.onChanged` 更新其他页面，使用更新代数保护异步初始化，并在保存失败时恢复最后确认的值。
+0.6.0 引入独立的「网站外观」分区与 Bilibili 官方主题适配；0.7.0 新增淘宝、闲鱼深色样式和 Bilibili 广告拦截提示隐藏。分区与导航入口位于密码库解锁控制区之外。`websiteAppearance` 是 `chrome.storage.local` 的独立键，包含以下偏好：
+
+| 字段 | 有效值 | 默认值 |
+| --- | --- | --- |
+| `bilibiliTheme` | `system` / `off` | `system` |
+| `taobaoTheme` | `system` / `off` | `system` |
+| `goofishTheme` | `system` / `off` | `system` |
+| `hideBilibiliAdblockTips` | 布尔值 | `true` |
+
+`src/appearance.js` 归一化缺失或非法存储值，并提供独立于密码库操作的串行读写队列。设置页通过 `appearance-get` 读取归一化结果；修改控件时发送 `appearance-set` 与 `{ appearance: { 变更字段: 新值 } }`。后台先校验字段和值，再仅读取 `websiteAppearance`，合并到已有对象后保存，保留其他站点偏好和未知的未来字段。队列由后台统一持有，避免多个设置页同时读改写时丢失其他字段；单次失败不会阻塞后续请求。
+
+显式「清空本机数据」的存储清除也经过外观队列，等较早的外观写入结束后再清除，防止旧写入在清空完成后恢复先前偏好；清除失败不会阻塞队列中的后续操作。
+
+这些消息经过可信发送者校验，但不等待保险库启动恢复、不进入保险库写队列，也不读取密文或延长解锁会话。设置页监听 `storage.onChanged` 更新其他页面，使用更新代数避免旧读取或保存应答覆盖较新的设置变更，并在保存失败时恢复最后确认的值。
+
+外观控件在初始读取成功前保持禁用，不将默认值当作已读取状态。读取失败提供重试；消息保留错误代码，分别识别旧后台的 `unknown_message`、通信断连、上下文失效和 10 秒无响应，给出重载扩展并重开设置页的恢复说明。其他读写失败显示经过翻译、截短的原始原因。不会为兼容旧后台而回退到设置页直接读改写存储。
 
 该偏好不属于密码库的 `settings`、明文保险库或密文文件，不参与备份与服务器同步，也不依赖主密码、恢复密钥、后台会话或密码库是否已经创建、解锁。网页外观切换不会触发解锁或密码数据处理。
 
-`content/bilibili-theme.js` 在 Bilibili 主框架的隔离世界读取这一项偏好，并监听 `matchMedia('(prefers-color-scheme: dark)')`；只把 `dark`、`light` 或 `off` 写入根节点的专用属性。`content/bilibili-theme-page.js` 在 MAIN 世界读取该属性，调用可识别的 Bilibili 官方主题控制器，或切换已存在的官方主题样式表。MAIN 脚本没有扩展 API，DOM 属性不承载凭据或保险库数据。
+所有外观 content script 仅在顶层网页运行；Bilibili 限定 `bilibili.com` 及其子域名，购物站仅限定 `taobao.com`、`www.taobao.com`、`goofish.com`、`www.goofish.com` 四个主机，不适配 `login`、`item`、`pay` 等其他子站。清单限定上述站点且关闭 `all_frames`，脚本再次检查域名和 `window.top`。内容脚本只读取 `websiteAppearance`，监听本机偏好变化及 `matchMedia('(prefers-color-scheme: dark)')`。浏览器浅色/深色指的是网页可读取的配色偏好，不保证与工具栏皮肤一致。
 
-只接管具备可识别官方主题控制器或官方样式表的页面，其余页面保留原状；不注入远程代码、不使用整页反色滤镜，也不改变图片或视频本身的颜色。开始接管时记录本页原主题状态和网站主题偏好；收到 `off` 时恢复记录，之后保留网站自己的主题选择。浏览器深浅色偏好变化、页面控制器延迟挂载和官方主题样式变化均可触发重新应用。
+`content/bilibili-theme.js` 在隔离世界把 `dark`、`light` 或 `off` 写入根节点的专用主题属性。`content/bilibili-theme-page.js` 在 MAIN 世界读取该属性，调用可识别的 Bilibili 官方主题控制器，或切换已存在的官方主题样式表。MAIN 脚本没有扩展 API，DOM 属性不承载凭据或保险库数据。
+
+Bilibili 主题只接管具备可识别官方主题控制器或官方样式表的页面，其余页面保留原状。开始接管时记录本页原主题状态和网站主题偏好；收到 `off` 时恢复记录，之后保留网站自己的主题选择。浏览器深浅色偏好变化、页面控制器延迟挂载和官方主题样式变化均可触发重新应用。
+
+Bilibili 提示隐藏由独立根节点属性启用 `content/bilibili-theme.css` 中仅匹配 `.adblock-tips` 的规则，与主题模式无关。CSS 同样覆盖动态出现的提示，不删除 DOM、不改动页面其他提示；关闭开关即移除根节点标记，恢复网站的原有显示规则。
+
+`content/shopping-theme.js` 在上述四个主站主机为淘宝和闲鱼选择各自偏好，只有 `system` 且浏览器偏好深色时才设置专用的根节点深色属性。`content/shopping-theme.css` 使用该属性和站点标记限定站点专用样式，调整背景、文字、边框、卡片和表单；浅色偏好或 `off` 会撤去扩展深色样式，不写入网站自身的主题存储。嵌入的第三方登录与支付框不接管；图片、视频和二维码保留原色，不使用整页反色滤镜或远程代码。
 
 ## 权限
 
 | 权限 | 用途 |
 | --- | --- |
 | storage | 本机密文和设置 |
-| http/https host access | 匹配当前网站、提示/填充、Bilibili 网站外观，以及用户指定的同步服务器 |
+| http/https host access | 匹配当前网站、提示/填充、Bilibili／淘宝／闲鱼网站外观，以及用户指定的同步服务器 |
 | alarms | 自动锁定和待上传调度 |
 | idle | 系统闲置或锁屏时锁定 |
 | clipboardWrite | 用户点击复制账号或密码 |
@@ -117,9 +138,11 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 - `background.js`：消息路由、会话、持久化与同步。
 - `src/crypto.js`、`vault.js`：密码学、加密文件与条目校验。
 - `src/session-key.js`：显式开启后的本机 IndexedDB 恢复密钥存取。
+- `src/appearance.js`：独立网站外观偏好、参数校验与后台串行合并存储。
 - `src/sync.js`、`match.js`、`generator.js`：网络协议、站点匹配和密码生成。
 - `content/prompt.js`：页面提示与自动填充。
-- `content/bilibili-theme.js`、`content/bilibili-theme-page.js`：本机外观偏好与浏览器配色监听、Bilibili 官方主题适配及停止接管后的恢复。
+- `content/bilibili-theme.js`、`content/bilibili-theme-page.js`、`content/bilibili-theme.css`：Bilibili 官方主题适配、停止接管后的恢复及广告拦截提示隐藏。
+- `content/shopping-theme.js`、`content/shopping-theme.css`：淘宝和闲鱼的浏览器配色监听与站点专用深色样式。
 - `popup/`、`options/`、`ui/`：界面与交互辅助。
 - `ui/i18n.js`、`ui/translations.js`、`_locales/`：界面语言、翻译词典与 Chrome 清单本地化。
 - `ui/intro.js`、`ui/server-form-cache.js`：首次介绍及非密码连接草稿。
@@ -127,6 +150,6 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 - `tests/extension-*.test.mjs`、`tests/server-vault.test.mjs`：纯模块、后台会话、内容脚本、翻译完整性、语言切换、表单缓存和隔离数据库回归。
 - `scripts/test-extension-browser.mjs`：独立浏览器配置的端到端验证，包含介绍、四语界面、服务器草稿与凭据复用。
 
-在根目录运行 `pnpm test:extension` 验证扩展、Bilibili 外观和密文接口，`node --test tests/lingxi-vault.test.mjs` 验证授权解密、撤销、版本校验和账号隔离；`pnpm test:browser` 运行可选浏览器回归，浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.6.0.zip`。
+在根目录运行 `pnpm test:extension` 验证扩展、三站外观、Bilibili 提示隐藏、外观设置并发合并和消息权限，以及密文接口；`node --test tests/lingxi-vault.test.mjs` 验证授权解密、撤销、版本校验和账号隔离；`pnpm test:browser` 运行可选浏览器回归，浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.7.0.zip`。
 
 尚未实现：TOTP、Passkey、团队共享、Chrome CSV 导入、条目自动合并和网页密码自动采集保存。

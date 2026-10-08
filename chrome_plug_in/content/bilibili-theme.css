@@ -1,0 +1,4 @@
+/* Cosmetic notice preference only; no request blocking or player changes. */
+html[data-hd-pm-hide-bilibili-tips="true"] .adblock-tips {
+  display: none !important;
+}

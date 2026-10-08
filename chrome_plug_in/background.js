@@ -11,6 +11,7 @@ import * as sync from './src/sync.js'
 import { resolveLocale, tForLocale } from './ui/i18n.js'
 import { safeServerForm } from './ui/server-form-cache.js'
 import { readSessionKey, writeSessionKey, clearSessionKey } from './src/session-key.js'
+import { createAppearanceStore } from './src/appearance.js'
 
 // Content scripts receive a small translated dictionary instead of importing UI code
 // into a website or requesting an additional extension permission.
@@ -39,6 +40,7 @@ let lastActivity = Date.now()
 let pushTimer = null
 let work = Promise.resolve()
 let recoveryWork = Promise.resolve()
+const appearanceStore = createAppearanceStore(chrome.storage.local)
 
 const recoveryIdentity = (file) => JSON.stringify([file.kdf, file.verifier])
 function queueRecovery(task) {
@@ -102,7 +104,7 @@ async function restoreSession() {
     if (epoch === sessionEpoch) await revokeRecovery().catch(() => {})
   }
 }
-// Register event listeners synchronously below; first requests await recovery.
+// Register event listeners synchronously below; vault requests await recovery.
 const ready = restoreSession()
 
 function failure(message, code) {
@@ -662,7 +664,7 @@ const handlers = {
   },
   async 'reset-all'() {
     await doLock()
-    await chrome.storage.local.clear()
+    await appearanceStore.reset(() => chrome.storage.local.clear())
     const draftRevision = await invalidateServerForm()
     void notifyState()
     return { ok: true, draftRevision }
@@ -671,10 +673,15 @@ const handlers = {
 
 const reads = new Set(['status', 'settings-get', 'account-status', 'match', 'list', 'fill'])
 const formMessages = new Set(['server-form-get', 'server-form-save'])
+const appearanceHandlers = {
+  'appearance-get': () => appearanceStore.get(),
+  'appearance-set': ({ appearance }) => appearanceStore.set(appearance),
+}
 const interactions = new Set(['list', 'fill', 'save', 'remove', 'export', 'import', 'settings-set', 'account-connect', 'sync-push', 'sync-pull', 'change-master', 'lingxi-authorize', 'lingxi-revoke', 'lingxi-sync'])
 chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   if (msg?.type === 'hd-pm-state-changed' || msg?.type === 'hd-pm-form-draft-reset') return false
-  const handler = Object.hasOwn(handlers, msg?.type) ? handlers[msg.type] : null
+  const appearanceMessage = Object.hasOwn(appearanceHandlers, msg?.type)
+  const handler = appearanceMessage ? appearanceHandlers[msg.type] : Object.hasOwn(handlers, msg?.type) ? handlers[msg.type] : null
   const trusted = sender.id === chrome.runtime.id && typeof sender.url === 'string'
     && sender.url.startsWith(chrome.runtime.getURL(''))
   const content = sender.id === chrome.runtime.id && sender.tab && /^https?:/.test(sender.url ?? '')
@@ -685,10 +692,10 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   if (interactions.has(msg.type)) touch()
   const epoch = sessionEpoch
   const invoke = async () => { await ready; return handler(msg, sender, epoch) }
-  const result = formMessages.has(msg.type)
-    ? enqueue(invoke, null)
-    : msg.type === 'lock' ? doLock()
-      : reads.has(msg.type) ? invoke() : enqueue(invoke, epoch)
+  const result = appearanceMessage ? Promise.resolve().then(() => handler(msg))
+    : formMessages.has(msg.type) ? enqueue(invoke, null)
+      : msg.type === 'lock' ? doLock()
+        : reads.has(msg.type) ? invoke() : enqueue(invoke, epoch)
   result.then((data) => respond({ ok: true, data })).catch(async (err) => {
     let message = err?.message ?? String(err)
     // Extension pages translate source errors through their shared UI helper;
