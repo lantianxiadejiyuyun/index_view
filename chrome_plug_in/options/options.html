@@ -21,6 +21,7 @@
       <a href="#lingxi-section" data-unlocked-nav class="hidden"><span class="nav-index" aria-hidden="true">AI</span><span data-i18n="灵犀密码读取授权">灵犀密码读取授权</span></a>
       <a href="#master-section" data-unlocked-nav class="hidden"><span class="nav-index" aria-hidden="true">04</span><span data-i18n="主密码">主密码</span></a>
       <a href="#backup-section"><span class="nav-index" aria-hidden="true">05</span><span data-i18n="备份与恢复">备份与恢复</span></a>
+      <a href="#website-appearance-section"><span class="nav-index" aria-hidden="true">06</span><span data-i18n="网站外观">网站外观</span></a>
     </nav>
     <div class="sidebar-note"><span class="sidebar-dot" aria-hidden="true"></span><span data-i18n="本机加密 · 你的服务器 · 你的数据">本机加密 · 你的服务器 · 你的数据</span></div>
   </aside>
@@ -153,6 +154,16 @@
       <div><label for="import-file" data-i18n="选择 JSON 文件导入">选择 JSON 文件导入</label><input id="import-file" type="file" accept=".json,application/json" /></div>
     </div>
     <div id="io-msg" class="msg"></div>
+  </section>
+  <section id="website-appearance-section" class="card">
+    <div class="section-heading"><span class="section-index" aria-hidden="true">05</span><h2 data-i18n="网站外观">网站外观</h2></div>
+    <label for="bilibili-theme" data-i18n="Bilibili 深色模式">Bilibili 深色模式</label>
+    <select id="bilibili-theme" aria-describedby="bilibili-theme-help">
+      <option value="system" data-i18n="跟随浏览器">跟随浏览器</option>
+      <option value="off" data-i18n="不接管">不接管</option>
+    </select>
+    <p id="bilibili-theme-help" class="muted small" data-i18n="随浏览器向网页提供的深浅色偏好切换，仅当前设备生效。">随浏览器向网页提供的深浅色偏好切换，仅当前设备生效。</p>
+    <div id="website-appearance-msg" class="msg" role="status"></div>
   </section>
   <section id="danger-section" class="card settings-danger hidden">
     <div class="section-heading"><span class="section-index" aria-hidden="true">!</span><h2 data-i18n="清除本机数据">清除本机数据</h2></div>

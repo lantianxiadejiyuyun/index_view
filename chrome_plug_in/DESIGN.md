@@ -1,10 +1,10 @@
-# 密码管理器设计说明（v0.5.0）
+# 密码管理器设计说明（v0.6.0）
 
 ## 数据与密钥
 
 主密码在本机通过 PBKDF2-SHA256（600,000 次、随机 salt）派生不可导出的 AES-GCM-256 CryptoKey。密文文件 v1 包含公开 KDF 参数、独立 verifier 与 payload。每次加密使用随机 12 字节 IV。
 
-- `chrome.storage.local` 保存密文文件、行为设置、同步状态、语言偏好、介绍已读状态，以及仅含服务器地址和账号的表单草稿；不保存明文密码或派生密钥。
+- `chrome.storage.local` 保存密文文件、行为设置、同步状态、语言偏好、介绍已读状态、独立的网站外观偏好，以及仅含服务器地址和账号的表单草稿；不保存明文密码或派生密钥。
 - 解锁会话保存明文保险库和 CryptoKey。默认只保存在内存，浏览器回收后台或主动锁定后清除会话。
 - 站点同步登录凭据放在保险库的 account 字段里加密保存。access token 仅存在内存。
 - 锁定会增加会话代数；异步密钥派生、登录、同步等返回后必须再次验证会话，不得使已锁定会话复活。
@@ -23,7 +23,7 @@
 
 ## 消息边界和填充
 
-扩展页面可管理密码库。content script 只可调用 match/fill；后台按 Chrome 提供的 sender.url 校验目标，不相信消息自报的网址。
+扩展页面可管理密码库。密码填充 content script 只可调用 match/fill；后台按 Chrome 提供的 sender.url 校验目标，不相信消息自报的网址。网站外观脚本不调用这些消息，也不读取密码库。
 
 match 仅返回标题、用户名和条目 ID 等摘要。只有用户触发的 fill 返回密码。默认精确匹配主机名，不猜测公共后缀或注册域；显式 `*.example.com` 只匹配子域。
 
@@ -90,12 +90,22 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 
 `ui/intro.js` 提供首次使用介绍，可从弹窗或设置页重新打开。关闭时保存 `introSeenVersion`；使用原生 dialog 支持键盘关闭、焦点恢复和语言更新。介绍状态与密码库分离，清空本机数据时一起清除。
 
+### Bilibili 网站外观
+
+0.6.0 在设置页新增独立的「网站外观」分区及导航入口，位于密码库解锁控制区之外。`websiteAppearance` 是 `chrome.storage.local` 的独立键，值为 `{ bilibiliTheme: 'system' | 'off' }`；缺失或非法偏好回退 `system`。设置页直接读写该键，监听 `storage.onChanged` 更新其他页面，使用更新代数保护异步初始化，并在保存失败时恢复最后确认的值。
+
+该偏好不属于密码库的 `settings`、明文保险库或密文文件，不参与备份与服务器同步，也不依赖主密码、恢复密钥、后台会话或密码库是否已经创建、解锁。网页外观切换不会触发解锁或密码数据处理。
+
+`content/bilibili-theme.js` 在 Bilibili 主框架的隔离世界读取这一项偏好，并监听 `matchMedia('(prefers-color-scheme: dark)')`；只把 `dark`、`light` 或 `off` 写入根节点的专用属性。`content/bilibili-theme-page.js` 在 MAIN 世界读取该属性，调用可识别的 Bilibili 官方主题控制器，或切换已存在的官方主题样式表。MAIN 脚本没有扩展 API，DOM 属性不承载凭据或保险库数据。
+
+只接管具备可识别官方主题控制器或官方样式表的页面，其余页面保留原状；不注入远程代码、不使用整页反色滤镜，也不改变图片或视频本身的颜色。开始接管时记录本页原主题状态和网站主题偏好；收到 `off` 时恢复记录，之后保留网站自己的主题选择。浏览器深浅色偏好变化、页面控制器延迟挂载和官方主题样式变化均可触发重新应用。
+
 ## 权限
 
 | 权限 | 用途 |
 | --- | --- |
 | storage | 本机密文和设置 |
-| http/https host access | 匹配当前网站、提示/填充，以及用户指定的同步服务器 |
+| http/https host access | 匹配当前网站、提示/填充、Bilibili 网站外观，以及用户指定的同步服务器 |
 | alarms | 自动锁定和待上传调度 |
 | idle | 系统闲置或锁屏时锁定 |
 | clipboardWrite | 用户点击复制账号或密码 |
@@ -109,6 +119,7 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 - `src/session-key.js`：显式开启后的本机 IndexedDB 恢复密钥存取。
 - `src/sync.js`、`match.js`、`generator.js`：网络协议、站点匹配和密码生成。
 - `content/prompt.js`：页面提示与自动填充。
+- `content/bilibili-theme.js`、`content/bilibili-theme-page.js`：本机外观偏好与浏览器配色监听、Bilibili 官方主题适配及停止接管后的恢复。
 - `popup/`、`options/`、`ui/`：界面与交互辅助。
 - `ui/i18n.js`、`ui/translations.js`、`_locales/`：界面语言、翻译词典与 Chrome 清单本地化。
 - `ui/intro.js`、`ui/server-form-cache.js`：首次介绍及非密码连接草稿。
@@ -116,6 +127,6 @@ Chrome 清单以 `__MSG_*__` 引用 `_locales/en`、`zh_CN`、`zh_TW`、`ja` 的
 - `tests/extension-*.test.mjs`、`tests/server-vault.test.mjs`：纯模块、后台会话、内容脚本、翻译完整性、语言切换、表单缓存和隔离数据库回归。
 - `scripts/test-extension-browser.mjs`：独立浏览器配置的端到端验证，包含介绍、四语界面、服务器草稿与凭据复用。
 
-在根目录运行 `pnpm test:extension` 验证扩展和密文接口，`node --test tests/lingxi-vault.test.mjs` 验证授权解密、撤销、版本校验和账号隔离；`pnpm test:browser` 运行可选浏览器回归，浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.5.0.zip`。
+在根目录运行 `pnpm test:extension` 验证扩展、Bilibili 外观和密文接口，`node --test tests/lingxi-vault.test.mjs` 验证授权解密、撤销、版本校验和账号隔离；`pnpm test:browser` 运行可选浏览器回归，浏览器环境准备见 [README.md](README.md)。`pnpm pack:extension` 按清单版本生成 `chrome_plug_in-0.6.0.zip`。
 
 尚未实现：TOTP、Passkey、团队共享、Chrome CSV 导入、条目自动合并和网页密码自动采集保存。

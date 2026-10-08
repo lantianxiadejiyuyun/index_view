@@ -1,5 +1,11 @@
 /** Source messages stay in Simplified Chinese; values are [English, Traditional Chinese, Japanese]. */
 const rows = [
+["网站外观","Website appearance","網站外觀","ウェブサイトの表示"],
+["Bilibili 深色模式","Bilibili dark mode","Bilibili 深色模式","Bilibiliのダークモード"],
+["不接管","Do not manage","不接管","変更しない"],
+["随浏览器向网页提供的深浅色偏好切换，仅当前设备生效。","Follow the light or dark preference your browser provides to websites. Applies only to this device.","隨瀏覽器向網頁提供的深淺色偏好切換，僅目前裝置生效。","ブラウザがウェブサイトに伝えるライト・ダークの設定に合わせて切り替えます。この端末にのみ適用されます。"],
+["无法读取网站外观设置。","Could not read website appearance settings.","無法讀取網站外觀設定。","ウェブサイトの表示設定を読み込めませんでした。"],
+["网站外观保存失败，请重试。","Could not save website appearance settings. Please try again.","網站外觀儲存失敗，請重試。","ウェブサイトの表示設定を保存できませんでした。もう一度お試しください。"],
 ["关闭常开模式","Turn off persistent unlock","關閉常開模式","常時ロック解除を無効にする"],
 ["浏览器不支持保存本机恢复密钥","This browser cannot store a local recovery key","瀏覽器不支援儲存本機恢復金鑰","このブラウザは端末内の復元キーの保存に対応していません"],
 ["本机恢复密钥存储被占用，请关闭其他插件页面后重试","Local recovery key storage is busy. Close other extension pages and try again.","本機恢復金鑰儲存空間忙碌中，請關閉其他擴充功能頁面後重試","端末内の復元キーの保存先が使用中です。他の拡張機能ページを閉じて、もう一度お試しください。"],
@@ -115,9 +121,9 @@ const rows = [
   ],
   [
     "跟随浏览器",
-    "Use browser language",
+    "Follow browser",
     "跟隨瀏覽器",
-    "ブラウザの言語を使用"
+    "ブラウザに合わせる"
   ],
   [
     "简体中文",

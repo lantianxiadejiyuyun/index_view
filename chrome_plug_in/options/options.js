@@ -7,7 +7,71 @@ import { normalizeServer } from '../src/sync.js'
 
 await initI18n()
 localize()
+initWebsiteAppearance()
 await initIntro({ surface: 'options' })
+
+// Website appearance belongs to this browser, independently of the vault and sync.
+function initWebsiteAppearance() {
+  const select = $('bilibili-theme')
+  const message = $('website-appearance-msg')
+  const themeFrom = (value) => value && typeof value === 'object' && !Array.isArray(value)
+    && Object.hasOwn(value, 'bilibiliTheme') && value.bilibiliTheme === 'off' ? 'off' : 'system'
+  let confirmedTheme = 'system'
+  let loading = true
+  let saving = false
+  let revision = 0
+  let messageKey = ''
+  let messageKind = ''
+  const render = () => {
+    select.value = confirmedTheme
+    select.disabled = loading || saving
+  }
+  const showMessage = (key = '', kind = '') => {
+    messageKey = key
+    messageKind = kind
+    setMsg(message, key ? t(key) : '', kind)
+  }
+  onLanguageChange(() => setMsg(message, messageKey ? t(messageKey) : '', messageKind))
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local' || !Object.hasOwn(changes, 'websiteAppearance')) return
+    revision += 1
+    confirmedTheme = themeFrom(changes.websiteAppearance.newValue)
+    render()
+    showMessage()
+  })
+  select.addEventListener('change', async () => {
+    if (loading || saving) { render(); return }
+    const nextTheme = select.value === 'off' ? 'off' : 'system'
+    const startedAt = revision
+    saving = true
+    select.disabled = true
+    showMessage()
+    try {
+      await chrome.storage.local.set({ websiteAppearance: { bilibiliTheme: nextTheme } })
+      if (startedAt === revision) confirmedTheme = nextTheme
+      showMessage('已保存', 'ok')
+    } catch {
+      // Keep the last confirmed value, including newer changes from another settings page.
+      showMessage('网站外观保存失败，请重试。', 'bad')
+    } finally {
+      saving = false
+      render()
+    }
+  })
+  render()
+  const startedAt = revision
+  void (async () => {
+    try {
+      const stored = await chrome.storage.local.get('websiteAppearance')
+      if (startedAt === revision) confirmedTheme = themeFrom(stored.websiteAppearance)
+    } catch {
+      if (startedAt === revision) showMessage('无法读取网站外观设置。', 'bad')
+    } finally {
+      loading = false
+      render()
+    }
+  })()
+}
 
 let hasVault = false
 let wizardActive = false
